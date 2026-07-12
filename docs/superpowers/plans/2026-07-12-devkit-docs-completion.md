@@ -232,9 +232,12 @@ for example `internal/bridge/app_service.go`, `internal/capabilities/gateway.go`
 `internal/permissions/policy.go`, `internal/crypto/aead.go` and
 `internal/storage/sqlite.go`. Do not paste implementation bodies into MDX.
 
-- [ ] **Step 3: Add a related-page link**
+- [ ] **Step 3: Add available related-page links**
 
-Link to `implementation-status`, `security-controls` and `architecture-decisions`.
+Link to the existing `implementation-status` page. Defer links to
+`security-controls` and `architecture-decisions` until those pages are created
+by Tasks 4–5, so the docs site never carries a broken handoff link between
+tasks.
 
 - [ ] **Step 4: Commit contract documentation**
 
