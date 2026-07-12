@@ -53,8 +53,10 @@ go build -tags server -o bin/dev-kit-server .
 ./bin/dev-kit-server
 ```
 
-Binding mặc định là loopback `127.0.0.1:8080` (`main.go` set
-`Server.Host: "127.0.0.1"`). Với build tag `server`, `WAILS_SERVER_HOST` được
+Binding mặc định là loopback `127.0.0.1:8080`: `main.go` chỉ set
+`Server.Host: "127.0.0.1"`; port `8080` là Wails server default (xác nhận qua
+`task run:server` / `build/Taskfile.yml`). Với build tag `server`,
+`WAILS_SERVER_HOST` được
 validate qua `internal/servermode.ValidateHost` — chỉ chấp nhận blank/default
 `127.0.0.1`, `localhost`, hoặc loopback IP; public/wildcard bind bị reject tại
 startup.
@@ -93,7 +95,7 @@ DevKit lưu dữ liệu persistent trong platform config directory:
 | --- | --- |
 | macOS | `~/Library/Application Support/DevKit/` |
 | Linux | `~/.config/DevKit/` |
-| Windows | `%AppData%\DevKit\` |
+| Windows | `%AppData%\Roaming\DevKit\` (`os.UserConfigDir()` → Roaming) |
 
 File chính: `devkit.db` (SQLite). Thư mục config được tạo với permission `0700`
 (`main.go`); database file được `chmod 0600` khi mở (`internal/storage/sqlite.go`).
@@ -175,7 +177,13 @@ antivirus lock file.
 ## Verified snapshot
 
 - Checked on: 2026-07-12
+- DevKit checkout branch: `main`
 - DevKit checkout commit: `840c3e388265b51b9f9049f5a2c0f5371a2dff68`
+- Verification commands run:
+  - `git -C /Users/syuro/Workspace/dev-kit branch --show-current`
+  - `git -C /Users/syuro/Workspace/dev-kit rev-parse HEAD`
+  - `rg -n 'UserConfigDir|Server\.Host' /Users/syuro/Workspace/dev-kit/main.go`
+  - `rg -n '127\.0\.0\.1:8080' /Users/syuro/Workspace/dev-kit/build/Taskfile.yml`
 - Evidence paths: `Taskfile.yml`, `build/Taskfile.yml`, `main.go`,
   `internal/servermode/servermode.go`, `internal/storage/sqlite.go`,
   `internal/vault/service.go`, `README.md`

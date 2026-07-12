@@ -50,10 +50,14 @@ chứa crypto/vault/connection logic.
 
 **Status:** Accepted
 
-**Decision:** Phase đầu ship built-in modules (`notes`, `tools`, `database`,
-`ssh`, `vault`) như internal modules đăng ký qua `internal/modules.Registry`.
-External plugin SDK, loader, marketplace và untrusted code execution **không**
-ship cho đến khi Extension API và permission model được chứng minh ổn định.
+**Decision:** Phase đầu ship workbench modules (`notes`, `tools`, `database`,
+`ssh`) như internal modules đăng ký qua `internal/modules.Registry` trong
+`app.RegisterBuiltins`. Vault là core infrastructure — `Container.Vault`
+(`internal/vault.Service`) và capability subject `builtin.vault` (`vault:manage`,
+scope `vault`) trong container bootstrap — **không** phải entry trong module
+registry. External plugin SDK, loader, marketplace và untrusted code execution
+**không** ship cho đến khi Extension API và permission model được chứng minh ổn
+định.
 
 **Context:** `docs/architecture/devkit-architecture.md` principle #6 và #7: built-in
 modules trước, security boundaries trước marketplace. Checkout hiện tại không
@@ -249,7 +253,12 @@ local PostgreSQL/SSH test.
 ## Verified snapshot
 
 - Checked on: 2026-07-12
+- DevKit checkout branch: `main`
 - DevKit checkout commit: `840c3e388265b51b9f9049f5a2c0f5371a2dff68`
+- Verification commands run:
+  - `git -C /Users/syuro/Workspace/dev-kit branch --show-current`
+  - `git -C /Users/syuro/Workspace/dev-kit rev-parse HEAD`
+  - `rg -n 'container\.Modules\.Register|builtin\.vault' /Users/syuro/Workspace/dev-kit/internal/app/app.go /Users/syuro/Workspace/dev-kit/internal/app/container.go`
 - Primary sources: `docs/architecture/devkit-architecture.md`,
   `docs/architecture/core-foundation.md`, `main.go`,
   `internal/capabilities/gateway.go`, `internal/storage/sqlite.go`,
