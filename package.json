@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "fumadocs-mdx",
+    "types:check": "fumadocs-mdx && next typegen && tsc --noEmit"
   },
   "dependencies": {
     "fumadocs-core": "^16.11.3",
