@@ -1,0 +1,62 @@
+---
+title: Roadmap
+description: Các phase phát triển và tiêu chí hoàn thành của DevKit.
+---
+
+# Roadmap
+
+Roadmap này tách rõ phần đã có runtime trong checkout hiện tại khỏi các phase mới
+chỉ dừng ở mức design. Trạng thái dùng đúng vocabulary của
+`/dev-kit/implementation-status`; claim implementation luôn đi kèm source hoặc
+trang kiểm chứng.
+
+## Phase 0 — Architecture foundation
+
+- Status: Implemented
+- Goal: Giữ biên giới local-first đã chạy được: vault, service layer, command/module registry, và Capability Gateway làm choke point cho call nhạy cảm.
+- Evidence: `/dev-kit/implementation-status`, `/dev-kit/core-foundation`, `internal/app/service.go`, `internal/bridge/gateway.go`, `internal/capabilities/gateway.go`, `internal/modules/registry.go`.
+- Done when: Mọi call nhạy cảm đi qua `AppService.call` + Capability Gateway, module built-in đăng ký qua registry, và baseline audit/permission tiếp tục là invariant bắt buộc.
+- Dependencies: Quyết định kiến trúc trong `docs/architecture/core-foundation.md` và `docs/architecture/devkit-architecture.md`.
+- Out of scope: MCP runtime, sync runtime, external plugin runtime, marketplace.
+
+## Phase 1 — Local MVP
+
+- Status: Partial
+- Goal: Hoàn tất bộ local workflow để DevKit hữu ích hằng ngày mà chưa cần sync hay plugin bên thứ ba.
+- Evidence: `/dev-kit/implementation-status` xác nhận Vault, Notes, Tools, Database đã Implemented; SSH còn Partial; `internal/vault/service.go`, `internal/services/notes/notes.go`, `internal/services/database/database.go`, `internal/services/ssh/ssh.go`.
+- Done when: Các module local-first cốt lõi cần cho solo use đều đạt ít nhất `Implemented` trên `/dev-kit/implementation-status`, đặc biệt đóng nốt gap của SSH và bổ sung vault-item repository còn đang design-only.
+- Dependencies: Phase 0 giữ ổn định storage, crypto envelope, permission boundary, và UI shell local-first.
+- Out of scope: SaaS sync, external plugin loading, marketplace, realtime collaboration.
+
+## Phase 2 — Internal Extension API
+
+- Status: Partial
+- Goal: Nâng built-in modules từ registry hiện tại lên contract manifest/contribution/versioning rõ ràng để sau này chèn untrusted runtime mà không phải đổi kiến trúc.
+- Evidence: Runtime đã có `internal/modules/registry.go`, `frontend/src/modules/registry.ts`, `frontend/src/workbench/Workbench.tsx`; thiết kế manifest/versioning nằm ở `docs/architecture/devkit-architecture.md` mục internal modules/plugins và `docs/architecture/project-structure-and-code-rules.md` mục plugin manifest/API rules.
+- Done when: Built-in modules khai báo commands/views/permissions theo contract ổn định, có versioning cho Extension API, và contribution path của module nội bộ khớp với future plugin shape.
+- Dependencies: Phase 0 Capability Gateway + registry; quyết định “internal modules now, untrusted plugins later” trong `docs/architecture/devkit-architecture.md`.
+- Out of scope: Chạy code bên thứ ba, marketplace, signing, sandbox runtime.
+
+## Phase 3 — SaaS sync
+
+- Status: Design only
+- Goal: Thêm sync zero-knowledge như lớp tùy chọn cho multi-device personal use, không phá local-first.
+- Evidence: `/dev-kit/data-sync`, `/dev-kit/implementation-status`, `docs/architecture/devkit-architecture.md`, `docs/architecture/project-structure-and-code-rules.md`; checkout hiện chưa có `internal/sync`.
+- Done when: Có sync client/queue/conflict flow, blob mã hóa end-to-end, device/session binding, và security review chứng minh server không cần plaintext.
+- Dependencies: Local data model ổn định từ Phase 1, envelope/versioning rules từ Phase 0, và contract boundaries từ Phase 2.
+- Out of scope: Team vault, realtime collaboration, server-side plaintext search.
+
+## Phase 4–5 — Plugins and marketplace
+
+- Status: Design only
+- Goal: Mở rộng từ internal modules sang external plugins có isolation, rồi mới tới phân phối qua marketplace có kiểm soát.
+- Evidence: `/dev-kit/plugins`, `/dev-kit/implementation-status`, `docs/architecture/devkit-architecture.md`, `docs/architecture/core-foundation.md`; checkout hiện chưa có `internal/plugins` hoặc `internal/marketplace`.
+- Done when: Phase 4 có plugin runtime với lifecycle/permission/isolation rõ; Phase 5 chỉ mở khi manifest validation, signing, integrity checks, rollback, audit, và sandbox strategy đều đã thành security gate bắt buộc.
+- Dependencies: Phase 2 manifest/versioning contract, Capability Gateway policy mở rộng, và security gates trong `/dev-kit/security`.
+- Out of scope: Remote third-party loading trước khi có isolation; marketplace như một hạng mục “MVP”.
+
+## Next recommended work
+
+1. Hoàn tất local data contract còn thiếu cho vault-item repository và search sau unlock, vì đây là chỗ Phase 1 còn design-only nhưng chặn giá trị local-first: `/dev-kit/core-foundation`.
+2. Chốt contract manifest/contribution/versioning cho built-in modules trước khi bàn đến plugin runtime, để Phase 2 có API shape ổn định: `/dev-kit/plugins`.
+3. Chỉ bắt đầu sync sau khi Phase 1–2 ổn định, vì sync phụ thuộc local schema, permission boundary và zero-knowledge rules đã chốt: `/dev-kit/data-sync`.
