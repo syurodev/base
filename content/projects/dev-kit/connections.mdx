@@ -1,0 +1,28 @@
+---
+title: Connections
+description: SSH, database và profile kết nối được bảo vệ.
+---
+
+# Connections
+
+Module connections quản lý profile SSH/DB và metadata kết nối — secrets nằm trong vault.
+
+```mermaid
+flowchart TD
+  UI[Connections UI] --> API[Extension API]
+  API --> GW[Capability Gateway]
+  GW --> CONN[Connection service]
+  CONN --> VAULT[(Secret material in vault)]
+  CONN --> SESS[Session / tunnel]
+```
+
+## Phạm vi
+
+- Lưu profile, không hardcode secret trong config plaintext.
+- Mở session theo nhu cầu; đóng/cleanup rõ ràng.
+- Audit thao tác nhạy cảm (connect, reveal, copy secret).
+
+## Non-goals MVP
+
+- Enterprise policy phức tạp
+- Chia sẻ connection cho team qua cloud plaintext

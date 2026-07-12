@@ -1,0 +1,21 @@
+---
+title: Tools
+description: Bộ utility developer gắn vào shell và command registry.
+---
+
+# Tools
+
+Tools là các utility built-in (format, convert, snippet runners, …) đăng ký vào command registry và mở theo lazy activation.
+
+```mermaid
+flowchart LR
+  PALETTE[Command palette] --> REG[Command registry]
+  REG --> TOOL[Tool module]
+  TOOL --> UI[Tool view]
+```
+
+## Nguyên tắc
+
+- Tool không tự ý đọc vault nếu chưa có capability.
+- Ưu tiên built-in trước khi mở SDK ngoài.
+- Mỗi tool có entry rõ trong registry để search/palette dùng được.

@@ -1,0 +1,37 @@
+---
+title: Plugins
+description: Nền tảng mở rộng qua Extension API và capability.
+---
+
+# Plugins
+
+Plugin chỉ nói chuyện với Extension API. Mọi hành động nhạy cảm đi qua Capability Gateway.
+
+```mermaid
+sequenceDiagram
+  participant Plugin
+  participant ExtAPI as Extension API
+  participant GW as Capability Gateway
+  participant Core
+
+  Plugin->>ExtAPI: request + required capability
+  ExtAPI->>GW: validate identity & permissions
+  alt allowed and vault state OK
+    GW->>Core: forward
+    Core-->>Plugin: result
+  else denied
+    GW-->>Plugin: error / audit
+  end
+```
+
+## Hard rules
+
+- Không expose internal Go services cho plugin.
+- Hook chỉ notify; action phải qua API.
+- Marketplace/remote loading chỉ sau khi có manifest validation, signing, sandbox strategy.
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+<Callout type="warn" title="Trước marketplace">
+Chưa đủ security gates thì không ship remote third-party plugins.
+</Callout>
