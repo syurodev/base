@@ -20,7 +20,7 @@ sequenceDiagram
   Shell->>Registry: Load commands / visible views
   User->>Shell: Mở module / chạy command
   Shell->>Module: Activate module
-  Module->>Gateway: Extension API call
+  Module->>Gateway: Bridge / AppService.call
   Gateway->>Core: Authorized request
   Core-->>Module: Result
   Module-->>User: UI update

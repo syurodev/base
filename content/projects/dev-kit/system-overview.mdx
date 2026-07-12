@@ -32,7 +32,7 @@ flowchart LR
 
 - UI/plugin **không** đọc DEK/Master Password trực tiếp.
 - Sync server **không** nên cần plaintext notes/secrets (zero-knowledge là mục tiêu sync future).
-- Hook chỉ notify; hành động nhạy cảm phải qua Capability Gateway / Extension API.
+- Hook chỉ notify; hành động nhạy cảm phải qua Capability Gateway (built-in hiện tại) hoặc Extension API (target cho plugin/MCP).
 
 Chi tiết runtime và evidence theo checkout hiện tại: [Implementation status](/dev-kit/implementation-status).
 

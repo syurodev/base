@@ -9,8 +9,8 @@ Vault chứa notes và dữ liệu nhạy cảm (connection secrets). Unlock vau
 
 ```mermaid
 flowchart LR
-  UI[Notes UI] --> API[Extension API]
-  API --> GW[Capability Gateway]
+  UI[Notes UI] --> Bridge[Bridge adapter]
+  Bridge --> GW[Capability Gateway]
   GW -->|vault unlocked| CORE[Vault service]
   CORE --> DB[(Application-layer encrypted fields)]
 ```
@@ -24,8 +24,8 @@ flowchart LR
 ## Rules
 
 - Không log plaintext secrets.
-- Plugin chỉ đụng vault qua capability được cấp.
-- Master Password và recovery key đã có trong runtime — xem [Operations](/dev-kit/operations#recovery-and-troubleshooting).
+- Plugin chỉ đụng vault qua capability được cấp khi plugin surface có.
+- Master Password và recovery key thuộc vault lifecycle — xem [Operations](/dev-kit/operations#recovery-and-troubleshooting).
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
