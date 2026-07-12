@@ -7,8 +7,8 @@ export default function Home() {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-10 px-6 py-16">
       <header className="space-y-3">
-        <p className="text-sm text-fd-muted-foreground">Ý tưởng cá nhân</p>
-        <h1 className="text-4xl font-semibold tracking-tight">Vườn ý tưởng</h1>
+        <p className="text-sm text-fd-muted-foreground">Personal ideas</p>
+        <h1 className="text-4xl font-semibold tracking-tight">Idea Garden</h1>
         <p className="max-w-xl text-fd-muted-foreground">
           Duyệt các ý tưởng dự án. Mỗi thẻ mở docs chi tiết tại{' '}
           <code className="text-sm">/{'{project-slug}'}</code>.

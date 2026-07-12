@@ -26,7 +26,7 @@ sequenceDiagram
   Module-->>User: UI update
 ```
 
-## Thành phần runtime
+## Runtime components
 
 - **Shell process** — UI + orchestration.
 - **Command registry** — danh sách lệnh built-in/plugin.
@@ -34,9 +34,9 @@ sequenceDiagram
 - **Capability Gateway** — chặn request thiếu quyền / vault locked.
 - **Background workers** — sync, indexing, health checks (lazy).
 
-## Ngân sách hiệu năng (định hướng)
+## Performance budgets
 
-| Hạng mục | Mục tiêu |
+| Item | Target |
 |---|---|
 | Cold start đến UI dùng được | Nhanh, chỉ load phần visible |
 | Activate module lần đầu | Lazy, không block toàn app |

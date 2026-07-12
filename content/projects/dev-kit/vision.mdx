@@ -1,9 +1,9 @@
 ---
-title: Tầm nhìn & nguyên tắc
+title: Vision & principles
 description: Nguyên tắc thiết kế cốt lõi của DevKit.
 ---
 
-# Tầm nhìn & nguyên tắc
+# Vision & principles
 
 DevKit hướng tới workspace local-first: hữu ích khi offline, bảo vệ secrets mạnh, và có hợp đồng mở rộng ổn định cho plugin/AI.
 
@@ -16,7 +16,7 @@ flowchart TD
   E --> F[Marketplace chỉ sau security gates]
 ```
 
-## 10 nguyên tắc
+## 10 principles
 
 1. **Local-first by default** — notes, tools, vault, connections chạy offline.
 2. **Zero-knowledge sync** — server chỉ giữ encrypted blob + metadata.
@@ -27,11 +27,11 @@ flowchart TD
 7. **Security boundaries trước marketplace**.
 8. **Threat model trước khi implement module nhạy cảm**.
 9. **Compatibility là product feature** — schema/protocol/API migration-friendly.
-10. **Performance budgets** — startup, search, sync, plugin activation có ngân sách rõ.
+10. **Performance budgets** — startup, search, sync, plugin activation có budget rõ.
 
-## Thuật ngữ quan trọng
+## Terminology
 
-| Thuật ngữ | Ý nghĩa |
+| Term | Meaning |
 |---|---|
 | Extension API | Surface công khai plugin được gọi |
 | Capability API | Phần Extension API có kiểm soát quyền |

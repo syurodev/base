@@ -16,13 +16,13 @@ flowchart TD
   CONN --> SESS[Session / tunnel]
 ```
 
-## Phạm vi
+## Scope
 
 - Lưu profile, không hardcode secret trong config plaintext.
 - Mở session theo nhu cầu; đóng/cleanup rõ ràng.
 - Audit thao tác nhạy cảm (connect, reveal, copy secret).
 
-## Non-goals MVP
+## Non-goals (MVP)
 
 - Enterprise policy phức tạp
 - Chia sẻ connection cho team qua cloud plaintext

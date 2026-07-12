@@ -15,14 +15,14 @@ flowchart TD
   RECOVERY[Recovery key] -.->|break-glass| DEK
 ```
 
-## Tài sản cần bảo vệ
+## Protected assets
 
 - Master Password và khóa dẫn xuất
 - DEK / recovery keys
 - Notes, snippets
 - SSH keys, DB passwords, API tokens
 
-## Security gates trước khi ship tính năng nhạy cảm
+## Security gates
 
 1. Có threat model
 2. Có data classification
@@ -33,7 +33,7 @@ flowchart TD
 7. Test recovery/lockout
 8. Test abuse paths chính
 
-## Baseline tham chiếu
+## Reference baselines
 
 - OWASP Cryptographic Storage Cheat Sheet
 - OWASP ASVS

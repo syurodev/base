@@ -15,10 +15,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Ý tưởng',
-    template: '%s | Ý tưởng',
+    default: 'Ideas',
+    template: '%s | Ideas',
   },
-  description: 'Kho ý tưởng dự án cá nhân và docs',
+  description: 'Personal project ideas and docs',
 };
 
 export default function RootLayout({

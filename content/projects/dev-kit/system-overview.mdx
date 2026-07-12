@@ -1,9 +1,9 @@
 ---
-title: Sơ đồ hệ thống
+title: System overview
 description: Nhìn tổng thể shell, modules, vault và sync của DevKit.
 ---
 
-# Sơ đồ hệ thống
+# System overview
 
 DevKit tách UI shell, built-in modules, vault mã hóa, và sync tùy chọn. Mọi truy cập nhạy cảm đi qua biên giới rõ ràng.
 
@@ -19,7 +19,7 @@ flowchart LR
   SYNC --> CLOUD[(Encrypted blobs)]
 ```
 
-## Các lớp chính
+## Layers
 
 1. **UI Shell** — điều hướng, command palette, theme, cửa sổ.
 2. **Built-in modules** — vault/notes, connections, tools, plugins host.
@@ -28,7 +28,7 @@ flowchart LR
 5. **Local vault** — dữ liệu mã hóa trên máy.
 6. **Optional sync** — upload/download blob đã mã hóa.
 
-## Ranh giới quan trọng
+## Key boundaries
 
 - UI/plugin **không** đọc DEK/Master Password trực tiếp.
 - Sync server **không** cần plaintext notes/secrets.

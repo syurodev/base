@@ -1,6 +1,6 @@
 ---
 title: Vault & notes
-description: Kho knowledge và secrets được mã hóa trên máy.
+description: Knowledge và secrets được mã hóa trên máy.
 ---
 
 # Vault & notes
@@ -15,13 +15,13 @@ flowchart LR
   CORE --> DB[(Encrypted records)]
 ```
 
-## Trách nhiệm
+## Responsibilities
 
 - Lưu notes/snippets local.
 - Phân loại dữ liệu nhạy cảm.
 - Khóa/mở vault; không để UI giữ raw key lâu hơn cần thiết.
 
-## Quy tắc
+## Rules
 
 - Không log plaintext secrets.
 - Plugin chỉ đụng vault qua capability được cấp.
