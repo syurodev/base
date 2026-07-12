@@ -13,12 +13,21 @@ biên giới ổn định, đâu là chi tiết nội bộ có thể thay đổi
 
 ## Boundary map
 
-Luồng public hiện tại đi theo chuỗi:
+Phần lớn contract public hiện tại đi theo chuỗi capability-gated built-in:
 
 `frontend/src/bridge/*` → `internal/bridge/AppService.*` →
 `AppService.call(...)` → `internal/capabilities/Gateway.Call(...)` →
 `internal/services/*` hoặc `internal/commands/Registry.Execute(...)` →
-`Repository` / `internal/storage`.
+`Repository` / `internal/storage` / endpoint bên ngoài.
+
+Hai ngoại lệ hiện có cần đọc cùng boundary này:
+
+- `AppService.ListModules()` trả registry data trực tiếp từ
+  `internal/modules.Registry` và không đi qua `AppService.call(...)` hoặc
+  capability audit.
+- DB/SSH service không dừng ở repository/storage; sau khi lookup profile,
+  `internal/services/database.Service` và `internal/services/ssh.Service` còn
+  đi tiếp tới remote database/SSH endpoint.
 
 Boundary này được thể hiện ở:
 
@@ -36,6 +45,8 @@ Boundary này được thể hiện ở:
 - Capability Gateway kiểm tra quyền và audit trước khi handler thật chạy.
 - Core service chỉ thấy interface như `Repository`, `Vault`, `commands.Registry`;
   service không biết UI hoặc component render.
+- `ListModules` là bridge read-only public helper, không phải capability-gated
+  operation.
 
 ## Bridge contract
 
@@ -48,6 +59,7 @@ Boundary này được thể hiện ở:
 | Database | `DBListProfiles`, `DBCreateProfile`, `DBDeleteProfile`, `DBTestConnection`, `DBQuery` | `builtin.database` / `db:query` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/database.go` |
 | SSH | `SSHListProfiles`, `SSHCreateProfile`, `SSHDeleteProfile`, `SSHObserveHostKey`, `SSHTrustHostKey`, `SSHTestConnection`, `SSHRunCommand` | `builtin.ssh` / `ssh:connect` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/ssh.go` |
 | Tools | `ExecuteCommand` | `builtin.tools` / `tools:hash` / `command:<id>` | `internal/bridge/app_service.go`, `internal/commands/registry.go` |
+| Modules | `ListModules` | no capability gate; registry read-through only | `internal/bridge/app_service.go`, `internal/modules/registry.go` |
 
 Hai quy tắc bridge quan trọng:
 
@@ -98,6 +110,13 @@ Scope families hiện tại:
 - `profile:<record-id>`
 - `vault`
 
+Generic command scope construction is broader than the runtime surface today:
+
+- bridge formats `command:<opaque-id>` for command execution in general;
+- the current container registers only one executable command, `tools.hash`;
+- the only live grant for that surface is `builtin.tools` / `tools:hash` /
+  `command:tools.hash` in `internal/app/container.go`.
+
 Rule matching trong `internal/permissions/policy.go` hỗ trợ ba dạng:
 
 - exact scope, ví dụ `vault`
@@ -146,9 +165,10 @@ Boundary redaction:
 - Capability Gateway và audit sink đều đi qua `audit.RedactMap(...)`.
 - Key có dạng như `password`, `passphrase`, `private_key`, `secret`, `token`,
   `recovery`, `encryptionKey` sẽ bị thay bằng `[REDACTED]`.
-- Internal detail như URL đầy đủ, DSN, SQL text lỗi, private key, command
-  stderr/raw driver error không phải bridge contract và không nên vượt qua
-  boundary này.
+- Transport/error-envelope redaction không cho raw URL, DSN, SQL text lỗi, raw
+  driver error, hay command stderr đi qua như một public error body. Riêng
+  `SSHRunCommand` vẫn trả `CombinedOutput` trong `CommandResult.Output` như
+  payload command rõ ràng, kể cả khi process exit non-zero.
 
 ## Persistence contract
 
