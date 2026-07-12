@@ -1,0 +1,57 @@
+---
+title: Implementation status
+description: Trạng thái implementation đã kiểm chứng của DevKit.
+---
+
+# Implementation status
+
+Snapshot được kiểm tra từ checkout `/Users/syuro/Workspace/dev-kit`. Status có
+thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở các trang khác.
+
+## Status vocabulary
+
+| Status | Meaning |
+|---|---|
+| Implemented | Có runtime code và test/build evidence phù hợp. |
+| Partial | Có runtime code nhưng còn thiếu capability hoặc production behavior quan trọng. |
+| Design only | Có architecture/spec nhưng chưa có runtime package/flow. |
+| Not started | Chưa có implementation đáng kể. |
+
+## Module matrix
+
+| Module | Status | Evidence | Remaining scope |
+|---|---|---|---|
+| Vault | Implemented | `internal/vault/service.go`, `internal/vault/keyringstore.go`, `frontend/src/workbench/VaultGate.tsx`, tests cho keyring + lock/unlock. | Hoàn thiện UX và policy cho recovery / strength hints nếu cần. |
+| Notes | Implemented | `internal/services/notes/notes.go`, `internal/services/notes/repository.go`, `frontend/src/modules/notes/NotesView.tsx`, tests cho create/list/search/delete. | Title vẫn là metadata plaintext; cần encrypt title nếu titles ever sync. |
+| Tools | Implemented | `internal/services/tools/hash.go`, `internal/commands/registry.go`, `frontend/src/modules/tools/ToolsView.tsx`. | Mở rộng thêm tools khi product cần. |
+| SSH | Partial | `internal/services/ssh/ssh.go`, `internal/services/ssh/hostkeys.go`, `frontend/src/modules/ssh/SSHView.tsx`, tests cho key trust / run / auth. | Chưa có tunnel/forwarding flow; only profile/test/run/trust host key. |
+| Database | Implemented | `internal/services/database/database.go`, `internal/services/database/pool.go`, `frontend/src/modules/database/DatabaseView.tsx`, repository + integration tests. | SQLite vẫn là application-layer encrypted profile store, không phải full-disk DB encryption. |
+| Capability Gateway | Implemented | `internal/capabilities/gateway.go`, `internal/permissions/policy.go`, `internal/audit/events.go`, bridge call path through `internal/bridge/gateway.go`. | Cần mở rộng policy khi external callers / plugin surface xuất hiện. |
+| MCP | Design only | `docs/architecture/mcp-agent-integration.md`, `docs/architecture/devkit-architecture.md`; chưa có `internal/mcp` runtime package. | Xây MCP runtime, tool registry, transport, and confirmation flow. |
+| Sync | Design only | Architecture docs describe sync goals and boundaries, but there is no `internal/sync` runtime package. | Implement sync client, queue, conflict handling, and encrypted blob flow. |
+| External plugins | Design only | Architecture docs and module registry only cover internal built-ins; no external plugin loader/runtime yet. | Build plugin SDK, loader, isolation, permissioning, and lifecycle. |
+| Marketplace | Design only | Deferred in architecture docs; no marketplace runtime or distribution pipeline yet. | Signing, integrity checks, rollback, and controlled distribution model. |
+| Vault item repository | Design only | Architecture docs mention a future persistent encrypted vault item repository; no item CRUD runtime package yet. | Schema, CRUD, search, and permissioned item access. |
+
+## Verified snapshot
+
+- Checked on: 2026-07-12
+- DevKit checkout branch: `main`
+- DevKit checkout commit: `840c3e388265b51b9f9049f5a2c0f5371a2dff68`
+- Verification commands run:
+  - `git -C /Users/syuro/Workspace/dev-kit branch --show-current`
+  - `git -C /Users/syuro/Workspace/dev-kit rev-parse HEAD`
+  - `git -C /Users/syuro/Workspace/dev-kit status --short --branch`
+  - `rg -n ...` over `internal/`, `frontend/src/`, and `docs/` to confirm runtime coverage
+
+## Current limitations
+
+- SQLite storage is application-layer encrypted via vault envelopes and file
+  permissions, not full-disk database encryption.
+- Note titles stay plaintext local metadata for now.
+- SSH covers profiles, host-key trust, test connection, and command execution,
+  but not tunnel/forwarding.
+- MCP runtime is still design-only in this checkout.
+- Sync runtime is still design-only in this checkout.
+- External plugin runtime is still design-only in this checkout.
+- Vault-item repository CRUD is still design-only in this checkout.
