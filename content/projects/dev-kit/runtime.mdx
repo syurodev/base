@@ -1,0 +1,49 @@
+---
+title: Runtime & process
+description: Cách DevKit khởi động, kích hoạt module và chạy lệnh.
+---
+
+# Runtime & process
+
+Runtime ưu tiên khởi động nhanh: load shell + trạng thái vault + registry, rồi lazy-activate phần còn lại.
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Shell
+  participant Registry
+  participant Module
+  participant Gateway
+  participant Core
+
+  User->>Shell: Mở app
+  Shell->>Registry: Load commands / visible views
+  User->>Shell: Mở module / chạy command
+  Shell->>Module: Activate module
+  Module->>Gateway: Extension API call
+  Gateway->>Core: Authorized request
+  Core-->>Module: Result
+  Module-->>User: UI update
+```
+
+## Thành phần runtime
+
+- **Shell process** — UI + orchestration.
+- **Command registry** — danh sách lệnh built-in/plugin.
+- **Module loader** — kích hoạt module khi cần.
+- **Capability Gateway** — chặn request thiếu quyền / vault locked.
+- **Background workers** — sync, indexing, health checks (lazy).
+
+## Ngân sách hiệu năng (định hướng)
+
+| Hạng mục | Mục tiêu |
+|---|---|
+| Cold start đến UI dùng được | Nhanh, chỉ load phần visible |
+| Activate module lần đầu | Lazy, không block toàn app |
+| Search local | Giữ mượt khi vault lớn dần |
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+<Callout title="Lazy activation">
+Đừng load toàn bộ plugin/module lúc startup. Chỉ shell, vault state, registry và view đang mở.
+</Callout>
