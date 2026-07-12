@@ -21,17 +21,17 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 
 | Module | Status | Evidence | Remaining scope |
 |---|---|---|---|
-| Vault | Implemented | `internal/vault/service.go`, `internal/vault/keyringstore.go`, `frontend/src/workbench/VaultGate.tsx`, tests cho keyring + lock/unlock. | Hoàn thiện UX và policy cho recovery / strength hints nếu cần. |
-| Notes | Implemented | `internal/services/notes/notes.go`, `internal/services/notes/repository.go`, `frontend/src/modules/notes/NotesView.tsx`, tests cho create/list/search/delete. | Title vẫn là metadata plaintext; cần encrypt title nếu titles ever sync. |
-| Tools | Implemented | `internal/services/tools/hash.go`, `internal/commands/registry.go`, `frontend/src/modules/tools/ToolsView.tsx`. | Mở rộng thêm tools khi product cần. |
-| SSH | Partial | `internal/services/ssh/ssh.go`, `internal/services/ssh/hostkeys.go`, `frontend/src/modules/ssh/SSHView.tsx`, tests cho key trust / run / auth. | Chưa có tunnel/forwarding flow; only profile/test/run/trust host key. |
-| Database | Implemented | `internal/services/database/database.go`, `internal/services/database/pool.go`, `frontend/src/modules/database/DatabaseView.tsx`, repository + integration tests. | SQLite vẫn là application-layer encrypted profile store, không phải full-disk DB encryption. |
-| Capability Gateway | Implemented | `internal/capabilities/gateway.go`, `internal/permissions/policy.go`, `internal/audit/events.go`, bridge call path through `internal/bridge/gateway.go`. | Cần mở rộng policy khi external callers / plugin surface xuất hiện. |
-| MCP | Design only | `docs/architecture/mcp-agent-integration.md`, `docs/architecture/devkit-architecture.md`; chưa có `internal/mcp` runtime package. | Xây MCP runtime, tool registry, transport, and confirmation flow. |
-| Sync | Design only | Architecture docs describe sync goals and boundaries, but there is no `internal/sync` runtime package. | Implement sync client, queue, conflict handling, and encrypted blob flow. |
-| External plugins | Design only | Architecture docs and module registry only cover internal built-ins; no external plugin loader/runtime yet. | Build plugin SDK, loader, isolation, permissioning, and lifecycle. |
-| Marketplace | Design only | Deferred in architecture docs; no marketplace runtime or distribution pipeline yet. | Signing, integrity checks, rollback, and controlled distribution model. |
-| Vault item repository | Design only | Architecture docs mention a future persistent encrypted vault item repository; no item CRUD runtime package yet. | Schema, CRUD, search, and permissioned item access. |
+| Vault | Implemented | `internal/vault/service.go`, `internal/vault/keyringstore.go`, `internal/vault/sqlkeyringstore.go`; tests: `internal/vault/service_test.go`, `internal/vault/keyringstore_test.go`, `internal/vault/sqlkeyringstore_test.go`; UI: `frontend/src/workbench/VaultGate.tsx`. | Hoàn thiện UX và policy cho recovery / strength hints nếu cần. |
+| Notes | Implemented | `internal/services/notes/notes.go`, `internal/services/notes/repository.go`, `internal/services/notes/sqlrepository.go`; tests: `internal/services/notes/notes_test.go`, `internal/services/notes/repository_test.go`, `internal/services/notes/sqlrepository_test.go`; UI: `frontend/src/modules/notes/NotesView.tsx`. | Title vẫn là metadata plaintext; cần encrypt title nếu titles ever sync. |
+| Tools | Implemented | `internal/services/tools/hash.go`, `internal/commands/registry.go`; test: `internal/services/tools/hash_test.go`; UI: `frontend/src/modules/tools/ToolsView.tsx`. | Mở rộng thêm tools khi product cần. |
+| SSH | Partial | `internal/services/ssh/ssh.go`, `internal/services/ssh/hostkeys.go`, `internal/services/ssh/sqlrepository.go`; tests: `internal/services/ssh/ssh_test.go`, `internal/services/ssh/hostkeys_test.go`, `internal/services/ssh/integration_test.go`; UI: `frontend/src/modules/ssh/SSHView.tsx`. | Chưa có tunnel/forwarding flow; only profile/test/run/trust host key. |
+| Database | Implemented | `internal/services/database/database.go`, `internal/services/database/pool.go`, `internal/services/database/sqlrepository.go`; tests: `internal/services/database/database_test.go`, `internal/services/database/pool_test.go`, `internal/services/database/repository_test.go`, `internal/services/database/integration_test.go`; UI: `frontend/src/modules/database/DatabaseView.tsx`. | SQLite vẫn là application-layer encrypted profile store, không phải full-disk DB encryption. |
+| Capability Gateway | Implemented | `internal/capabilities/gateway.go`, `internal/permissions/policy.go`, `internal/audit/events.go`, `internal/bridge/gateway.go`; tests: `internal/capabilities/gateway_test.go`, `internal/bridge/gateway_test.go`. | Cần mở rộng policy khi external callers / plugin surface xuất hiện. |
+| MCP | Design only | Architecture sources: `docs/architecture/mcp-agent-integration.md`, `docs/architecture/devkit-architecture.md`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/mcp`. | Xây MCP runtime, tool registry, transport, and confirmation flow. |
+| Sync | Design only | Architecture sources: `docs/architecture/devkit-architecture.md`, `docs/architecture/project-structure-and-code-rules.md`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/sync`. | Implement sync client, queue, conflict handling, and encrypted blob flow. |
+| External plugins | Design only | Architecture sources: `docs/architecture/devkit-architecture.md`, `docs/architecture/project-structure-and-code-rules.md`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/plugins`. | Build plugin SDK, loader, isolation, permissioning, and lifecycle. |
+| Marketplace | Design only | Architecture sources: `docs/architecture/devkit-architecture.md`, `docs/architecture/core-foundation.md`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/marketplace`. | Signing, integrity checks, rollback, and controlled distribution model. |
+| Vault item repository | Design only | Architecture sources: `docs/architecture/core-foundation.md`, `docs/architecture/project-structure-and-code-rules.md`; reproducible absence check: `test ! -f /Users/syuro/Workspace/dev-kit/internal/vault/item_repository.go`. | Schema, CRUD, search, and permissioned item access. |
 
 ## Verified snapshot
 
@@ -42,7 +42,11 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
   - `git -C /Users/syuro/Workspace/dev-kit branch --show-current`
   - `git -C /Users/syuro/Workspace/dev-kit rev-parse HEAD`
   - `git -C /Users/syuro/Workspace/dev-kit status --short --branch`
-  - `rg -n ...` over `internal/`, `frontend/src/`, and `docs/` to confirm runtime coverage
+  - `rg --files /Users/syuro/Workspace/dev-kit/internal /Users/syuro/Workspace/dev-kit/frontend/src | rg 'internal/(vault|services/(notes|tools|ssh|database)|capabilities|bridge)/.*_test\\.go$|frontend/src/modules/(notes|tools|ssh|database)/'`
+  - `rg --files /Users/syuro/Workspace/dev-kit/docs/architecture | rg 'mcp-agent-integration|devkit-architecture|project-structure-and-code-rules|core-foundation'`
+  - `for p in /Users/syuro/Workspace/dev-kit/internal/mcp /Users/syuro/Workspace/dev-kit/internal/sync /Users/syuro/Workspace/dev-kit/internal/plugins /Users/syuro/Workspace/dev-kit/internal/marketplace; do if test ! -d "$p"; then echo "absent: $p"; fi; done`
+  - `test ! -f /Users/syuro/Workspace/dev-kit/internal/vault/item_repository.go`
+  - `node -e "const fs=require('fs'); const p='/Users/syuro/Workspace/PERSONAL/base/.worktrees/devkit-docs-completion/content/projects/dev-kit/implementation-status.mdx'; const s=fs.readFileSync(p,'utf8'); for (const needle of ['## Status vocabulary','## Module matrix','## Verified snapshot','## Current limitations']) if (!s.includes(needle)) throw new Error('missing '+needle); console.log('implementation-status.mdx structure ok')"`
 
 ## Current limitations
 
