@@ -5,25 +5,31 @@ description: Mô hình dữ liệu local-first và sync zero-knowledge.
 
 # Data & sync
 
-Dữ liệu sống trên máy trước. Sync là lớp tùy chọn: client mã hóa, server lưu blob.
+Dữ liệu sống trên máy trước (local-first). Sync là lớp tùy chọn target: client phải mã hóa trước upload; server chỉ lưu blob.
 
 ```mermaid
 flowchart TD
-  APP[DevKit App] --> LOCAL[(Local encrypted DB)]
+  APP[DevKit App] --> LOCAL[(SQLite + encrypted fields)]
   APP --> KEYS[Key hierarchy]
   KEYS --> LOCAL
-  APP -->|optional| CLIENT[Sync client]
+  APP -->|optional, target| CLIENT[Sync client]
   CLIENT --> BLOB[Encrypted blobs]
   BLOB --> SERVER[(Sync server)]
 ```
 
 ## Local-first
 
-- Notes, snippets, connection profiles, secrets thuộc vault local.
+- Notes, connection profiles, secrets thuộc vault local.
 - App phải dùng được khi mất mạng.
 - Schema local cần migration-friendly ngay từ đầu.
 
-## Zero-knowledge sync
+## Local encryption (hiện tại)
+
+SQLite (`devkit.db`) lưu record JSON; các field nhạy cảm (note body, credentials) được mã hóa ở **application layer** bằng vault DEK — không phải full-database encryption (SQLCipher). Metadata như title/host có thể plaintext để list/search khi vault locked. Chi tiết: [ADR-004](/dev-kit/architecture-decisions#adr-004-application-layer-encrypted-records-instead-of-sqlcipher).
+
+## Zero-knowledge sync (target)
+
+Thiết kế mục tiêu cho sync future:
 
 1. Client mã hóa trước khi upload.
 2. Server lưu blob + metadata tài khoản — không cần plaintext.
@@ -42,4 +48,5 @@ import { Cards, Card } from 'fumadocs-ui/components/card';
 <Cards>
   <Card title="Vault & notes" href="/dev-kit/vault" />
   <Card title="Security model" href="/dev-kit/security" />
+  <Card title="Architecture decisions" href="/dev-kit/architecture-decisions" description="ADR-004: application-layer encryption" />
 </Cards>

@@ -5,7 +5,7 @@ description: Cách DevKit khởi động, kích hoạt module và chạy lệnh.
 
 # Runtime & process
 
-Runtime ưu tiên khởi động nhanh: load shell + trạng thái vault + registry, rồi lazy-activate phần còn lại.
+Runtime được thiết kế để khởi động nhanh: load shell + trạng thái vault + registry, rồi lazy-activate module còn lại khi cần (target).
 
 ```mermaid
 sequenceDiagram
@@ -29,10 +29,10 @@ sequenceDiagram
 ## Runtime components
 
 - **Shell process** — UI + orchestration.
-- **Command registry** — danh sách lệnh built-in/plugin.
-- **Module loader** — kích hoạt module khi cần.
+- **Command registry** — danh sách lệnh built-in (và plugin future).
+- **Module loader (target)** — chỉ kích hoạt module khi user mở hoặc chạy command.
 - **Capability Gateway** — chặn request thiếu quyền / vault locked.
-- **Background workers** — sync, indexing, health checks (lazy).
+- **Background workers (target future)** — sync, indexing, health checks chạy lazy, không block startup.
 
 ## Performance budgets
 
@@ -44,6 +44,8 @@ sequenceDiagram
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout title="Lazy activation">
-Đừng load toàn bộ plugin/module lúc startup. Chỉ shell, vault state, registry và view đang mở.
+<Callout title="Lazy activation (target)">
+Thiết kế mục tiêu: không load toàn bộ plugin/module lúc startup. Chỉ shell, vault state, registry và view đang mở.
 </Callout>
+
+Để xem component nào đã có runtime, xem [Implementation status](/dev-kit/implementation-status).

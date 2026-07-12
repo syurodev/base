@@ -5,7 +5,7 @@ description: AI agent truy cập DevKit qua MCP với kiểm soát capability.
 
 # MCP / Agent
 
-MCP cho phép AI agent gọi tool/resources của DevKit, nhưng phải đi cùng mô hình least privilege của Extension API.
+MCP được thiết kế để cho AI agent gọi tool/resources của DevKit — runtime MCP là target future. Khi có, mọi request phải đi cùng mô hình least privilege của Extension API và Capability Gateway.
 
 ```mermaid
 flowchart LR
@@ -16,13 +16,13 @@ flowchart LR
   CORE --> VAULT[(Vault)]
 ```
 
-## Goals
+## Goals (target)
 
 - Agent hỗ trợ workflow (tìm note, chạy tool, thao tác connection) mà không bypass security.
 - Mọi tool MCP map sang capability rõ ràng.
 - Audit request từ agent giống plugin.
 
-## Controls
+## Controls (must khi ship)
 
 1. Agent chỉ thấy tool đã expose.
 2. Vault locked → từ chối thao tác giải mã.
@@ -33,4 +33,5 @@ import { Cards, Card } from 'fumadocs-ui/components/card';
 <Cards>
   <Card title="Plugins" href="/dev-kit/plugins" />
   <Card title="Security model" href="/dev-kit/security" />
+  <Card title="Implementation status" href="/dev-kit/implementation-status" description="MCP: design only" />
 </Cards>

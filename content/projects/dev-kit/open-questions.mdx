@@ -5,21 +5,24 @@ description: Các quyết định kiến trúc vẫn đang để ngỏ.
 
 # Open questions
 
-Những câu hỏi này giữ cố ý — trả lời trước khi khóa thiết kế sâu hơn.
+Những câu hỏi vẫn cần quyết định product/platform. Các lựa chọn đã chốt nằm ở [Architecture decisions](/dev-kit/architecture-decisions).
 
-## Product
+## Đã chốt (xem ADR)
 
-1. MVP nên ưu tiên SSH manager hay DB manager trước?
-2. Notes: Markdown only hay rich text có code-focused extensions?
-3. Paid feature đầu tiên: sync, pro tools, team vault, hay marketplace?
+- **SSH vs DB priority** → [ADR-002](/dev-kit/architecture-decisions#adr-002-internal-modules-before-external-plugins): cả hai ship như built-in modules phase đầu.
+- **SQLCipher vs application-layer encryption** → [ADR-004](/dev-kit/architecture-decisions#adr-004-application-layer-encrypted-records-instead-of-sqlcipher): mã hóa field ở application layer; không SQLCipher trong phase hiện tại.
+- **Transport security cho connections** → [ADR-007](/dev-kit/architecture-decisions#adr-007-verified-tls-for-remote-db-and-exact-ssh-host-key-pinning).
 
-## Security / platform
+## Product (chưa chốt)
 
-4. SQLCipher mặc định hay mã hóa record ở application layer trước SQLite?
-5. Plugin runtime tương lai: JS, WASM, external process, hay kết hợp?
-6. Recovery model nào chấp nhận được khi mất Master Password?
+1. Notes: Markdown only hay rich text có code-focused extensions?
+2. Paid feature đầu tiên: sync, pro tools, team vault, hay marketplace?
+
+## Platform (chưa chốt)
+
+1. Plugin runtime tương lai: JS, WASM, external process, hay kết hợp?
 
 ## How to use this page
 
-- Mỗi quyết định được chốt → chuyển thành ADR/section trong trang liên quan.
+- Mỗi quyết định được chốt → chuyển thành ADR trong [Architecture decisions](/dev-kit/architecture-decisions).
 - Không để open questions block local-first MVP nếu chưa cần.

@@ -9,20 +9,30 @@ Module connections quản lý profile SSH/DB và metadata kết nối — secret
 
 ```mermaid
 flowchart TD
-  UI[Connections UI] --> API[Extension API]
-  API --> GW[Capability Gateway]
+  UI[Connections UI] --> GW[Capability Gateway]
   GW --> CONN[Connection service]
   CONN --> VAULT[(Secret material in vault)]
-  CONN --> SESS[Session / tunnel]
+  CONN --> SESS[SSH session / DB query]
 ```
 
-## Scope
+## Scope (hiện tại)
 
-- Lưu profile, không hardcode secret trong config plaintext.
-- Mở session theo nhu cầu; đóng/cleanup rõ ràng.
-- Audit thao tác nhạy cảm (connect, reveal, copy secret).
+- Lưu profile SSH/PostgreSQL trong vault; không hardcode secret trong config plaintext.
+- SSH: test connection, trust host-key pin, chạy lệnh từ shell UI.
+- PostgreSQL: query và schema browse qua connection pool với TLS verify-full mặc định cho remote host.
+- Đóng/cleanup session rõ ràng sau thao tác.
+
+Tunnel/port forwarding là capability target — chưa có trong runtime hiện tại.
 
 ## Non-goals (MVP)
 
 - Enterprise policy phức tạp
 - Chia sẻ connection cho team qua cloud plaintext
+- SSH tunnel / port forwarding
+
+import { Cards, Card } from 'fumadocs-ui/components/card';
+
+<Cards>
+  <Card title="Implementation status" href="/dev-kit/implementation-status" description="SSH partial: no tunnel/forwarding" />
+  <Card title="Architecture decisions" href="/dev-kit/architecture-decisions" description="ADR-007: TLS và host-key pinning" />
+</Cards>

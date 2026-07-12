@@ -5,20 +5,20 @@ description: Knowledge và secrets được mã hóa trên máy.
 
 # Vault & notes
 
-Vault chứa notes/snippets và dữ liệu nhạy cảm. Unlock vault mới cho phép thao tác giải mã có kiểm soát.
+Vault chứa notes và dữ liệu nhạy cảm (connection secrets). Unlock vault mới cho phép thao tác giải mã có kiểm soát.
 
 ```mermaid
 flowchart LR
   UI[Notes UI] --> API[Extension API]
   API --> GW[Capability Gateway]
   GW -->|vault unlocked| CORE[Vault service]
-  CORE --> DB[(Encrypted records)]
+  CORE --> DB[(Application-layer encrypted fields)]
 ```
 
 ## Responsibilities
 
-- Lưu notes/snippets local.
-- Phân loại dữ liệu nhạy cảm.
+- Lưu notes local; body và secret fields mã hóa ở application layer trước khi persist vào SQLite.
+- Phân loại dữ liệu nhạy cảm — không phải full-database encryption.
 - Khóa/mở vault; không để UI giữ raw key lâu hơn cần thiết.
 
 ## Rules
@@ -32,4 +32,5 @@ import { Cards, Card } from 'fumadocs-ui/components/card';
 <Cards>
   <Card title="Security model" href="/dev-kit/security" />
   <Card title="Data & sync" href="/dev-kit/data-sync" />
+  <Card title="Architecture decisions" href="/dev-kit/architecture-decisions" description="ADR-004: application-layer encryption" />
 </Cards>

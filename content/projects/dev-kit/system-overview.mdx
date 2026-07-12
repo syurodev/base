@@ -5,34 +5,36 @@ description: Nhìn tổng thể shell, modules, vault và sync của DevKit.
 
 # System overview
 
-DevKit tách UI shell, built-in modules, vault mã hóa, và sync tùy chọn. Mọi truy cập nhạy cảm đi qua biên giới rõ ràng.
+DevKit tách UI shell, built-in modules, vault với mã hóa application-layer, và sync tùy chọn (target kiến trúc). Mọi truy cập nhạy cảm đi qua biên giới rõ ràng.
 
 ```mermaid
 flowchart LR
   UI[Desktop UI Shell] --> REG[Command Registry]
   UI --> MOD[Built-in Modules]
-  MOD --> EXT[Extension API]
+  MOD --> EXT[Extension API target]
   EXT --> GW[Capability Gateway]
   GW --> CORE[Go Core Services]
-  CORE --> VAULT[(Encrypted Vault)]
-  CORE --> SYNC[Optional Sync Client]
+  CORE --> VAULT[(Vault: encrypted fields)]
+  CORE --> SYNC[Sync client target]
   SYNC --> CLOUD[(Encrypted blobs)]
 ```
 
 ## Layers
 
 1. **UI Shell** — điều hướng, command palette, theme, cửa sổ.
-2. **Built-in modules** — vault/notes, connections, tools, plugins host.
-3. **Extension API + Capability Gateway** — hợp đồng an toàn cho plugin/MCP.
-4. **Go core services** — crypto, storage, SSH/DB adapters, sync client.
-5. **Local vault** — dữ liệu mã hóa trên máy.
-6. **Optional sync** — upload/download blob đã mã hóa.
+2. **Built-in modules** — vault/notes, connections, tools; plugins host là target future.
+3. **Capability Gateway** — choke point cho built-in calls hiện tại; Extension API cho plugin/MCP là target.
+4. **Go core services** — crypto, storage, SSH/DB adapters; sync client là target future.
+5. **Local vault** — record fields nhạy cảm mã hóa ở application layer trên SQLite local.
+6. **Optional sync (target)** — client phải mã hóa blob trước upload/download.
 
 ## Key boundaries
 
 - UI/plugin **không** đọc DEK/Master Password trực tiếp.
-- Sync server **không** cần plaintext notes/secrets.
-- Hook chỉ notify; hành động phải qua Extension API.
+- Sync server **không** nên cần plaintext notes/secrets (zero-knowledge là mục tiêu sync future).
+- Hook chỉ notify; hành động nhạy cảm phải qua Capability Gateway / Extension API.
+
+Để xem trạng thái implementation hiện tại, xem [Implementation status](/dev-kit/implementation-status).
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 

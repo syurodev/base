@@ -5,7 +5,7 @@ description: Utility developer gắn vào shell và command registry.
 
 # Tools
 
-Tools là các utility built-in (format, convert, snippet runners, …) đăng ký vào command registry và mở theo lazy activation.
+Tools là các utility built-in đăng ký vào command registry — pattern hiện tại có hash generator và khung đăng ký lệnh/view. Format/convert/snippet runners là mở rộng product future, không phải runtime hiện tại.
 
 ```mermaid
 flowchart LR
@@ -19,3 +19,10 @@ flowchart LR
 - Tool không tự ý đọc vault nếu chưa có capability.
 - Ưu tiên built-in trước khi mở SDK ngoài.
 - Mỗi tool có entry rõ trong registry để search/palette dùng được.
+
+import { Cards, Card } from 'fumadocs-ui/components/card';
+
+<Cards>
+  <Card title="Implementation status" href="/dev-kit/implementation-status" description="Hash tool + command registry" />
+  <Card title="Runtime & process" href="/dev-kit/runtime" />
+</Cards>
