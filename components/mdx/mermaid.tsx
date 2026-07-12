@@ -6,7 +6,9 @@ import { useTheme } from 'next-themes';
 export function Mermaid({ chart }: { chart: string }) {
   const [mounted, setMounted] = useState(false);
 
+  // Client-only mount guard: defer Mermaid/next-themes until after hydration.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional post-hydration render
     setMounted(true);
   }, []);
 
