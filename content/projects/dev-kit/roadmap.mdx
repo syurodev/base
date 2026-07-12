@@ -14,7 +14,7 @@ trang kiểm chứng.
 
 - Status: Implemented
 - Goal: Giữ biên giới local-first đã chạy được: vault, service layer, command/module registry, và Capability Gateway làm choke point cho call nhạy cảm.
-- Evidence: `/dev-kit/implementation-status`, `/dev-kit/core-foundation`, `internal/app/service.go`, `internal/bridge/gateway.go`, `internal/capabilities/gateway.go`, `internal/modules/registry.go`.
+- Evidence: `/dev-kit/implementation-status`, `/dev-kit/core-foundation`, `internal/bridge/app_service.go`, `internal/commands/registry.go`, `internal/bridge/gateway.go`, `internal/capabilities/gateway.go`, `internal/modules/registry.go`.
 - Done when: Mọi call nhạy cảm đi qua `AppService.call` + Capability Gateway, module built-in đăng ký qua registry, và baseline audit/permission tiếp tục là invariant bắt buộc.
 - Dependencies: Quyết định kiến trúc trong `docs/architecture/core-foundation.md` và `docs/architecture/devkit-architecture.md`.
 - Out of scope: MCP runtime, sync runtime, external plugin runtime, marketplace.
