@@ -23,31 +23,16 @@
 
 ---
 
-### Task 1: Establish project-state navigation and status vocabulary
+### Task 1: Establish implementation-status page and status vocabulary
 
 **Files:**
-- Modify: `content/projects/dev-kit/meta.json`
 - Create: `content/projects/dev-kit/implementation-status.mdx`
 
 **Interfaces:**
-- Consumes: existing DevKit page IDs in `meta.json`.
-- Produces: a `Project state` sidebar section and the canonical status vocabulary used by later pages.
+- Consumes: current DevKit implementation evidence and the page-structure requirements below.
+- Produces: the canonical status vocabulary used by later pages.
 
-- [ ] **Step 1: Add the Project state section to navigation**
-
-Insert this section after `AI & Security` and before `Engineering`:
-
-```json
-"---Project state---",
-"implementation-status",
-"roadmap",
-"technical-contracts",
-"security-controls",
-"operations",
-"architecture-decisions"
-```
-
-- [ ] **Step 2: Create the implementation-status page**
+- [ ] **Step 1: Create the implementation-status page**
 
 Create the page with frontmatter and these sections:
 
@@ -91,20 +76,30 @@ giới hạn hoặc chưa có.
 
 Không dùng phần này để mô tả chi tiết kiến trúc; chỉ dùng để trả lời “đã làm đến đâu”.
 
-- [ ] **Step 3: Verify navigation references**
+- [ ] **Step 2: Validate the page structure**
 
 Run:
 
 ```bash
-node -e "const m=require('./content/projects/dev-kit/meta.json'); const fs=require('fs'); const pages=m.pages.filter(p=>!p.startsWith('---')); for (const p of pages) if (!fs.existsSync('./content/projects/dev-kit/'+p+'.mdx')) throw new Error(p); console.log('all project pages exist')"
+node -e "const fs=require('fs'); const p='content/projects/dev-kit/implementation-status.mdx'; const s=fs.readFileSync(p,'utf8'); for (const needle of ['## Status vocabulary','## Module matrix','## Verified snapshot','## Current limitations']) if (!s.includes(needle)) throw new Error('missing '+needle); console.log('implementation-status.mdx structure ok')"
 ```
 
-Expected: `all project pages exist`.
+Expected: `implementation-status.mdx structure ok`.
 
-- [ ] **Step 4: Commit the navigation and status page**
+- [ ] **Step 3: Check for clean diffs**
+
+Run:
 
 ```bash
-git add content/projects/dev-kit/meta.json content/projects/dev-kit/implementation-status.mdx
+git diff --check
+```
+
+Expected: no output.
+
+- [ ] **Step 4: Commit the status page only**
+
+```bash
+git add content/projects/dev-kit/implementation-status.mdx
 git commit -m "docs: add DevKit implementation status section"
 ```
 
@@ -302,6 +297,7 @@ git commit -m "docs: separate security controls from security knowledge"
 ### Task 5: Add operations runbook and architecture decisions
 
 **Files:**
+- Modify: `content/projects/dev-kit/meta.json`
 - Create: `content/projects/dev-kit/operations.mdx`
 - Create: `content/projects/dev-kit/architecture-decisions.mdx`
 
@@ -358,8 +354,17 @@ Each record must include `Decision`, `Context`, `Alternatives considered`,
 
 - [ ] **Step 3: Commit operations and decisions**
 
+Before committing, insert the Project state navigation block after `AI & Security`
+and before `Engineering`, then run the navigation-integrity check:
+
 ```bash
-git add content/projects/dev-kit/operations.mdx content/projects/dev-kit/architecture-decisions.mdx
+node -e "const m=require('./content/projects/dev-kit/meta.json'); const fs=require('fs'); const pages=m.pages.filter(p=>!p.startsWith('---')); for (const p of pages) if (!fs.existsSync('./content/projects/dev-kit/'+p+'.mdx')) throw new Error(p); console.log('all project pages exist')"
+```
+
+Expected: `all project pages exist`.
+
+```bash
+git add content/projects/dev-kit/meta.json content/projects/dev-kit/operations.mdx content/projects/dev-kit/architecture-decisions.mdx
 git commit -m "docs: add DevKit operations and architecture decisions"
 ```
 
@@ -486,4 +491,3 @@ contain source/evidence references.
 git add content/projects/dev-kit
 git commit -m "docs: verify DevKit documentation set"
 ```
-
