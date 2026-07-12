@@ -1,0 +1,257 @@
+---
+title: Architecture decisions
+description: ADR ghi nhận các quyết định kiến trúc đã chấp nhận của DevKit.
+---
+
+# Architecture decisions
+
+Trang này ghi các Architecture Decision Record (ADR) phản ánh runtime và design
+docs hiện có trong checkout DevKit tại `/Users/syuro/Workspace/dev-kit`. Mỗi
+record có `Decision`, `Context`, `Alternatives considered`, `Consequences` và
+`Status`. Control implementation evidence nằm ở
+[Security controls](/dev-kit/security-controls); boundary contract ở
+[Technical contracts](/dev-kit/technical-contracts).
+
+## ADR-001: Wails + React + Go core boundaries
+
+**Status:** Accepted
+
+**Decision:** DevKit dùng Wails v3 làm desktop shell, React/TypeScript cho UI,
+và Go cho core services. UI chỉ gọi typed adapter trong `frontend/src/bridge/*`;
+Go expose public surface qua `internal/bridge.AppService`; core logic nằm trong
+`internal/services/*`, `internal/vault`, `internal/storage` — không import ngược
+từ frontend generated bindings.
+
+**Context:** Cần một desktop app cross-platform với offline-first UX, hot-reload
+dev workflow, và security boundary rõ giữa UI untrusted-by-default và Go core
+chứa crypto/vault/connection logic.
+
+**Alternatives considered:**
+
+- **Tauri + Rust core** — nhẹ hơn nhưng đòi hỏi rewrite toàn bộ service layer
+  đã viết bằng Go.
+- **Electron + Node backend** — ecosystem lớn nhưng memory footprint cao hơn và
+  khó giữ crypto/key handling trong memory-safe Go path đã chọn.
+- **Pure web app** — không đáp ứng local-first, file permission, và offline
+  vault gate mà product yêu cầu.
+
+**Consequences:**
+
+- Positive: Một codebase Go cho vault, crypto, DB/SSH; Wails binding generation
+  tự động; React ecosystem cho workbench UI.
+- Negative: Phụ thuộc Wails v3 alpha APIs; cần maintain bridge adapter layer
+  song song với generated bindings.
+- Neutral: Server mode (`-tags server`) chia sẻ cùng Go core nhưng bỏ native
+  window — boundary bridge/core vẫn giữ nguyên.
+
+---
+
+## ADR-002: Internal modules before external plugins
+
+**Status:** Accepted
+
+**Decision:** Phase đầu ship built-in modules (`notes`, `tools`, `database`,
+`ssh`, `vault`) như internal modules đăng ký qua `internal/modules.Registry`.
+External plugin SDK, loader, marketplace và untrusted code execution **không**
+ship cho đến khi Extension API và permission model được chứng minh ổn định.
+
+**Context:** `docs/architecture/devkit-architecture.md` principle #6 và #7: built-in
+modules trước, security boundaries trước marketplace. Checkout hiện tại không
+có `internal/plugins`, `internal/marketplace`, `internal/mcp`, `internal/sync`.
+
+**Alternatives considered:**
+
+- **Plugin-first platform** — nhanh hơn về extensibility nhưng tăng attack
+  surface trước khi Capability Gateway và audit path mature.
+- **Monolith không module registry** — đơn giản hơn nhưng khó mở rộng sang
+  manifest/contribution model của Phase 2 roadmap.
+- **Fork mỗi feature thành binary riêng** — trái product goal “một workspace
+  thống nhất”.
+
+**Consequences:**
+
+- Positive: Toàn bộ sensitive path đi qua built-in subjects đã biết; policy
+  container bootstrap cố định và testable.
+- Negative: Third-party extension bị delay; cần refactor registry khi mở plugin
+  surface.
+- Neutral: Frontend `frontend/src/modules/registry.ts` mirror pattern nội bộ,
+  chưa phải public Extension API.
+
+---
+
+## ADR-003: Capability Gateway as sensitive-call choke point
+
+**Status:** Accepted
+
+**Decision:** Mọi built-in operation nhạy cảm phải đi qua
+`AppService.call(...)` → `capabilities.Gateway.Call(...)` với
+`subject/capability/scope` check, metadata redaction, và audit trước khi handler
+chạy. Core services không được expose trực tiếp cho UI hoặc future plugin
+callers.
+
+**Context:** Least-privilege principle và threat model yêu cầu một điểm kiểm soát
+duy nhất cho authorization, audit, và redaction — tránh “bridge bypass” khi thêm
+module mới.
+
+**Alternatives considered:**
+
+- **Per-service authorization** — phân tán policy, khó audit thống nhất và dễ
+  miss check khi thêm endpoint.
+- **UI-only permission gating** — không đủ; attacker hoặc bug có thể gọi thẳng
+  bridge method.
+- **Middleware trong Wails generated binding** — khó gắn scope opaque ID và
+  metadata redaction theo từng operation family.
+
+**Consequences:**
+
+- Positive: Allowed/denied audit nhất quán; `recordID()`/`commandID()` opaque
+  scope; tests cover deny path (`internal/capabilities/gateway_test.go`).
+- Negative: `ListModules()` là ngoại lệ read-only không qua gate — cần review khi
+  registry chứa metadata nhạy cảm.
+- Neutral: Future MCP/plugin subjects cần grant model mở rộng trên cùng Gateway.
+
+---
+
+## ADR-004: Application-layer encrypted records instead of SQLCipher
+
+**Status:** Accepted
+
+**Decision:** SQLite (`devkit.db`) lưu JSON blob per record; secret fields được
+mã hóa bằng vault DEK qua versioned crypto envelope **trước khi** persist.
+Không dùng SQLCipher hay full-database encryption trong phase hiện tại. File
+permission `0600`, `journal_mode=DELETE`, và `MaxOpenConns(1)` bổ sung defense
+in depth.
+
+**Context:** Local-first MVP cần encrypt credentials và note body mà không phụ
+thuộc native SQLCipher build (cgo, cross-compile complexity). Nhiều metadata
+(title, host, username) cố ý plaintext để search/list khi vault locked.
+
+**Alternatives considered:**
+
+- **SQLCipher full-DB encryption** — bảo vệ toàn file nhưng thêm cgo/native
+  dependency và khó align với pure-Go `modernc.org/sqlite` driver đang dùng.
+- **OS full-disk encryption only** — không bảo vệ khi vault unlocked hoặc
+  process memory bị đọc.
+- **Encrypt toàn bộ JSON blob** — phá search title và profile list UX hiện tại.
+
+**Consequences:**
+
+- Positive: Cross-platform build đơn giản; envelope versioning (V1/V2) độc lập
+  với SQL schema; field-level encrypt/decrypt chỉ khi vault unlocked.
+- Negative: `devkit.db` và plaintext metadata readable nếu attacker có file access
+  khi vault locked — không phải zero plaintext at rest.
+- Neutral: Có thể bổ sung SQLCipher hoặc field promotion sau nếu threat model
+  yêu cầu, với migration plan riêng.
+
+---
+
+## ADR-005: V1 envelope readability plus V2 AAD binding
+
+**Status:** Accepted
+
+**Decision:** Giữ khả năng đọc envelope V1 (XChaCha20-Poly1305, không AAD) cho
+backward compatibility. Mọi ghi mới dùng V2 với associated data binding
+`record_type + NUL + record_id + NUL + key_id`. `OpenWithAD` đọc cả V1 và V2;
+`Open` chỉ V1.
+
+**Context:** DevKit đang trong giai đoạn schema/envelope evolution. Cần đọc
+record cũ sau upgrade mà không bulk re-encrypt bắt buộc; đồng thời tăng integrity
+binding cho record mới (chống swap ciphertext giữa records).
+
+**Alternatives considered:**
+
+- **V2 only, drop V1** — đơn giản nhưng break existing local DB sau upgrade.
+- **Mandatory migration job at startup** — đảm bảo V2-only nhưng tăng startup
+  risk và phức tạp rollback.
+- **V1 forever** — không có record binding; swap attack surface còn lại.
+
+**Consequences:**
+
+- Positive: Rolling upgrade an toàn; service code (`notes`, `database`, `ssh`)
+  gọi `SealV2` cho write mới; tests cover V1 read path.
+- Negative: Legacy V1 records không có AAD binding cho đến khi rewrite tự nhiên
+  hoặc explicit migration.
+- Neutral: Không có public bridge flow bulk re-encrypt — migration là future
+  product decision.
+
+---
+
+## ADR-006: Loopback-only server mode
+
+**Status:** Accepted
+
+**Decision:** Build tag `server` tạo headless HTTP server chỉ bind loopback
+(default `127.0.0.1`). `servermode.ValidateHost` reject public/wildcard
+`WAILS_SERVER_HOST` tại startup. Không expose Docker port publishing cho server
+mode.
+
+**Context:** Server mode phục vụ dev/headless convenience (CI smoke, không GUI)
+— không phải production remote API. Bind public mà chưa có TLS, authn, authz sẽ
+tạo false sense of deployment readiness.
+
+**Alternatives considered:**
+
+- **Public bind + Wails defaults** — tiện demo nhưng expose bridge surface ra
+  LAN/Internet không kiểm soát.
+- **Separate authenticated API server ngay** — scope quá lớn cho MVP; trì hoãn
+  đến thiết kế server riêng.
+- **Disable server mode entirely** — mất headless test path hữu ích.
+
+**Consequences:**
+
+- Positive: Fail-fast nếu misconfigure host; README và `core-foundation.md` align
+  messaging “not a remote API”.
+- Negative: Không chạy server mode trong Docker container reachable từ host mà
+  không weaken guard.
+- Neutral: OS firewall/network policy vẫn là trách nhiệm operator — code chỉ
+  enforce bind address tại startup.
+
+---
+
+## ADR-007: Verified TLS for remote DB and exact SSH host-key pinning
+
+**Status:** Accepted
+
+**Decision:**
+
+1. **Database:** Remote PostgreSQL profiles default `sslmode=verify-full`. Chỉ
+   cho phép `sslmode=disable` trên loopback dev hosts; remote + insecure TLS bị
+   reject (`ErrInsecureTLSForRemoteHost`).
+2. **SSH:** Connection chỉ thành công khi server host-key SHA-256 fingerprint
+   khớp pin đã trust. Empty pin reject; changed key reject. TOFU flow qua
+   `SSHObserveHostKey` → user approve → `SSHTrustHostKey`.
+
+**Context:** Connection modules quản lý credentials đã decrypt từ vault — transport
+security phải giảm MITM risk cho DB và SSH. Dev loopback exception giữ DX cho
+local PostgreSQL/SSH test.
+
+**Alternatives considered:**
+
+- **Trust-on-first-use without persistence** — mỗi session hỏi lại; UX kém và dễ
+  approve nhầm.
+- **Trust system `known_hosts` globally** — không gắn với per-profile pin; khó
+  audit trong app model.
+- **DB TLS disable by default** — tiện dev nhưng nguy hiểm khi profile trỏ
+  remote host.
+- **Custom CA pinning cho DB** — chưa implement; hiện rely system CA store của
+  pgx.
+
+**Consequences:**
+
+- Positive: Remote DB MITM protection mặc định; SSH MITM detected khi key thay
+  đổi; tests cover reject paths.
+- Negative: Manual host-key trust UX; DB custom CA pinning chưa có.
+- Neutral: Passphrase SSH per-operation qua bridge — phụ thuộc redaction + UI
+  discipline, không persist.
+
+---
+
+## Verified snapshot
+
+- Checked on: 2026-07-12
+- DevKit checkout commit: `840c3e388265b51b9f9049f5a2c0f5371a2dff68`
+- Primary sources: `docs/architecture/devkit-architecture.md`,
+  `docs/architecture/core-foundation.md`, `main.go`,
+  `internal/capabilities/gateway.go`, `internal/storage/sqlite.go`,
+  `internal/crypto/envelope.go`, `internal/servermode/servermode.go`,
+  `internal/services/database/database.go`, `internal/services/ssh/hostkeys.go`
