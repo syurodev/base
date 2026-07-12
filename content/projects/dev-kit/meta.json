@@ -1,0 +1,12 @@
+{
+  "title": "DevKit",
+  "description": "Local-first developer desktop workspace",
+  "root": true,
+  "pages": [
+    "index",
+    "architecture",
+    "core-foundation",
+    "project-structure",
+    "mcp-agent-integration"
+  ]
+}
