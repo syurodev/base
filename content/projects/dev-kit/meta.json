@@ -1,12 +1,26 @@
 {
   "title": "DevKit",
-  "description": "Local-first developer desktop workspace",
+  "description": "Workspace desktop local-first cho developer",
   "root": true,
   "pages": [
+    "---Giới thiệu---",
     "index",
-    "architecture",
+    "vision",
+    "---Kiến trúc---",
+    "system-overview",
+    "runtime",
+    "data-sync",
+    "---Modules---",
+    "vault",
+    "connections",
+    "tools",
+    "plugins",
+    "---AI & bảo mật---",
+    "mcp-agent",
+    "security",
+    "---Engineering---",
+    "repo-structure",
     "core-foundation",
-    "project-structure",
-    "mcp-agent-integration"
+    "open-questions"
   ]
 }
