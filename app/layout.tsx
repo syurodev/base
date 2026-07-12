@@ -15,10 +15,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Ideas',
-    template: '%s | Ideas',
+    default: 'Ý tưởng',
+    template: '%s | Ý tưởng',
   },
-  description: 'Personal project ideas and docs',
+  description: 'Kho ý tưởng dự án cá nhân và docs',
 };
 
 export default function RootLayout({
@@ -28,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="vi"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
