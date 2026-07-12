@@ -9,7 +9,7 @@ export default async function Layout({
   children: React.ReactNode;
   params: Promise<{ project: string }>;
 }) {
-  const { project: _project } = await params;
+  await params;
 
   return (
     <DocsLayout tree={source.getPageTree()} {...baseOptions()}>
