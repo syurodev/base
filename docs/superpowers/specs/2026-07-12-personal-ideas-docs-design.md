@@ -1,7 +1,7 @@
 # Personal Ideas Docs — Design Spec
 
 **Date:** 2026-07-12  
-**Status:** Approved (conversation)  
+**Status:** Approved (conversation) — routing revised  
 **Stack:** Next.js (App Router) + Fumadocs + Tailwind + MDX
 
 ## Goal
@@ -20,34 +20,49 @@ Single Next.js app, two surfaces:
 | Surface | Route | Role |
 |---|---|---|
 | Idea garden | `/` | Custom React + Tailwind; cards/list of ideas |
-| Docs | `/docs/...` | Fumadocs UI (sidebar, TOC, search) |
+| Project docs | `/{project-slug}/...` | Fumadocs UI (sidebar, TOC, search) for that project |
 
-Content lives as MDX under `content/` and is compiled by fumadocs-mdx.
+Examples:
+
+- `/cool-saas` → project overview
+- `/cool-saas/architecture` → nested doc page
+- `/another-idea/research` → another project's docs
+
+There is **no** global `/docs` prefix. Each project owns its URL segment.
+
+Content lives as MDX under `content/projects/{project-slug}/` and is compiled by fumadocs-mdx.
 
 ```
 app/
-  (home)/page.tsx              # garden homepage
-  docs/[[...slug]]/page.tsx    # Fumadocs docs pages
+  (home)/page.tsx                         # garden homepage
+  [project]/[[...slug]]/page.tsx         # Fumadocs pages per project
 content/
-  docs/                        # MDX + meta.json page tree
-lib/source.ts                  # Fumadocs source adapter
+  projects/
+    sample-idea/
+      index.mdx
+      overview.mdx
+      meta.json                            # optional page tree
+lib/source.ts                             # Fumadocs source adapter
 ```
+
+Reserved top-level segments (not project slugs): only framework/static needs as they appear (e.g. `api`, `_next`, assets). Project slugs must not collide with those.
 
 ## Content model (v1)
 
-- Docs pages are MDX files under `content/docs/`
-- Navigation comes from Fumadocs page tree (`meta.json` / folder structure)
+- One folder per project under `content/projects/{project-slug}/`
+- `project-slug` is the URL path segment
+- Navigation comes from Fumadocs page tree (`meta.json` / folder structure) scoped to that project
 - Frontmatter (minimum): `title`, optional `description`
-- Sample content: one idea with a short overview + nested doc page
+- Sample content: one project (`sample-idea`) with overview + one nested page
 
-Later (out of setup scope): richer idea frontmatter (`status`, `tags`, `summary`) and garden filters driven by that metadata.
+Later (out of setup scope): richer idea frontmatter (`status`, `tags`, `summary`) and garden filters driven by that metadata; garden cards link to `/{project-slug}`.
 
 ## Stack
 
 - **Next.js** App Router + TypeScript
 - **Fumadocs UI** + **fumadocs-mdx**
 - **Tailwind CSS**
-- **Search:** Orama (Fumadocs default)
+- **Search:** Orama (Fumadocs default); ideally scoped or labeled by project when multiple exist
 - **Hosting:** Vercel-ready
 
 ## Setup scope (this phase)
@@ -55,9 +70,9 @@ Later (out of setup scope): richer idea frontmatter (`status`, `tags`, `summary`
 In scope:
 
 - Scaffold Fumadocs app into this repo
-- Placeholder garden homepage linking into docs
-- 1–2 sample MDX pages
-- Short README: how to add a new idea/doc
+- Placeholder garden homepage linking to `/{project-slug}`
+- 1 sample project with 1–2 MDX pages under `content/projects/`
+- Short README: how to add a new project (folder + slug = URL)
 
 Out of scope:
 
@@ -73,7 +88,7 @@ Out of scope:
 
 ## Success criteria
 
-- `pnpm dev` serves garden + docs locally (package manager: pnpm)
-- Docs look like a modern docs site (sidebar, TOC, search)
-- Adding a new MDX file under `content/docs/` shows up in navigation after refresh
-- Repo is deployable to Vercel without extra app rewrites beyond Fumadocs defaults
+- `pnpm dev` serves garden + project docs locally (package manager: pnpm)
+- Visiting `/{project-slug}` shows Fumadocs-style docs (sidebar, TOC, search)
+- Adding a new folder under `content/projects/{slug}/` exposes docs at `/{slug}`
+- Repo is deployable to Vercel without a global `/docs` base path
