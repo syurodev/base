@@ -21,6 +21,7 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 
 | Module | Status | Evidence | Remaining scope |
 |---|---|---|---|
+| Crypto envelope | Implemented | `internal/crypto/envelope.go`, `internal/crypto/aead.go`; tests: `internal/crypto/envelope_test.go`, `internal/crypto/aead_test.go`; V2-only `SealV2`/`OpenWithAD` with canonical AAD and explicit V1 rejection. | Future envelope changes require an explicit versioned migration decision; no V1 migration tool is in scope. |
 | Vault | Implemented | `internal/vault/service.go`, `internal/vault/keyringstore.go`, `internal/vault/sqlkeyringstore.go`; tests: `internal/vault/service_test.go`, `internal/vault/keyringstore_test.go`, `internal/vault/sqlkeyringstore_test.go`; UI: `frontend/src/workbench/VaultGate.tsx`. | Hoàn thiện UX và policy cho recovery / strength hints nếu cần. |
 | Notes | Implemented | `internal/services/notes/notes.go`, `internal/services/notes/repository.go`, `internal/services/notes/sqlrepository.go`; tests: `internal/services/notes/notes_test.go`, `internal/services/notes/repository_test.go`, `internal/services/notes/sqlrepository_test.go`; UI: `frontend/src/modules/notes/NotesView.tsx`. | Title vẫn là metadata plaintext; cần encrypt title nếu titles ever sync. |
 | Tools | Implemented | `internal/services/tools/hash.go`, `internal/commands/registry.go`; test: `internal/services/tools/hash_test.go`; UI: `frontend/src/modules/tools/ToolsView.tsx`. | Mở rộng thêm tools khi product cần. |
@@ -35,18 +36,24 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 
 ## Verified snapshot
 
-- Checked on: 2026-07-12
+- Checked on: 2026-07-13
 - DevKit checkout branch: `main`
-- DevKit checkout commit: `840c3e388265b51b9f9049f5a2c0f5371a2dff68`
+- DevKit checkout commit: `fc2f7c05ca43a1f4ac7e735fa8c5cabfe45029fe`
+- DevKit checkout status: clean, tracking `main...origin/main`
 - Verification commands run:
   - `git -C /Users/syuro/Workspace/dev-kit branch --show-current`
   - `git -C /Users/syuro/Workspace/dev-kit rev-parse HEAD`
   - `git -C /Users/syuro/Workspace/dev-kit status --short --branch`
-  - `rg --files /Users/syuro/Workspace/dev-kit/internal /Users/syuro/Workspace/dev-kit/frontend/src | rg 'internal/(vault|services/(notes|tools|ssh|database)|capabilities|bridge)/.*_test\\.go$|frontend/src/modules/(notes|tools|ssh|database)/'`
+  - `rg --files /Users/syuro/Workspace/dev-kit/internal /Users/syuro/Workspace/dev-kit/frontend/src | rg 'internal/(crypto|vault|services/(notes|tools|ssh|database)|capabilities|bridge)/.*_test\\.go$|frontend/src/modules/(notes|tools|ssh|database)/'`
+  - `rg -n 'EnvelopeVersionV2|SealV2|OpenWithAD' /Users/syuro/Workspace/dev-kit/internal/crypto /Users/syuro/Workspace/dev-kit/internal/vault`
   - `rg --files /Users/syuro/Workspace/dev-kit/docs/architecture | rg 'mcp-agent-integration|devkit-architecture|project-structure-and-code-rules|core-foundation'`
   - `for p in /Users/syuro/Workspace/dev-kit/internal/mcp /Users/syuro/Workspace/dev-kit/internal/sync /Users/syuro/Workspace/dev-kit/internal/plugins /Users/syuro/Workspace/dev-kit/internal/marketplace; do if test ! -d "$p"; then echo "absent: $p"; fi; done`
   - `test ! -f /Users/syuro/Workspace/dev-kit/internal/vault/item_repository.go`
-  - `node -e "const fs=require('fs'); const p='/Users/syuro/Workspace/PERSONAL/base/.worktrees/devkit-docs-completion/content/projects/dev-kit/implementation-status.mdx'; const s=fs.readFileSync(p,'utf8'); for (const needle of ['## Status vocabulary','## Module matrix','## Verified snapshot','## Current limitations']) if (!s.includes(needle)) throw new Error('missing '+needle); console.log('implementation-status.mdx structure ok')"`
+  - `GOCACHE=/private/tmp/devkit-go-cache go test ./...`
+  - `GOCACHE=/private/tmp/devkit-go-cache go vet ./...`
+  - `bun run lint` in `/Users/syuro/Workspace/PERSONAL/base`
+  - `bun run build` in `/Users/syuro/Workspace/PERSONAL/base`
+  - `node -e "const fs=require('fs'); const p='/Users/syuro/Workspace/PERSONAL/base/content/projects/dev-kit/implementation-status.mdx'; const s=fs.readFileSync(p,'utf8'); for (const needle of ['## Status vocabulary','## Module matrix','## Verified snapshot','## Current limitations']) if (!s.includes(needle)) throw new Error('missing '+needle); console.log('implementation-status.mdx structure ok')"`
 
 ## Current limitations
 
@@ -59,3 +66,6 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 - Sync runtime is still design-only in this checkout.
 - External plugin runtime is still design-only in this checkout.
 - Vault-item repository CRUD is still design-only in this checkout.
+- The docs `bun run types:check` command currently reports an unrelated generated
+  `.source/server.ts is not a module` error; the production docs build completes
+  successfully with TypeScript.
