@@ -220,16 +220,16 @@ Envelope format public cho dữ liệu mã hóa nằm ở:
 
 Contract hiện tại:
 
-- Version hợp lệ: `1` và `2`.
+- Version hợp lệ: chỉ `2`.
 - Algorithm hợp lệ ở runtime hiện tại: `xchacha20-poly1305`.
 - Envelope field ổn định: `version`, `algorithm`, `key_id`, `nonce`,
   `ciphertext`.
 
-Tương thích V1/V2:
+V2-only:
 
-- `Open(...)` chỉ đọc V1.
-- `OpenWithAD(...)` đọc được cả V1 và V2.
-- V1 vẫn mở với `nil` associated data để giữ backward readability.
+- Không còn public API tạo hoặc giải mã envelope V1.
+- `OpenWithAD(...)` chỉ nhận V2 và yêu cầu associated data khớp.
+- Envelope V1 bị từ chối với lỗi unsupported version; không có migrate tool.
 - V2 ràng buộc AAD theo bộ ba `record_type`, `record_id`, `key_id`.
 - Canonical AAD được ghép bằng:
   `record_type + NUL + record_id + NUL + key_id`
@@ -250,10 +250,8 @@ New secret writes hiện tại đều dùng `SealV2(...)` trong:
 Điều này có nghĩa:
 
 - Record mới ghi từ runtime hiện tại đi theo V2.
-- Record V1 cũ vẫn đọc được nếu service gọi `OpenWithAD(...)`.
-- Không có public bridge flow riêng để bulk rewrite hoặc ép migrate toàn bộ
-  envelope; việc nâng format chỉ xảy ra khi runtime tương lai chủ động ghi lại
-  record.
+- Record V1 cũ không còn được hỗ trợ đọc vì DevKit là greenfield và chưa có dữ
+  liệu V1 production cần bảo toàn.
 
 ## Compatibility rules
 
@@ -263,7 +261,7 @@ Những thay đổi sau được xem là backward-compatible với caller hiện
 - thêm built-in subject/capability/scope mới mà không đổi grant cũ;
 - thêm metadata audit mới nếu vẫn redact theo rule hiện tại;
 - thêm migration forward-only mới với version mới;
-- tiếp tục ghi V2 nhưng vẫn giữ khả năng đọc V1.
+- tiếp tục ghi V2 và giữ `OpenWithAD(...)` bắt buộc AAD matching.
 
 Những thay đổi sau cần migration hoặc quyết định kiến trúc rõ ràng trước khi
 coi là hợp lệ:
@@ -274,7 +272,6 @@ coi là hợp lệ:
 - đổi table name, blob shape, hoặc semantics của `schema_migrations`;
 - chuyển plaintext metadata hiện tại (ví dụ note title, DB/SSH profile
   metadata) sang encrypted-at-rest mà không có kế hoạch reindex/migration;
-- bỏ khả năng đọc V1;
 - thêm algorithm mới rồi dùng nó làm default mà không có rule compatibility cho
   reader cũ;
 - cho UI hoặc module gọi thẳng service/repository mà bỏ qua `AppService.call`
