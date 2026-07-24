@@ -24,7 +24,7 @@ trang kiểm chứng.
 - Status: Partial
 - Goal: Hoàn tất bộ local workflow để DevKit hữu ích hằng ngày mà chưa cần sync hay plugin bên thứ ba.
 - Evidence: `/dev-kit/implementation-status` xác nhận Vault, Notes, Tools, Database đã Implemented; SSH còn Partial; `internal/vault/service.go`, `internal/services/notes/notes.go`, `internal/services/database/database.go`, `internal/services/ssh/ssh.go`.
-- Done when: Các module local-first cốt lõi cần cho solo use đều đạt ít nhất `Implemented` trên `/dev-kit/implementation-status`, đặc biệt đóng nốt gap của SSH và bổ sung vault-item repository còn đang design-only.
+- Done when: Các module local-first cốt lõi cần cho solo use đều đạt ít nhất `Implemented` trên `/dev-kit/implementation-status`. Vault-item repository đã **Implemented** (unified `vault_items` store + cross-type `VaultSearch`, xem [ADR-008](/dev-kit/architecture-decisions#adr-008-unified-vault_items-store-for-built-in-item-types)); gap còn lại của phase là hoàn tất tunnel/forwarding cho SSH.
 - Dependencies: Phase 0 giữ ổn định storage, crypto envelope, permission boundary, và UI shell local-first.
 - Out of scope: SaaS sync, external plugin loading, marketplace, realtime collaboration.
 
@@ -57,6 +57,6 @@ trang kiểm chứng.
 
 ## Next recommended work
 
-1. Hoàn tất local data contract còn thiếu cho vault-item repository và search sau unlock, vì đây là chỗ Phase 1 còn design-only nhưng chặn giá trị local-first: `/dev-kit/technical-contracts`.
+1. ✅ **Đã xong**: unified `vault_items` store + cross-type `VaultSearch` (vault-item repository). Việc còn lại của mảng này là index cho search khi item nhiều và hoàn tất tunnel/forwarding cho SSH: `/dev-kit/technical-contracts`.
 2. Chốt contract manifest/contribution/versioning cho built-in modules trước khi bàn đến plugin runtime, để Phase 2 có API shape ổn định: `/dev-kit/plugins`.
-3. Chỉ bắt đầu sync sau khi Phase 1–2 ổn định, vì sync phụ thuộc local schema, permission boundary và zero-knowledge rules đã chốt: `/dev-kit/data-sync`.
+3. Chỉ bắt đầu sync sau khi Phase 1–2 ổn định, vì sync phụ thuộc local schema, permission boundary và zero-knowledge rules đã chốt; `vault_items` đã có `sync_state`/`key_version` làm nền: `/dev-kit/data-sync`.

@@ -61,6 +61,7 @@ Boundary này được thể hiện ở:
 | Database | `DBListProfiles`, `DBCreateProfile`, `DBDeleteProfile`, `DBTestConnection`, `DBQuery` | `builtin.database` / `db:query` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/database.go` |
 | SSH | `SSHListProfiles`, `SSHCreateProfile`, `SSHDeleteProfile`, `SSHObserveHostKey`, `SSHTrustHostKey`, `SSHTestConnection`, `SSHRunCommand` | `builtin.ssh` / `ssh:connect` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/ssh.go` |
 | Tools | `ExecuteCommand` | `builtin.tools` / `tools:hash` / `command:<id>` | `internal/bridge/app_service.go`, `internal/commands/registry.go` |
+| Search | `VaultSearch` | `builtin.search` / `vault:search` / `item:search` | `internal/bridge/search.go` |
 | Modules | `ListModules` | no capability gate; registry read-through only | `internal/bridge/app_service.go`, `internal/modules/registry.go` |
 
 Hai quy tắc bridge quan trọng:
@@ -90,6 +91,7 @@ Built-in subjects đang được container cấp sẵn trong
 - `builtin.database`
 - `builtin.ssh`
 - `builtin.vault`
+- `builtin.search`
 
 Capability names public hiện tại:
 
@@ -99,6 +101,7 @@ Capability names public hiện tại:
 - `db:query`
 - `ssh:connect`
 - `vault:manage`
+- `vault:search`
 
 Scope families hiện tại:
 
@@ -111,6 +114,7 @@ Scope families hiện tại:
 - `profile:new`
 - `profile:<record-id>`
 - `vault`
+- `item:search`
 
 Generic command scope construction is broader than the runtime surface today:
 
@@ -176,32 +180,37 @@ Boundary redaction:
 
 Persistence runtime hiện chia làm hai lớp:
 
-1. Repository interface theo domain trong
-   `internal/services/{notes,database,ssh}/repository.go`.
+1. Shared item store `internal/services/vaultitem` — một `Repository` (memory +
+   SQLite) và một `Store` lo storage/crypto/search cho mọi item type.
 2. SQLite KV + migration runner dùng chung trong `internal/storage`.
 
 Boundary ổn định:
 
-- Service chỉ phụ thuộc `Repository` và `Vault` interface, không phụ thuộc
-  trực tiếp SQL câu lệnh của module khác.
-- `internal/storage.KV` là contract lưu `id -> JSON blob` một dòng mỗi record;
-  repository của từng module tự marshal/unmarshal record riêng.
+- Notes/Database/SSH service chỉ phụ thuộc một local `Store` interface (được
+  `*vaultitem.Store` thỏa mãn); không còn repository riêng mỗi module.
+- `vaultitem.Record` là shape at-rest chung: `id`, `type`, `metadata` (plaintext
+  JSON), `payload` (envelope mã hóa, nil nếu type không có secret), `created_at`,
+  `updated_at`, `key_version`, `sync_state`.
 - Table hiện tại được chốt trong `internal/storage/sqlite.go`:
-  `vault_keyring`, `notes`, `connection_profiles`, `ssh_profiles`.
+  `vault_keyring` và `vault_items` (id TEXT PRIMARY KEY, type TEXT, data TEXT).
+  Ba bảng cũ `notes`/`connection_profiles`/`ssh_profiles` đã bị drop (migration
+  m6) và thay bằng `vault_items`.
 - `storage.Migrate(...)` chạy migration forward-only, idempotent, có version,
-  bằng `schema_migrations` trong `internal/storage/{sqlite,migrations}.go`.
+  bằng `schema_migrations` trong `internal/storage/{sqlite,migrations}.go`
+  (m5 tạo `vault_items`, m6 drop bảng cũ).
 
-Phân ranh dữ liệu nhạy cảm và metadata:
+Phân ranh dữ liệu nhạy cảm và metadata (mỗi type map field vào `metadata`
+plaintext và `payload` mã hóa của `vault_items`):
 
-- Notes: `Body` được mã hóa, `Title` vẫn là plaintext local metadata
-  (`internal/services/notes/notes.go`).
-- Database profiles: chỉ `Password` được mã hóa; `Host`, `Port`, `Database`,
-  `Username`, `SSLMode` là metadata không nhạy cảm
+- Notes (`type = "note"`): `Body` được mã hóa trong payload, `Title` là plaintext
+  metadata (`internal/services/notes/notes.go`).
+- Database profiles (`type = "db-profile"`): chỉ `Password` mã hóa; `Host`, `Port`,
+  `Database`, `Username`, `SSLMode` là metadata không nhạy cảm
   (`internal/services/database/database.go`).
-- SSH profiles: chỉ `Secret` được mã hóa; `Host`, `Port`, `Username`,
-  `AuthMethod`, `HostKeyFingerprint` là metadata không nhạy cảm
+- SSH profiles (`type = "ssh-profile"`): chỉ `Secret` mã hóa; `Host`, `Port`,
+  `Username`, `AuthMethod`, `HostKeyFingerprint` là metadata không nhạy cảm
   (`internal/services/ssh/ssh.go`).
-- Vault keyring được lưu như một row riêng qua `internal/vault/sqlkeyringstore.go`.
+- Vault keyring vẫn được lưu như một row riêng qua `internal/vault/sqlkeyringstore.go`.
 
 Storage file boundary:
 
@@ -238,10 +247,15 @@ V2-only:
 Binding hiện đang được service dùng:
 
 - Notes: `record_type = "note"`, `key_id = "note-body"`
-- Database profile: `record_type = "database-profile"`, `key_id = "db-password"`
+- Database profile: `record_type = "db-profile"`, `key_id = "db-password"`
 - SSH profile: `record_type = "ssh-profile"`, `key_id = "ssh-secret"`
 
-New secret writes hiện tại đều dùng `SealV2(...)` trong:
+`record_type` giờ chính là `vault_items.type`, và `record_id` là item id; AAD
+được `vaultitem.Store` ghép trong cả seal (`Create`) lẫn open (`OpenPayload`) nên
+ràng buộc chống swap không đổi.
+
+New secret writes đều đi qua `vaultitem.Store.Create(...)` (gọi `SealV2` bên
+trong) từ:
 
 - `internal/services/notes/notes.go`
 - `internal/services/database/database.go`

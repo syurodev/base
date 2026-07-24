@@ -251,17 +251,59 @@ local PostgreSQL/SSH test.
 
 ---
 
+## ADR-008: Unified `vault_items` store for built-in item types
+
+**Status:** Accepted
+
+**Decision:** Gộp ba store riêng (`notes`, `connection_profiles`, `ssh_profiles`)
+thành một bảng `vault_items` phía sau package chung `internal/services/vaultitem`
+(`Record`, `Repository` memory + SQLite, và `Store` lo storage/crypto/search).
+Notes/Database/SSH service trở thành thin adapter map field vào `metadata`
+plaintext + `payload` mã hóa, giữ nguyên chữ ký public nên bridge/UI/capability
+không đổi. Thêm bridge family `VaultSearch` với grant `builtin.search` /
+`vault:search` / `item:search` cho search xuyên loại trên metadata.
+
+**Context:** Ba module lặp lại cùng khuôn "vài field plaintext + một secret mã
+hóa" nhưng mỗi cái có repository/crypto/search riêng, và không có nền chung cho
+search xuyên loại, `key_version`, hay `sync_state` mà sync tương lai cần. Đây là
+hạng mục Phase 1 "vault-item repository" mà roadmap đánh dấu là chặn giá trị
+local-first.
+
+**Alternatives considered:**
+
+- **Generic CRUD + type registry hoàn toàn** — sạch nhất cho plugin-defined item
+  type tương lai nhưng refactor lớn, mất type-safety và error/capability contract
+  per-family; hợp Phase 2 hơn.
+- **Chỉ unify bảng (một cột `type`, ba service giữ repository riêng)** — thay đổi
+  nhỏ nhất nhưng không tạo được lớp chung, search vẫn per-service.
+- **Giữ nguyên ba store** — không giao được giá trị vault-item repository.
+
+**Consequences:**
+
+- Positive: một nơi duy nhất lo storage/crypto/search; AAD binding per-type
+  (`key_id` = `note-body`/`db-password`/`ssh-secret`) giữ nguyên chống swap; có
+  `key_version`/`sync_state` làm nền sync; search xuyên loại chạy được khi vault
+  khóa (chỉ đọc metadata).
+- Negative: greenfield nên migration drop ba bảng cũ (m6) mà không backfill; nếu
+  sau này có dữ liệu cần bảo toàn phải thêm migration riêng.
+- Neutral: `record_type` cho DB profile đổi `database-profile` → `db-profile`;
+  search hiện là substring trên metadata JSON, chưa có index trên cột `type`.
+
+---
+
 ## Verified snapshot
 
-- Checked on: 2026-07-12
+- Checked on: 2026-07-24
 - DevKit checkout branch: `main`
-- DevKit checkout commit: `840c3e388265b51b9f9049f5a2c0f5371a2dff68`
+- DevKit checkout commit: `0403a80ae5ffdb89b2be09e9223b5ff30bdaad33`
 - Verification commands run:
   - `git -C /Users/syuro/Workspace/dev-kit branch --show-current`
   - `git -C /Users/syuro/Workspace/dev-kit rev-parse HEAD`
-  - `rg -n 'container\.Modules\.Register|builtin\.vault' /Users/syuro/Workspace/dev-kit/internal/app/app.go /Users/syuro/Workspace/dev-kit/internal/app/container.go`
+  - `rg -n 'container\.Modules\.Register|builtin\.vault|builtin\.search' /Users/syuro/Workspace/dev-kit/internal/app/app.go /Users/syuro/Workspace/dev-kit/internal/app/container.go`
+  - `rg -n 'TableVaultItems|create vault_items|drop legacy' /Users/syuro/Workspace/dev-kit/internal/storage/sqlite.go`
+  - `test -d /Users/syuro/Workspace/dev-kit/internal/services/vaultitem`
 - Primary sources: `docs/architecture/devkit-architecture.md`,
   `docs/architecture/core-foundation.md`, `main.go`,
   `internal/capabilities/gateway.go`, `internal/storage/sqlite.go`,
   `internal/crypto/envelope.go`, `internal/servermode/servermode.go`,
-  `internal/services/database/database.go`, `internal/services/ssh/hostkeys.go`
+  `internal/services/vaultitem/store.go`, `internal/services/ssh/hostkeys.go`
