@@ -88,6 +88,11 @@ metadata từ backend theo module ID, title, version, API version, commands,
 views và capabilities. Mismatch tạo safe metadata warning; backend data không
 được dùng để dynamic-load component hoặc execute arbitrary code.
 
+Workbench xử lý loading/error fallback, module không tương thích và empty state
+ở mức minimal functional UX. Module unavailable không được render view hoặc
+đưa command vào Command Palette; các module tương thích khác vẫn tiếp tục hoạt
+động.
+
 Contract này chưa mở external plugin runtime. Dynamic loading, marketplace,
 MCP runtime và sync vẫn là các phase riêng, ngoài runtime surface hiện tại.
 

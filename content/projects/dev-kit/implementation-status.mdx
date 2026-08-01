@@ -29,7 +29,7 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 | Database | Implemented | `internal/services/database/database.go` (thin adapter trên `vaultitem.Store`), `internal/services/database/pool.go`; tests: `internal/services/database/database_test.go`, `internal/services/database/pool_test.go`, `internal/services/database/integration_test.go`; UI: `frontend/src/modules/database/DatabaseView.tsx`. | SQLite vẫn là application-layer encrypted profile store, không phải full-disk DB encryption. |
 | Vault item store | Implemented | `internal/services/vaultitem/vaultitem.go`, `internal/services/vaultitem/memory.go`, `internal/services/vaultitem/sqlrepository.go`, `internal/services/vaultitem/store.go`; tests: `internal/services/vaultitem/memory_test.go`, `internal/services/vaultitem/sqlrepository_test.go`, `internal/services/vaultitem/store_test.go`; bridge search: `internal/bridge/search.go`, `internal/bridge/search_test.go`. | Search hiện là substring trên metadata JSON; chưa có index trên cột `type`. |
 | Capability Gateway | Implemented | `internal/capabilities/gateway.go`, `internal/permissions/policy.go`, `internal/audit/events.go`, `internal/bridge/gateway.go`; tests: `internal/capabilities/gateway_test.go`, `internal/bridge/gateway_test.go`; grants gồm `builtin.search`/`vault:search`/`item:search` cho cross-type search. | Cần mở rộng policy khi external callers / plugin surface xuất hiện. |
-| ModuleManifest / Internal Extension API | Implemented | `internal/modules/registry.go` và `internal/app/app.go` định nghĩa/đăng ký manifest; `internal/bridge/{dto.go,app_service.go}` expose public metadata; frontend manifests và parity validation ở `frontend/src/modules/{registry.ts,*/manifest.ts}` và `frontend/src/workbench/Workbench.tsx`; tests: `internal/modules/registry_test.go`, `internal/bridge/app_service_test.go`; verification: `go test ./...`, `go vet ./...`, race tests, server build và frontend build pass. | External plugin runtime chưa nằm trong scope. |
+| ModuleManifest / Internal Extension API | Implemented | `internal/modules/registry.go` và `internal/app/app.go` định nghĩa/đăng ký manifest; `internal/bridge/{dto.go,app_service.go}` expose public metadata; frontend manifests, parity validation và minimal functional UX ở `frontend/src/modules/{registry.ts,*/manifest.ts}` và `frontend/src/workbench/{Workbench.tsx,ActivityBar.tsx,CommandPalette.tsx}`; tests: `internal/modules/registry_test.go`, `internal/bridge/app_service_test.go`; verification: `go test ./...`, `go vet ./...`, race tests, server build và frontend build pass. | External plugin runtime chưa nằm trong scope. |
 | MCP | Design only | Architecture sources: `docs/architecture/mcp-agent-integration.md`, `docs/architecture/devkit-architecture.md`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/mcp`. | Xây MCP runtime, tool registry, transport, and confirmation flow. |
 | Sync | Design only | Architecture sources: `docs/architecture/devkit-architecture.md`, `docs/architecture/project-structure-and-code-rules.md`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/sync`. | Implement sync client, queue, conflict handling, and encrypted blob flow. |
 | External plugins | Design only | Architecture sources: `docs/architecture/devkit-architecture.md`, `docs/architecture/project-structure-and-code-rules.md`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/plugins`. | Build plugin SDK, loader, isolation, permissioning, and lifecycle. |
@@ -66,8 +66,9 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
   - `bun run build` in `/Users/syuro/Workspace/PERSONAL/base`
   - `node -e "const fs=require('fs'); const p='/Users/syuro/Workspace/PERSONAL/base/content/projects/dev-kit/implementation-status.mdx'; const s=fs.readFileSync(p,'utf8'); for (const needle of ['## Status vocabulary','## Module matrix','## Verified snapshot','## Current limitations']) if (!s.includes(needle)) throw new Error('missing '+needle); console.log('implementation-status.mdx structure ok')"`
 
-Phase 2 đã đạt `Implemented`: backend, bridge và frontend parity đã có
-implementation/test evidence; final verification của combined checkout pass.
+Phase 2 đã đạt `Implemented`: backend, bridge, frontend parity và minimal
+functional UX đã có implementation/test evidence; final verification của
+combined checkout pass.
 
 ## Current limitations
 
@@ -84,8 +85,10 @@ implementation/test evidence; final verification của combined checkout pass.
   `id`, `title`, `version`, `apiVersion`, `commands`, `views`, `capabilities`.
   Backend registry có validation, duplicate protection, deterministic list và
   caller-owned snapshot; `ListModules` chỉ expose public metadata; frontend
-  built-in manifests parity-check với backend. `capabilities` chỉ là
-  declaration metadata, grants vẫn do capability gateway/policy quản lý.
+  built-in manifests parity-check với backend. Workbench có loading/error,
+  compatibility warning, unavailable-module và empty states ở mức tối thiểu.
+  `capabilities` chỉ là declaration metadata, grants vẫn do capability
+  gateway/policy quản lý.
 - External plugin runtime, dynamic loading, marketplace, MCP runtime và sync
   vẫn ngoài scope của Phase 2.
 - Vault-item repository is now implemented: một bảng `vault_items` + `internal/services/vaultitem`
