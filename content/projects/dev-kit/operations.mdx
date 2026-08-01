@@ -7,7 +7,7 @@ description: Runbook local để chạy, verify và troubleshoot DevKit.
 
 Trang này mô tả cách chạy DevKit trên máy local, verify build/test, quản lý dữ
 liệu và xử lý sự cố thường gặp. Nội dung được kiểm chứng từ checkout DevKit tại
-`/Users/syuro/Workspace/dev-kit` (commit `840c3e388265b51b9f9049f5a2c0f5371a2dff68`).
+`/Users/syuro/Workspace/dev-kit` (commit `0403a80ae5ffdb89b2be09e9223b5ff30bdaad33`).
 Boundary contract và security control xem thêm
 [Technical contracts](/dev-kit/technical-contracts) và
 [Security controls](/dev-kit/security-controls).
@@ -176,14 +176,22 @@ antivirus lock file.
 
 ## Verified snapshot
 
-- Checked on: 2026-07-12
+- Checked on: 2026-08-01
 - DevKit checkout branch: `main`
-- DevKit checkout commit: `840c3e388265b51b9f9049f5a2c0f5371a2dff68`
+- DevKit checkout commit: `0403a80ae5ffdb89b2be09e9223b5ff30bdaad33`
+- DevKit checkout status: working tree contains the uncommitted SSH forwarding implementation; baseline `HEAD` is synchronized with `origin/main`
 - Verification commands run:
   - `git -C /Users/syuro/Workspace/dev-kit branch --show-current`
   - `git -C /Users/syuro/Workspace/dev-kit rev-parse HEAD`
+  - `git -C /Users/syuro/Workspace/dev-kit status --short --branch`
+  - `git -C /Users/syuro/Workspace/dev-kit rev-list --left-right --count origin/main...HEAD`
   - `rg -n 'UserConfigDir|Server\.Host' /Users/syuro/Workspace/dev-kit/main.go`
   - `rg -n '127\.0\.0\.1:8080' /Users/syuro/Workspace/dev-kit/build/Taskfile.yml`
+  - `GOCACHE=/private/tmp/devkit-go-cache go test ./...`
+  - `GOCACHE=/private/tmp/devkit-go-cache go vet ./...`
+  - `GOCACHE=/private/tmp/devkit-go-cache go build -tags server -o /private/tmp/devkit-server .`
+  - `GOCACHE=/private/tmp/devkit-go-cache go test -race ./internal/services/ssh ./internal/bridge -count=1`
+  - `npm --prefix /Users/syuro/Workspace/dev-kit/frontend run build`
 - Evidence paths: `Taskfile.yml`, `build/Taskfile.yml`, `main.go`,
   `internal/servermode/servermode.go`, `internal/storage/sqlite.go`,
   `internal/vault/service.go`, `README.md`

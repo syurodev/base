@@ -18,17 +18,17 @@ flowchart TD
 ## Scope (hiện tại)
 
 - Lưu profile SSH/PostgreSQL trong vault; không hardcode secret trong config plaintext.
-- SSH: test connection, trust host-key pin, chạy lệnh từ shell UI.
+- SSH: test connection, trust host-key pin, chạy lệnh từ shell UI, và tạo local/remote TCP forwarding.
 - PostgreSQL: query và schema browse qua connection pool với TLS verify-full mặc định cho remote host.
-- Đóng/cleanup session rõ ràng sau thao tác.
+- Đóng/cleanup session rõ ràng sau thao tác; xóa profile hoặc shutdown app sẽ dừng các forward liên quan.
 
-Tunnel/port forwarding là capability target — chưa có trong runtime hiện tại.
+Forward listeners chỉ bind loopback, không persist qua restart, và dùng capability riêng `ssh:forward`.
 
 ## Non-goals (MVP)
 
 - Enterprise policy phức tạp
 - Chia sẻ connection cho team qua cloud plaintext
-- SSH tunnel / port forwarding
+- Public-facing tunnel listener hoặc unrestricted network bind
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
