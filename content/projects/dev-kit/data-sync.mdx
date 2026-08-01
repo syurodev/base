@@ -33,7 +33,19 @@ qua store thống nhất `internal/services/vaultitem` — xem [ADR-008](/dev-ki
 - `key_version` — cho phép rotate DEK và re-wrap mà không phá record cũ.
 - `sync_state` (mặc định `"local"`) — đánh dấu trạng thái đồng bộ của từng item.
 
-Sync client (target) sẽ đọc hai field này để quyết định item nào cần đẩy/kéo; chúng chưa được sync engine tiêu thụ vì runtime sync còn design-only.
+Sync foundation hiện đã có local queue/cursor và envelope helper; việc tự động
+đọc/ghi `vault_items` vào queue, pull/apply remote changes và network transport
+vẫn chưa triển khai.
+
+## Local sync foundation (implemented partially)
+
+- `internal/sync` định nghĩa change contract, idempotency, retry/conflict state
+  và opaque ciphertext payload.
+- `ReplicationEnvelope` mã hoá toàn bộ record bytes, gồm metadata và nested
+  payload envelope; plaintext metadata không được đưa vào outbox transport.
+- `sync_outbox` và `sync_cursors` được tạo bằng migration m7, không backfill
+  hoặc thay đổi dữ liệu hiện có trong `vault_items`.
+- Fake push transport dùng cho retry/conflict verification; chưa có network I/O.
 
 ## Zero-knowledge sync (target)
 

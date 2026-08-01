@@ -96,6 +96,24 @@ Workbench xử lý loading/error fallback, module không tương thích và empt
 Contract này chưa mở external plugin runtime. Dynamic loading, marketplace,
 MCP runtime và sync vẫn là các phase riêng, ngoài runtime surface hiện tại.
 
+## Sync foundation contract
+
+Local replication foundation hiện nằm ở `internal/sync` và
+`internal/storage/syncoutbox.go`:
+
+- `Change.Payload` chỉ chứa serialized encrypted replication envelope.
+- `ReplicationEnvelope` expose tối thiểu `record_id`, `record_type`,
+  `key_version` và envelope version; toàn bộ record bytes nằm trong ciphertext.
+- `QueuePayload` tạo idempotency key deterministic và enqueue ciphertext mà
+  không ghi plaintext record vào outbox.
+- Outbox state gồm `pending`, `syncing`, `synced`, `failed`, `conflict`; failure
+  persistence chỉ dùng safe reason vocabulary.
+- Fake `Transport`/`Runner` chỉ push ciphertext để kiểm tra retry, idempotency
+  và conflict; chưa có network hoặc remote apply.
+
+Migration m7 tạo `sync_outbox` và `sync_cursors`. Migration này không backfill,
+không drop và không thay đổi plaintext metadata trong `vault_items`.
+
 ## Bridge contract
 
 `internal/bridge` hiện publish các family operation sau:
