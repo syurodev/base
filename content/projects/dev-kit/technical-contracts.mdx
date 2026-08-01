@@ -50,6 +50,47 @@ Boundary này được thể hiện ở:
 - `ListModules` là bridge read-only public helper, không phải capability-gated
   operation.
 
+## Internal module manifest contract
+
+Built-in modules đăng ký metadata qua `ModuleManifest`, không đăng ký handler
+hoặc permission grant trong manifest. Contract hiện tại gồm:
+
+| Field | Contract |
+| --- | --- |
+| `id` | Module identifier ổn định, lowercase và namespaced theo identifier rules. |
+| `title` | Tên hiển thị public của module. |
+| `version` | Semantic version của module, hiện built-in modules dùng `1.0.0`. |
+| `apiVersion` | Version của internal extension contract; version hiện tại là `1`. |
+| `commands` | Danh sách command contribution IDs. Runtime handler vẫn nằm ở command registry/service boundary. |
+| `views` | Danh sách view contribution IDs. Component mapping vẫn do frontend built-in giữ local. |
+| `capabilities` | Declaration metadata để mô tả nhu cầu của module; không tự cấp quyền. |
+
+Backend `internal/modules.Registry` validate manifest trước khi mutate state,
+reject duplicate module/command/view/capability, và trả list deterministic với
+snapshot caller-owned. Built-in descriptors hiện được đăng ký từ
+`internal/app/app.go` cho `tools`, `notes`, `database` và `ssh`.
+
+`apiVersion` là compatibility field của contract; type giữ tên
+`ModuleManifest`. Khi permission được thực thi, grants vẫn phải được cấp
+explicit trong policy/container và sensitive calls vẫn đi qua
+`AppService.call(...)` + Capability Gateway.
+
+## Module metadata bridge and frontend parity
+
+`AppService.ListModules()` expose duy nhất public metadata của manifest qua
+`ModuleDTO`: version, API version, command/view IDs và capability declarations.
+Bridge không expose handler, secret, raw grant hoặc runtime implementation
+detail. JSON bridge dùng `api_version`; typed frontend adapter map field này về
+`apiVersion`.
+
+Frontend built-in manifests giữ component mapping local và parity-check với
+metadata từ backend theo module ID, title, version, API version, commands,
+views và capabilities. Mismatch tạo safe metadata warning; backend data không
+được dùng để dynamic-load component hoặc execute arbitrary code.
+
+Contract này chưa mở external plugin runtime. Dynamic loading, marketplace,
+MCP runtime và sync vẫn là các phase riêng, ngoài runtime surface hiện tại.
+
 ## Bridge contract
 
 `internal/bridge` hiện publish các family operation sau:
@@ -60,6 +101,7 @@ Boundary này được thể hiện ở:
 | Notes | `NotesList`, `NotesSearch`, `NotesCreate`, `NotesGet`, `NotesDelete` | `builtin.notes` / `notes:read` hoặc `notes:write` / `note:list`, `note:search`, `note:new`, `note:<id>` | `internal/bridge/notes.go` |
 | Database | `DBListProfiles`, `DBCreateProfile`, `DBDeleteProfile`, `DBTestConnection`, `DBQuery` | `builtin.database` / `db:query` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/database.go` |
 | SSH | `SSHListProfiles`, `SSHCreateProfile`, `SSHDeleteProfile`, `SSHObserveHostKey`, `SSHTrustHostKey`, `SSHTestConnection`, `SSHRunCommand` | `builtin.ssh` / `ssh:connect` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/ssh.go` |
+| SSH forwarding | `SSHStartForward`, `SSHListForwards`, `SSHStopForward` | `builtin.ssh` / `ssh:forward` / `profile:<id>`, `forward:list`, `forward:<id>` | `internal/bridge/ssh.go`, `internal/services/ssh/forwarding.go` |
 | Tools | `ExecuteCommand` | `builtin.tools` / `tools:hash` / `command:<id>` | `internal/bridge/app_service.go`, `internal/commands/registry.go` |
 | Search | `VaultSearch` | `builtin.search` / `vault:search` / `item:search` | `internal/bridge/search.go` |
 | Modules | `ListModules` | no capability gate; registry read-through only | `internal/bridge/app_service.go`, `internal/modules/registry.go` |
@@ -100,6 +142,7 @@ Capability names public hiện tại:
 - `notes:write`
 - `db:query`
 - `ssh:connect`
+- `ssh:forward`
 - `vault:manage`
 - `vault:search`
 
@@ -113,6 +156,8 @@ Scope families hiện tại:
 - `profile:list`
 - `profile:new`
 - `profile:<record-id>`
+- `forward:list`
+- `forward:<forward-id>`
 - `vault`
 - `item:search`
 

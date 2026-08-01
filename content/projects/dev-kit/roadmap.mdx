@@ -21,21 +21,22 @@ trang kiểm chứng.
 
 ## Phase 1 — Local MVP
 
-- Status: Partial
+- Status: Implemented
 - Goal: Hoàn tất bộ local workflow để DevKit hữu ích hằng ngày mà chưa cần sync hay plugin bên thứ ba.
-- Evidence: `/dev-kit/implementation-status` xác nhận Vault, Notes, Tools, Database đã Implemented; SSH còn Partial; `internal/vault/service.go`, `internal/services/notes/notes.go`, `internal/services/database/database.go`, `internal/services/ssh/ssh.go`.
-- Done when: Các module local-first cốt lõi cần cho solo use đều đạt ít nhất `Implemented` trên `/dev-kit/implementation-status`. Vault-item repository đã **Implemented** (unified `vault_items` store + cross-type `VaultSearch`, xem [ADR-008](/dev-kit/architecture-decisions#adr-008-unified-vault_items-store-for-built-in-item-types)); gap còn lại của phase là hoàn tất tunnel/forwarding cho SSH.
+- Evidence: `/dev-kit/implementation-status` xác nhận Vault, Notes, Tools, Database và SSH đã Implemented; `internal/vault/service.go`, `internal/services/notes/notes.go`, `internal/services/database/database.go`, `internal/services/ssh/ssh.go`, `internal/services/ssh/forwarding.go`.
+- Done when: Các module local-first cốt lõi cần cho solo use đều đạt ít nhất `Implemented` trên `/dev-kit/implementation-status`. Vault-item repository đã **Implemented** (unified `vault_items` store + cross-type `VaultSearch`, xem [ADR-008](/dev-kit/architecture-decisions#adr-008-unified-vault_items-store-for-built-in-item-types)); SSH có local và remote TCP forwarding với bind loopback-only, cleanup theo lifecycle, capability riêng và UI quản lý start/stop.
 - Dependencies: Phase 0 giữ ổn định storage, crypto envelope, permission boundary, và UI shell local-first.
 - Out of scope: SaaS sync, external plugin loading, marketplace, realtime collaboration.
 
 ## Phase 2 — Internal Extension API
 
-- Status: Partial
-- Goal: Nâng built-in modules từ registry hiện tại lên contract manifest/contribution/versioning rõ ràng để sau này chèn untrusted runtime mà không phải đổi kiến trúc.
-- Evidence: Runtime đã có `internal/modules/registry.go`, `frontend/src/modules/registry.ts`, `frontend/src/workbench/Workbench.tsx`; thiết kế manifest/versioning nằm ở `docs/architecture/devkit-architecture.md` mục internal modules/plugins và `docs/architecture/project-structure-and-code-rules.md` mục plugin manifest/API rules.
-- Done when: Built-in modules khai báo commands/views/permissions theo contract ổn định, có versioning cho Extension API, và contribution path của module nội bộ khớp với future plugin shape.
+- Status: Implemented
+- Goal: Chuẩn hoá built-in modules quanh `ModuleManifest` và contribution contract ổn định, trong khi vẫn giữ capability gateway là security boundary và chưa chạy code bên ngoài.
+- Evidence: Backend manifest và registry ở `internal/modules/registry.go`; built-in descriptors ở `internal/app/app.go`; public metadata ở `internal/bridge/{dto.go,app_service.go}`; frontend manifests, validation và parity-check ở `frontend/src/modules/{registry.ts,*/manifest.ts}` và `frontend/src/workbench/Workbench.tsx`.
+- Current implementation: `ModuleManifest` dùng các fields `id`, `title`, `version`, `apiVersion`, `commands`, `views`, `capabilities`. Backend validate manifest, bảo vệ duplicate module/contribution, trả list deterministic và snapshot độc lập; `ListModules` chỉ expose public metadata; frontend built-in manifests đối chiếu parity với backend. `capabilities` chỉ là declaration metadata, còn grants vẫn do policy/capability gateway quản lý.
+- Done when: Combined checkout verification pass; built-in modules dùng contract ổn định, registry/bridge/frontend parity được kiểm chứng, và contribution path vẫn không bypass `AppService.call` + Capability Gateway.
 - Dependencies: Phase 0 Capability Gateway + registry; quyết định “internal modules now, untrusted plugins later” trong `docs/architecture/devkit-architecture.md`.
-- Out of scope: Chạy code bên thứ ba, marketplace, signing, sandbox runtime.
+- Out of scope: External plugin runtime, dynamic loading, marketplace, MCP runtime, sync runtime, signing và sandbox runtime.
 
 ## Phase 3 — SaaS sync
 
@@ -57,6 +58,6 @@ trang kiểm chứng.
 
 ## Next recommended work
 
-1. ✅ **Đã xong**: unified `vault_items` store + cross-type `VaultSearch` (vault-item repository). Việc còn lại của mảng này là index cho search khi item nhiều và hoàn tất tunnel/forwarding cho SSH: `/dev-kit/technical-contracts`.
-2. Chốt contract manifest/contribution/versioning cho built-in modules trước khi bàn đến plugin runtime, để Phase 2 có API shape ổn định: `/dev-kit/plugins`.
+1. ✅ **Đã xong**: unified `vault_items` store + cross-type `VaultSearch` và SSH local/remote forwarding: `/dev-kit/technical-contracts`.
+2. ✅ **Đã xong**: verification và review contract `ModuleManifest`/contribution cho built-in modules; external plugin runtime vẫn chưa thuộc scope: `/dev-kit/plugins`.
 3. Chỉ bắt đầu sync sau khi Phase 1–2 ổn định, vì sync phụ thuộc local schema, permission boundary và zero-knowledge rules đã chốt; `vault_items` đã có `sync_state`/`key_version` làm nền: `/dev-kit/data-sync`.
