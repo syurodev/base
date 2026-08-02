@@ -30,19 +30,18 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 | Vault item store | Implemented | `internal/services/vaultitem/vaultitem.go`, `internal/services/vaultitem/memory.go`, `internal/services/vaultitem/sqlrepository.go`, `internal/services/vaultitem/store.go`; tests: `internal/services/vaultitem/memory_test.go`, `internal/services/vaultitem/sqlrepository_test.go`, `internal/services/vaultitem/store_test.go`; bridge search: `internal/bridge/search.go`, `internal/bridge/search_test.go`. | Search hiện là substring trên metadata JSON; chưa có index trên cột `type`. |
 | Capability Gateway | Implemented | `internal/capabilities/gateway.go`, `internal/permissions/policy.go`, `internal/audit/events.go`, `internal/bridge/gateway.go`; tests: `internal/capabilities/gateway_test.go`, `internal/bridge/gateway_test.go`; grants gồm `builtin.search`/`vault:search`/`item:search` cho cross-type search. | Cần mở rộng policy khi external callers / plugin surface xuất hiện. |
 | ModuleManifest / Internal Extension API | Implemented | `internal/modules/registry.go` và `internal/app/app.go` định nghĩa/đăng ký manifest; `internal/bridge/{dto.go,app_service.go}` expose public metadata; frontend manifests, parity validation và minimal functional UX ở `frontend/src/modules/{registry.ts,*/manifest.ts}` và `frontend/src/workbench/{Workbench.tsx,ActivityBar.tsx,CommandPalette.tsx}`; tests: `internal/modules/registry_test.go`, `internal/bridge/app_service_test.go`; verification: `go test ./...`, `go vet ./...`, race tests, server build và frontend build pass. | External plugin runtime chưa nằm trong scope. |
-| Sync / Replication foundation | Partial | Contract/outbox/envelope/queue/fake push runner ở `internal/sync`; persistent local outbox/cursor ở `internal/storage/{sqlite.go,syncoutbox.go}`; tests: `internal/sync/*_test.go`, `internal/storage/syncoutbox_test.go`, `internal/storage/migrations_test.go`; verification: full Go tests, vet, race tests và server build pass. | Chưa có device/session binding, pull/apply remote changes, network transport thật, bridge hoặc sync status UI. |
-| MCP | Design only | Architecture sources: `docs/architecture/mcp-agent-integration.md`, `docs/architecture/devkit-architecture.md`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/mcp`. | Xây MCP runtime, tool registry, transport, and confirmation flow. |
-| Sync | Design only | Architecture sources: `docs/architecture/devkit-architecture.md`, `docs/architecture/project-structure-and-code-rules.md`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/sync`. | Implement sync client, queue, conflict handling, and encrypted blob flow. |
-| External plugins | Design only | Architecture sources: `docs/architecture/devkit-architecture.md`, `docs/architecture/project-structure-and-code-rules.md`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/plugins`. | Build plugin SDK, loader, isolation, permissioning, and lifecycle. |
-| Marketplace | Design only | Architecture sources: `docs/architecture/devkit-architecture.md`, `docs/architecture/core-foundation.md`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/marketplace`. | Signing, integrity checks, rollback, and controlled distribution model. |
+| Sync / Replication foundation | Partial | Versioned sync context, AAD-bound replication envelope, operation-bound `PushOperation`, encrypted queue, lease-recoverable outbox và fake push runner ở `internal/sync`; persistent outbox/cursor/device identity ở `internal/storage/{sqlite.go,syncoutbox.go,syncidentity.go}`; tests: `internal/sync/*_test.go`, `internal/storage/{syncoutbox,syncidentity,migrations}_test.go`. | Chưa có authenticated account session, server-side device registration/revocation, pull/apply remote changes, HTTP transport, bridge hoặc sync status UI. |
+| MCP | Design only | Centralized architecture sources: `/dev-kit/mcp-agent`, `/dev-kit/system-overview`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/mcp`. | Xây MCP runtime, tool registry, transport, and confirmation flow. |
+| External plugins | Design only | Centralized architecture sources: `/dev-kit/plugins`, `/dev-kit/repo-structure`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/plugins`. | Build plugin SDK, loader, isolation, permissioning, and lifecycle. |
+| Marketplace | Design only | Centralized architecture sources: `/dev-kit/plugins`, `/dev-kit/core-foundation`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/marketplace`. | Signing, integrity checks, rollback, and controlled distribution model. |
 | Vault item repository | Implemented | Unified store thay 3 store riêng: `internal/services/vaultitem/*` với bảng `vault_items`; notes/database/ssh là thin adapter; cross-type search qua `VaultSearch`. Xem dòng "Vault item store" ở trên. | App hiện greenfield, chưa có legacy data nên migration `m6` không cần backfill. Chỉ thêm migration/backfill trước khi hỗ trợ upgrade từ bản đã có dữ liệu; vẫn cần migration/re-encrypt khi đổi envelope hoặc rotate `key_version`, và index khi search lớn. |
 
 ## Verified snapshot
 
-- Checked on: 2026-08-01
+- Checked on: 2026-08-02
 - DevKit checkout branch: `main`
-- DevKit checkout commit: `0403a80ae5ffdb89b2be09e9223b5ff30bdaad33`
-- DevKit checkout status: working tree contains the uncommitted Phase 3 local sync foundation; baseline `HEAD` is synchronized with `origin/main`
+- DevKit checkout commit: `a923e66c0d788528a0b459ec711b6df4937dc1bf` plus reviewed working-tree security closure
+- DevKit checkout status: `main` is ahead of `origin/main`; working tree also contains the user-owned architecture-doc relocation/deletions and the uncommitted sync wire-boundary closure described on this page.
 - Verification commands run:
   - `git -C /Users/syuro/Workspace/dev-kit branch --show-current`
   - `git -C /Users/syuro/Workspace/dev-kit rev-parse HEAD`
@@ -52,12 +51,13 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
   - `rg -n 'EnvelopeVersionV2|SealV2|OpenWithAD' /Users/syuro/Workspace/dev-kit/internal/crypto /Users/syuro/Workspace/dev-kit/internal/vault`
   - `rg -n 'TableVaultItems|create vault_items|drop legacy' /Users/syuro/Workspace/dev-kit/internal/storage/sqlite.go`
   - `rg -n 'VaultSearch|builtin.search|vault:search|item:search' /Users/syuro/Workspace/dev-kit/internal/bridge /Users/syuro/Workspace/dev-kit/internal/app/container.go`
-  - `for p in /Users/syuro/Workspace/dev-kit/internal/mcp /Users/syuro/Workspace/dev-kit/internal/sync /Users/syuro/Workspace/dev-kit/internal/plugins /Users/syuro/Workspace/dev-kit/internal/marketplace; do if test ! -d "$p"; then echo "absent: $p"; fi; done`
+  - `rg -n 'type PushOperation|pushOperationFromChange|SyncProtocolVersion|RecoverStaleSyncing|EnsureLocalDevice' /Users/syuro/Workspace/dev-kit/internal/{sync,storage}`
   - `test -d /Users/syuro/Workspace/dev-kit/internal/services/vaultitem`
-  - `GOCACHE=/private/tmp/devkit-go-cache go test ./...`
-  - `GOCACHE=/private/tmp/devkit-go-cache go vet ./...`
-  - `GOCACHE=/private/tmp/devkit-go-cache go build -tags server -o /private/tmp/devkit-server .`
-  - `GOCACHE=/private/tmp/devkit-go-cache go test -race ./internal/services/ssh ./internal/bridge -count=1`
+  - `go test ./... -count=1`
+  - `go vet ./...`
+  - `go test -race ./internal/sync ./internal/storage ./internal/bridge ./internal/services/ssh -count=1`
+  - `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`
+  - `bun run build && bun audit --audit-level=moderate` in `/Users/syuro/Workspace/dev-kit/frontend`
   - `GOCACHE=/private/tmp/devkit-go-cache go test ./internal/modules ./internal/app ./internal/bridge -count=1`
   - `GOCACHE=/private/tmp/devkit-go-cache go test ./internal/... -count=1`
   - `GOCACHE=/private/tmp/devkit-go-cache go test -race ./internal/modules ./internal/app -count=1`
@@ -80,11 +80,12 @@ functional UX đã có implementation/test evidence; Phase 3 local foundation đ
   and loopback-only local/remote TCP forwarding. Forward sessions are runtime-only
   and are stopped when the profile is deleted or the app shuts down.
 - MCP runtime is still design-only in this checkout.
-- Sync runtime is still design-only in this checkout.
 - External plugin runtime is still design-only in this checkout.
-- Sync foundation hiện có local outbox/cursor, encrypted replication envelope,
-  idempotent queue và fake push/retry/conflict runner; chưa có network transport,
-  device/session binding, pull/apply remote changes hoặc sync status UI.
+- Sync foundation hiện có account/device/protocol/operation/entity-version AAD,
+  encrypted tombstone, caller-owned operation ID, plaintext-free outbox,
+  lease recovery và wire-safe `PushOperation`. Local storage chỉ mint device ID;
+  account ID phải đến từ authenticated backend session. Chưa có HTTP transport,
+  server-side device registration/revocation, pull/apply, bridge hoặc sync status UI.
 - `ModuleManifest` hiện là contract cho built-in modules với các fields
   `id`, `title`, `version`, `apiVersion`, `commands`, `views`, `capabilities`.
   Backend registry có validation, duplicate protection, deterministic list và

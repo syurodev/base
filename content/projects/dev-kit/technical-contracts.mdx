@@ -99,20 +99,30 @@ MCP runtime và sync vẫn là các phase riêng, ngoài runtime surface hiện 
 ## Sync foundation contract
 
 Local replication foundation hiện nằm ở `internal/sync` và
-`internal/storage/syncoutbox.go`:
+`internal/storage/{syncoutbox.go,syncidentity.go}`:
 
-- `Change.Payload` chỉ chứa serialized encrypted replication envelope.
-- `ReplicationEnvelope` expose tối thiểu `record_id`, `record_type`,
-  `key_version` và envelope version; toàn bộ record bytes nằm trong ciphertext.
-- `QueuePayload` tạo idempotency key deterministic và enqueue ciphertext mà
-  không ghi plaintext record vào outbox.
-- Outbox state gồm `pending`, `syncing`, `synced`, `failed`, `conflict`; failure
-  persistence chỉ dùng safe reason vocabulary.
-- Fake `Transport`/`Runner` chỉ push ciphertext để kiểm tra retry, idempotency
-  và conflict; chưa có network hoặc remote apply.
+- `SyncContext` bắt buộc `AccountID`, `DeviceID`, sync protocol version,
+  caller-owned operation ID và positive entity version.
+- `ReplicationEnvelope` version 2 bind account/device/protocol/operation ID,
+  entity version, key version, record identity và action `create/update/delete`
+  vào AEAD associated data. Đổi bất kỳ field nào làm decrypt fail.
+- `QueuePayload` dùng operation ID làm idempotency identity. Retry mở và
+  authenticate envelope cũ rồi constant-time compare plaintext; không persist
+  plaintext-derived digest trong `Change` hoặc SQLite.
+- `PushOperation` là DTO wire riêng chỉ chứa idempotency key, operation và
+  encrypted replication envelope. Client creation time và toàn bộ local status,
+  attempts, errors, conflict state, lease timestamps không đi qua `Transport`.
+- Outbox state gồm `pending`, `syncing`, `synced`, `failed`, `conflict`; mỗi
+  `syncing` claim có lease và stale claim được reclaim sau interruption.
+- Local identity store chỉ tạo stable device ID. `AccountID` phải lấy từ
+  authenticated backend session; request-body account/device values không tự
+  tạo authorization.
+- Fake `Transport`/`Runner` kiểm tra push/retry/idempotency/conflict; chưa có
+  network transport, server registration/revocation hoặc remote apply.
 
-Migration m7 tạo `sync_outbox` và `sync_cursors`. Migration này không backfill,
-không drop và không thay đổi plaintext metadata trong `vault_items`.
+Migration m7 tạo `sync_outbox` và `sync_cursors`; m8 thêm sync context, lease và
+local device identity. Không migration nào backfill hoặc copy plaintext từ
+`vault_items` vào outbox.
 
 ## Bridge contract
 
