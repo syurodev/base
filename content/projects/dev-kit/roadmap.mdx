@@ -42,8 +42,8 @@ trang kiểm chứng.
 
 - Status: Partial
 - Goal: Xây local sync foundation zero-knowledge cho multi-device personal use mà chưa thêm SaaS backend production.
-- Evidence: `internal/sync/{contract.go,outbox.go,envelope.go,queue.go,transport.go,runner.go}`; persistent local state ở `internal/storage/{sqlite.go,syncoutbox.go}`; tests trong `internal/sync` và `internal/storage`.
-- Current implementation: Có `MemoryOutbox`/`SQLOutbox`, cursor store, encrypted replication envelope bind bằng AAD, idempotent queue helper, fake push transport và retry/conflict runner. Payload sync chỉ chứa ciphertext; không có pull/apply remote record hoặc network transport thật.
+- Evidence: `internal/sync/{contract,outbox,envelope,queue,transport,runner,session,httptransport}.go`; orchestration ở `internal/services/syncclient`; persistent state/apply ở `internal/storage/{syncoutbox,syncidentity,syncremote}.go`; bridge/UI ở `internal/bridge/sync.go` và `frontend/src/modules/sync`.
+- Current implementation: Phase 3B client có server-authoritative handshake, runtime-only bearer, bounded HTTPS push/pull, encrypted snapshot validation, account-bound transactional apply/cursor, replay protection, capability scopes và minimal UI. Local dirty state không bị remote overwrite.
 - Done when: Có sync client/queue/conflict flow đầy đủ, blob mã hóa end-to-end, device/session binding, pull/apply policy, bridge/UI tối thiểu, và security review chứng minh server không cần plaintext.
 - Dependencies: Local data model ổn định từ Phase 1, envelope/versioning rules từ Phase 0, và contract boundaries từ Phase 2.
 - Out of scope: SaaS backend production, team vault, realtime collaboration, server-side plaintext search.
@@ -61,4 +61,5 @@ trang kiểm chứng.
 
 1. ✅ **Đã xong**: unified `vault_items` store + cross-type `VaultSearch` và SSH local/remote forwarding: `/dev-kit/technical-contracts`.
 2. ✅ **Đã xong**: verification và review contract `ModuleManifest`/contribution cho built-in modules; external plugin runtime vẫn chưa thuộc scope: `/dev-kit/plugins`.
-3. ✅ **Đã xong một phần**: local sync foundation và encrypted push runner; việc tiếp theo là chốt device/session, pull/apply remote record và bridge/UI: `/dev-kit/data-sync`.
+3. ✅ **Phase 3B client đã xong**: authenticated transport, remote apply/cursor và bridge/UI tối thiểu: `/dev-kit/data-sync`.
+4. **Tiếp theo — Phase 3C**: capture mọi local `vault_items` create/update/delete vào outbox trong cùng transaction, cấp entity version an toàn, rồi hoàn thiện conflict policy/UX. Production SaaS backend vẫn là scope độc lập.

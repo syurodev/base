@@ -68,7 +68,7 @@ hoặc permission grant trong manifest. Contract hiện tại gồm:
 Backend `internal/modules.Registry` validate manifest trước khi mutate state,
 reject duplicate module/command/view/capability, và trả list deterministic với
 snapshot caller-owned. Built-in descriptors hiện được đăng ký từ
-`internal/app/app.go` cho `tools`, `notes`, `database` và `ssh`.
+`internal/app/app.go` cho `tools`, `notes`, `database`, `ssh` và `sync`.
 
 `apiVersion` là compatibility field của contract; type giữ tên
 `ModuleManifest`. Khi permission được thực thi, grants vẫn phải được cấp
@@ -93,13 +93,13 @@ Workbench xử lý loading/error fallback, module không tương thích và empt
 đưa command vào Command Palette; các module tương thích khác vẫn tiếp tục hoạt
 động.
 
-Contract này chưa mở external plugin runtime. Dynamic loading, marketplace,
-MCP runtime và sync vẫn là các phase riêng, ngoài runtime surface hiện tại.
+Contract này chưa mở external plugin runtime. Dynamic loading, marketplace và
+MCP runtime vẫn là các phase riêng; sync là built-in client module từ Phase 3B.
 
 ## Sync foundation contract
 
-Local replication foundation hiện nằm ở `internal/sync` và
-`internal/storage/{syncoutbox.go,syncidentity.go}`:
+Replication client hiện nằm ở `internal/sync`, `internal/services/syncclient`
+và `internal/storage/{syncoutbox.go,syncidentity.go,syncremote.go}`:
 
 - `SyncContext` bắt buộc `AccountID`, `DeviceID`, sync protocol version,
   caller-owned operation ID và positive entity version.
@@ -117,12 +117,20 @@ Local replication foundation hiện nằm ở `internal/sync` và
 - Local identity store chỉ tạo stable device ID. `AccountID` phải lấy từ
   authenticated backend session; request-body account/device values không tự
   tạo authorization.
-- Fake `Transport`/`Runner` kiểm tra push/retry/idempotency/conflict; chưa có
-  network transport, server registration/revocation hoặc remote apply.
+- `/v1/sync/session` tạo `AuthSession` từ account/device/expiry do server trả;
+  bearer private, runtime-only và bị loại khi expiry hoặc HTTP `401/403`.
+- `HTTPTransport` chỉ cho HTTPS hoặc explicit loopback HTTP, reject redirect và
+  bound request/response, batch, ciphertext trước khi allocate/decode.
+- Pull decrypt snapshot bằng local vault, validate outer/inner identity và
+  schema theo record type, rồi `SQLRemoteStore` apply mutation + cursor trong
+  cùng transaction. Account binding, monotonic entity version, tombstone và
+  append-only operation journal đều fail closed.
+- Local record có `sync_state=local` hoặc local deletion chưa capture sẽ không
+  bị remote overwrite/resurrect. Đây là guard tạm thời cho tới Phase 3C.
 
 Migration m7 tạo `sync_outbox` và `sync_cursors`; m8 thêm sync context, lease và
-local device identity. Không migration nào backfill hoặc copy plaintext từ
-`vault_items` vào outbox.
+local device identity; m9 thêm account binding, entity-version ledger và applied
+operation journal. Không migration nào backfill/copy plaintext từ `vault_items`.
 
 ## Bridge contract
 
@@ -137,6 +145,7 @@ local device identity. Không migration nào backfill hoặc copy plaintext từ
 | SSH forwarding | `SSHStartForward`, `SSHListForwards`, `SSHStopForward` | `builtin.ssh` / `ssh:forward` / `profile:<id>`, `forward:list`, `forward:<id>` | `internal/bridge/ssh.go`, `internal/services/ssh/forwarding.go` |
 | Tools | `ExecuteCommand` | `builtin.tools` / `tools:hash` / `command:<id>` | `internal/bridge/app_service.go`, `internal/commands/registry.go` |
 | Search | `VaultSearch` | `builtin.search` / `vault:search` / `item:search` | `internal/bridge/search.go` |
+| Sync | `SyncStatus`, `SyncConnect`, `SyncNow`, `SyncDisconnect` | `builtin.sync` / `sync:manage` / `sync:status`, `sync:connect`, `sync:run`, `sync:disconnect` | `internal/bridge/sync.go` |
 | Modules | `ListModules` | no capability gate; registry read-through only | `internal/bridge/app_service.go`, `internal/modules/registry.go` |
 
 Hai quy tắc bridge quan trọng:
@@ -167,6 +176,7 @@ Built-in subjects đang được container cấp sẵn trong
 - `builtin.ssh`
 - `builtin.vault`
 - `builtin.search`
+- `builtin.sync`
 
 Capability names public hiện tại:
 
@@ -178,6 +188,7 @@ Capability names public hiện tại:
 - `ssh:forward`
 - `vault:manage`
 - `vault:search`
+- `sync:manage`
 
 Scope families hiện tại:
 

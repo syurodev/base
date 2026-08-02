@@ -33,11 +33,11 @@ qua store thống nhất `internal/services/vaultitem` — xem [ADR-008](/dev-ki
 - `key_version` — cho phép rotate DEK và re-wrap mà không phá record cũ.
 - `sync_state` (mặc định `"local"`) — đánh dấu trạng thái đồng bộ của từng item.
 
-Sync foundation hiện đã có local queue/cursor và envelope helper; việc tự động
-đọc/ghi `vault_items` vào queue, pull/apply remote changes và network transport
-vẫn chưa triển khai.
+Sync client hiện đã có queue/cursor, authenticated HTTP push/pull và remote
+apply transaction. Việc tự động capture local create/update/delete của
+`vault_items` vào outbox vẫn chưa triển khai; UI nói rõ giới hạn này.
 
-## Local sync foundation (implemented partially)
+## Phase 3B sync client (implemented partially)
 
 - `internal/sync` định nghĩa change contract, idempotency, retry/conflict state
   và opaque ciphertext payload.
@@ -45,7 +45,16 @@ vẫn chưa triển khai.
   payload envelope; plaintext metadata không được đưa vào outbox transport.
 - `sync_outbox` và `sync_cursors` được tạo bằng migration m7, không backfill
   hoặc thay đổi dữ liệu hiện có trong `vault_items`.
-- Fake push transport dùng cho retry/conflict verification; chưa có network I/O.
+- Handshake `/v1/sync/session` lấy account identity từ authenticated server
+  response; bearer chỉ giữ runtime và redirect bị từ chối.
+- HTTP push/pull yêu cầu HTTPS, trừ explicit loopback development endpoint;
+  request, response, batch và ciphertext đều bounded.
+- Remote snapshots được decrypt/validate ở client rồi apply cùng cursor trong
+  một SQLite transaction. Account binding, monotonic entity version, tombstone
+  và append-only operation journal ngăn account switch/replay fail-open.
+- Capability-gated bridge và minimal Sync UI chỉ expose non-secret status/counts.
+- Chưa có production backend. Local mutation capture, entity-version allocation
+  khi nhiều device offline và conflict-resolution UX thuộc Phase 3C.
 
 ## Zero-knowledge sync (target)
 
