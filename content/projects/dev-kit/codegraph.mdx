@@ -1,0 +1,176 @@
+---
+title: Code Graph (Java)
+description: Module index & flow-graph cho Java project, phục vụ query nhanh qua MCP cho AI agent.
+---
+
+# Code Graph (Java)
+
+Code Graph là module built-in tương lai giúp DevKit mở một project Java bất kỳ trên máy, build index (class/method/annotation/call) và graph flow (API endpoint → service → repository), rồi expose kết quả đó cho cả UI lẫn AI agent qua MCP. Mục tiêu chính là để agent (Claude, Cursor, ...) query nhanh "flow của API này chạy qua đâu" thay vì phải tự đọc rải rác nhiều file.
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+<Callout type="warn" title="Design only">
+Trang này là design cho một module chưa có runtime trong DevKit checkout hiện tại. Không có `internal/services/codegraph` hay `internal/mcp` tại thời điểm viết. Đây là tài liệu để người triển khai đọc và implement theo, không phải mô tả behavior hiện tại. Trạng thái implementation thật nằm ở [Implementation status](/dev-kit/implementation-status).
+</Callout>
+
+```mermaid
+flowchart TD
+  UI[Workbench UI] --> GW[Capability Gateway]
+  AGENT[AI Agent] --> MCP[MCP Adapter] --> GW
+  GW --> SVC[CodeGraphService - Go]
+  SVC --> CLI["Java analyzer CLI (subprocess), JavaParser + JavaSymbolSolver"]
+  CLI --> JSON[(index.json)]
+  JSON --> SVC
+  SVC --> IDX[("SQLite index, per project - không nằm trong vault")]
+```
+
+Module đăng ký qua `ModuleManifest` như `vault`/`notes`/`db`/`ssh`/`tools` hiện có — không tạo cơ chế registry riêng. MCP là transport mới vào cùng Capability Gateway, đúng model đã chốt ở [MCP / Agent](/dev-kit/mcp-agent) và `docs/architecture/mcp-agent-integration.md`.
+
+## BRD — Business requirement
+
+### Vấn đề
+
+Khi AI agent hoặc dev mới cần hiểu "API `POST /orders` chạy qua những lớp nào, gọi gì tiếp theo", cách duy nhất hiện nay là tự đọc code thủ công hoặc nhờ agent quét toàn bộ repo mỗi lần — chậm, tốn context, dễ sai vì agent phải tự suy luận thay vì đọc từ một nguồn sự thật đã phân tích sẵn.
+
+### Mục tiêu (goals)
+
+- Cho phép mở một Java project local và build index về cấu trúc code (class, method, annotation, call, DI).
+- Trả lời nhanh câu hỏi "flow của API endpoint X đi qua những lớp/hàm nào" dưới dạng structured data.
+- Expose index đó cho AI agent qua MCP tool, để agent lấy thông tin mà không phải tự đọc lại toàn bộ source mỗi lần.
+- Tận dụng cùng index cho các tính năng tương lai (BRD generation, data-flow diagram) mà không phải đổi engine phân tích.
+
+### Actors
+
+| Actor | Nhu cầu |
+|---|---|
+| Developer dùng DevKit | Mở project, trigger index, xem nhanh flow của 1 API trong UI |
+| AI agent (qua MCP) | Query flow/endpoint/symbol để trả lời câu hỏi của user mà không cần đọc raw source |
+| Người triển khai module | Cần thiết kế đủ rõ để build đúng scope v1, biết ceiling để không over-engineer |
+
+### Functional requirements
+
+| ID | Requirement |
+|---|---|
+| FR-1 | User mở được một Java project (chọn folder) làm project "active" trong module — chỉ 1 project active tại một thời điểm cho v1. |
+| FR-2 | Hệ thống parse toàn bộ source `.java` trong project, resolve symbol ở mức best-effort (source trong project + reflection cho JDK + jar tìm được cục bộ). |
+| FR-3 | Hệ thống nhận diện annotation Spring-style: `@RestController`, `@RequestMapping`, `@GetMapping`/`@PostMapping`/..., `@Service`, `@Repository`, `@Autowired`/constructor injection. |
+| FR-4 | Với mỗi API endpoint phát hiện được, hệ thống dựng được chuỗi flow `Controller method → Service method(s) → Repository method(s)` kèm file:line từng bước. |
+| FR-5 | Index được lưu local, load lại được giữa các lần mở app mà không cần re-parse nếu project chưa đổi (tới khi user chủ động re-index). |
+| FR-6 | Expose MCP tool để agent: list endpoint, lấy flow của 1 endpoint, search symbol theo tên. |
+| FR-7 | UI tối thiểu: chọn folder, nút "Re-index", danh sách endpoint dạng list, click vào xem flow dạng text/tree. |
+| FR-8 | Method/call không resolve được vẫn xuất hiện trong index ở trạng thái "unresolved" thay vì làm fail toàn bộ lần index đó. |
+
+### Non-functional requirements
+
+| ID | Requirement |
+|---|---|
+| NFR-1 | Không yêu cầu project target phải build thành công (không chạy `mvn`/`gradle build`) — chỉ cần source đọc được. |
+| NFR-2 | Không thêm JVM bundling vào DevKit installer; hệ thống dùng `java` có sẵn trên máy user (assumption hợp lý vì user đang phân tích project Java, tức máy họ vốn đã cần JDK). |
+| NFR-3 | Mọi call — từ UI lẫn từ MCP — đi qua cùng `AppService.call` + Capability Gateway, không có đường tắt riêng cho MCP (đúng invariant #1 của `docs/architecture/devkit-architecture.md`). |
+| NFR-4 | Index không được sync ra ngoài máy (không phải sync target) — đây là derived/cache data cục bộ, có thể chứa tên class/method của code proprietary. |
+| NFR-5 | Analyzer subprocess phải cancel/timeout được — không được treo UI hoặc block MCP call vô thời hạn. |
+
+### Out of scope (v1)
+
+- Đa ngôn ngữ (chỉ Java trước).
+- Multi-project registry (chỉ 1 project active — xem [Open questions](/dev-kit/open-questions) nếu cần mở rộng sau).
+- Graph UI dạng node-link canvas kéo thả — v1 chỉ có list/tree text.
+- Data-flow analysis (field/biến đi xuyên method) và BRD generation tự động — index v1 chỉ cần đủ nguyên liệu (AST + resolved symbol) để xây tính năng này *sau*, không phải build luôn.
+- Chạy `mvn`/`gradle` để resolve classpath chính xác tuyệt đối.
+
+### Acceptance criteria
+
+- Mở một project Spring Boot mẫu (controller/service/repository 3 lớp) → index chạy xong, không lỗi.
+- Gọi `codegraph.getApiFlow` với 1 endpoint có thật trong project mẫu → trả về đúng chuỗi `Controller → Service → Repository` với file:line khớp source.
+- Tắt `java` khỏi PATH → mở project trả lỗi rõ ràng (`codegraph.jvmNotFound`), UI không crash, MCP trả structured error thay vì treo.
+- Project có 1 method gọi qua interface không resolve được → index vẫn build xong, node đó đánh dấu `unresolved`, các phần khác của flow vẫn đúng.
+- Agent gọi MCP tool khi project chưa từng được mở → trả lỗi rõ ràng thay vì index rỗng ngầm định.
+
+## Flow
+
+### Index build flow
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant UI as Workbench UI
+  participant GW as Capability Gateway
+  participant Svc as CodeGraphService (Go)
+  participant CLI as Java analyzer (subprocess)
+  participant DB as SQLite index
+
+  User->>UI: Chọn project folder + Re-index
+  UI->>GW: codegraph.openProject(path)
+  GW->>Svc: forward (allowed, effect=execute)
+  Svc->>CLI: exec analyzer --project <path> --out index.json --timeout <n>
+  CLI->>CLI: parse .java, resolve symbol, dò annotation Spring, build node/edge
+  CLI-->>Svc: index.json (hoặc lỗi/timeout)
+  Svc->>DB: replace index cũ (transactional swap)
+  Svc-->>UI: status: ready / error
+```
+
+### Query flow (MCP)
+
+```mermaid
+sequenceDiagram
+  participant Agent as AI Agent
+  participant MCP as MCP Adapter
+  participant GW as Capability Gateway
+  participant Svc as CodeGraphService
+  participant DB as SQLite index
+
+  Agent->>MCP: codegraph.getApiFlow("GET /orders/{id}")
+  MCP->>GW: check policy (module=codegraph, effect=read)
+  GW->>Svc: forward (allowed)
+  Svc->>DB: query node/edge cho endpoint đó
+  DB-->>Svc: flow rows
+  Svc-->>MCP: {endpoint, steps: [{class, method, file, line}, ...]}
+  MCP-->>Agent: JSON result
+```
+
+## Technical design
+
+### Components
+
+- **Java analyzer CLI** — jar riêng, bundle cùng DevKit, dùng JavaParser + JavaSymbolSolver. One-shot: nhận project path, xuất `index.json` (nodes: class/method + annotation; edges: call/DI). Không phải long-running process, không cần RPC protocol — invoke lại mỗi lần index.
+- **`internal/services/codegraph`** (Go) — orchestrate exec subprocess, đọc `index.json`, ghi vào SQLite, expose query method (`GetApiFlow`, `ListEndpoints`, `SearchSymbol`).
+- **Storage** — SQLite riêng cho index (không dùng `vault_items`/không qua crypto envelope, vì đây là derived data từ source code, không phải secret). Key theo project path/hash; replace toàn bộ khi re-index.
+- **Bridge + MCP adapter** — cả hai gọi cùng service method, cùng đi qua Capability Gateway, theo đúng pattern trong [Technical contracts](/dev-kit/technical-contracts).
+
+### MCP tool surface
+
+| Tool | Effect | Mô tả |
+|---|---|---|
+| `codegraph.openProject` | `execute` | Trigger parse + build index cho 1 project path |
+| `codegraph.listEndpoints` | `read` | Liệt kê endpoint đã phát hiện trong project active |
+| `codegraph.getApiFlow` | `read` | Trả flow `Controller → Service → Repository` cho 1 endpoint |
+| `codegraph.searchSymbol` | `read` | Tìm class/method theo tên |
+
+Naming và effect đi theo đúng convention đã định nghĩa ở `docs/architecture/mcp-agent-integration.md` (`<module>.<action><Resource>`, mọi tool phải khai báo `Effect`).
+
+### Error handling
+
+- `java` không có trên PATH → lỗi `codegraph.jvmNotFound`, không crash.
+- Subprocess timeout (project lớn) → cancel được, trả `operation_cancelled` theo đúng error contract chung (`internal/apperrors`).
+- Call/method không resolve được → node `unresolved` trong index, không fail toàn bộ lần build.
+- Query khi chưa có project nào từng được index → lỗi rõ ràng, không trả kết quả rỗng ngầm định.
+
+### Known ceiling (v1)
+
+- Symbol resolution là best-effort: source trong project + reflection JDK + jar cục bộ tìm được (vd `~/.m2`) — **không** chạy `mvn`/`gradle` để resolve classpath chính xác. Project dùng dependency lạ hoặc multi-module phức tạp có thể có call chưa resolve được.
+- Data-flow (field/biến đi qua đâu) và BRD generation **chưa** nằm trong v1 — index v1 (AST + resolved symbol) là nền đủ để build hai tính năng này sau mà không phải đổi engine, nhưng cần thêm một lớp phân tích riêng khi làm.
+- Chỉ 1 project active — chưa có multi-project registry.
+
+## Open questions
+
+- Multi-project registry có cần cho v2 không, hay 1-project-active là đủ lâu dài? (xem [Open questions](/dev-kit/open-questions))
+- Khi thêm data-flow analysis sau này, có cần versioned schema riêng cho index để tránh phải re-index toàn bộ khi thêm field mới không?
+
+import { Cards, Card } from 'fumadocs-ui/components/card';
+
+<Cards>
+  <Card title="MCP / Agent" href="/dev-kit/mcp-agent" description="Model chung cho mọi MCP tool, bao gồm codegraph" />
+  <Card title="Plugins" href="/dev-kit/plugins" description="Pattern ModuleManifest mà codegraph sẽ theo" />
+  <Card title="Technical contracts" href="/dev-kit/technical-contracts" description="Bridge/Capability Gateway boundary hiện có" />
+  <Card title="Implementation status" href="/dev-kit/implementation-status" description="Trạng thái thật của từng module theo checkout" />
+</Cards>
