@@ -33,9 +33,8 @@ qua store thống nhất `internal/services/vaultitem` — xem [ADR-008](/dev-ki
 - `key_version` — cho phép rotate DEK và re-wrap mà không phá record cũ.
 - `sync_state` (mặc định `"local"`) — đánh dấu trạng thái đồng bộ của từng item.
 
-Sync client hiện đã có queue/cursor, authenticated HTTP push/pull và remote
-apply transaction. Việc tự động capture local create/update/delete của
-`vault_items` vào outbox vẫn chưa triển khai; UI nói rõ giới hạn này.
+Sync client hiện đã có queue/cursor, authenticated HTTP push/pull, remote apply
+transaction và automatic capture local create/update/delete của `vault_items`.
 
 ## Phase 3B sync client (implemented partially)
 
@@ -53,8 +52,18 @@ apply transaction. Việc tự động capture local create/update/delete của
   một SQLite transaction. Account binding, monotonic entity version, tombstone
   và append-only operation journal ngăn account switch/replay fail-open.
 - Capability-gated bridge và minimal Sync UI chỉ expose non-secret status/counts.
-- Chưa có production backend. Local mutation capture, entity-version allocation
-  khi nhiều device offline và conflict-resolution UX thuộc Phase 3C.
+- Phase 3C dùng migration m10: local write atomically cập nhật `vault_items`,
+  account-neutral entity head và durable mutation intent. Cách này giữ CRUD
+  local-first trước lần authenticated connect đầu tiên và không mint account ID local.
+- `SyncNow` materialize intents theo thứ tự commit thành AAD-bound encrypted
+  outbox, sau đó mới push. Handoff crash giữa enqueue/intent cleanup là idempotent.
+- First `Connect` không claim account; durable binding chỉ xảy ra khi user chọn
+  `SyncNow`. Shared snapshot size cap ngăn oversized record kẹt toàn bộ queue,
+  và version mới không được vượt predecessor chưa synced của cùng entity.
+- Push ACK chỉ đánh dấu record `synced` khi operation/version vẫn là local head;
+  stale ACK và tombstone chưa ACK không được overwrite/resurrect local state.
+- Chưa có production backend. Entity-version arbitration và conflict-resolution
+  UX cho nhiều device cùng sửa offline vẫn là scope còn lại.
 
 ## Zero-knowledge sync (target)
 

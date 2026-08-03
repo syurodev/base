@@ -30,7 +30,7 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 | Vault item store | Implemented | `internal/services/vaultitem/vaultitem.go`, `internal/services/vaultitem/memory.go`, `internal/services/vaultitem/sqlrepository.go`, `internal/services/vaultitem/store.go`; tests: `internal/services/vaultitem/memory_test.go`, `internal/services/vaultitem/sqlrepository_test.go`, `internal/services/vaultitem/store_test.go`; bridge search: `internal/bridge/search.go`, `internal/bridge/search_test.go`. | Search hiện là substring trên metadata JSON; chưa có index trên cột `type`. |
 | Capability Gateway | Implemented | `internal/capabilities/gateway.go`, `internal/permissions/policy.go`, `internal/audit/events.go`, `internal/bridge/gateway.go`; tests: `internal/capabilities/gateway_test.go`, `internal/bridge/gateway_test.go`; grants gồm `builtin.search`/`vault:search`/`item:search` cho cross-type search. | Cần mở rộng policy khi external callers / plugin surface xuất hiện. |
 | ModuleManifest / Internal Extension API | Implemented | `internal/modules/registry.go` và `internal/app/app.go` định nghĩa/đăng ký manifest; `internal/bridge/{dto.go,app_service.go}` expose public metadata; frontend manifests, parity validation và minimal functional UX ở `frontend/src/modules/{registry.ts,*/manifest.ts}` và `frontend/src/workbench/{Workbench.tsx,ActivityBar.tsx,CommandPalette.tsx}`; tests: `internal/modules/registry_test.go`, `internal/bridge/app_service_test.go`; verification: `go test ./...`, `go vet ./...`, race tests, server build và frontend build pass. | External plugin runtime chưa nằm trong scope. |
-| Sync / Replication client | Partial | Phase 3B client có authenticated session handshake, HTTPS/loopback-only HTTP push/pull, account binding, encrypted remote snapshot validation, transactional apply + cursor, historical operation journal, capability-gated bridge và minimal Sync UI. Evidence: `internal/sync/{session,httptransport}.go`, `internal/services/syncclient`, `internal/storage/syncremote.go`, `internal/bridge/sync.go`, `frontend/src/modules/sync`. | Chưa có production SaaS backend, server-side device registration/revocation evidence, token refresh, automatic capture local `vault_items` mutations vào outbox, hoặc conflict-resolution UX. Local dirty records fail closed thay vì bị remote overwrite. |
+| Sync / Replication client | Partial | Phase 3B transport/pull/apply và Phase 3C local mutation flow đã có: local create/update/delete atomically ghi item + account-neutral intent + monotonic local version; `SyncNow` materialize intent thành authenticated encrypted outbox; ACK chỉ clear dirty state khi operation vẫn là head. Evidence: `internal/services/vaultitem/sqlmutationrepository.go`, `internal/storage/{localmutation,syncoutbox,syncremote}.go`, `internal/services/syncclient`. | Chưa có production SaaS backend, server-side registration/revocation evidence, token refresh hoặc conflict-resolution UX/policy hoàn chỉnh cho multi-device offline edits. |
 | MCP | Design only | Centralized architecture sources: `/dev-kit/mcp-agent`, `/dev-kit/system-overview`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/mcp`. | Xây MCP runtime, tool registry, transport, and confirmation flow. |
 | External plugins | Design only | Centralized architecture sources: `/dev-kit/plugins`, `/dev-kit/repo-structure`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/plugins`. | Build plugin SDK, loader, isolation, permissioning, and lifecycle. |
 | Marketplace | Design only | Centralized architecture sources: `/dev-kit/plugins`, `/dev-kit/core-foundation`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/marketplace`. | Signing, integrity checks, rollback, and controlled distribution model. |
@@ -38,10 +38,10 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 
 ## Verified snapshot
 
-- Checked on: 2026-08-02
+- Checked on: 2026-08-04
 - DevKit checkout branch: `main`
-- DevKit checkout commit: `abbebec834354fb2abd0906945348381ab40bb3c` plus reviewed working-tree Phase 3B client implementation
-- DevKit checkout status: `main` is ahead of `origin/main`; Phase 3B client changes are uncommitted. User-owned `.gitignore` and local plan/spec files remain outside this snapshot.
+- DevKit checkout commit: `b1c623f40b457ceacc574066f52c128c6894896a`
+- DevKit checkout status: Phase 3C core is committed and pushed on `main`. User-owned `.gitignore` and local plan/spec files remain outside this snapshot.
 - Verification commands run:
   - `git -C /Users/syuro/Workspace/dev-kit branch --show-current`
   - `git -C /Users/syuro/Workspace/dev-kit rev-parse HEAD`
@@ -67,9 +67,9 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
   - `bun run build` in `/Users/syuro/Workspace/PERSONAL/base`
   - `node -e "const fs=require('fs'); const p='/Users/syuro/Workspace/PERSONAL/base/content/projects/dev-kit/implementation-status.mdx'; const s=fs.readFileSync(p,'utf8'); for (const needle of ['## Status vocabulary','## Module matrix','## Verified snapshot','## Current limitations']) if (!s.includes(needle)) throw new Error('missing '+needle); console.log('implementation-status.mdx structure ok')"`
 
-Phase 2 đã đạt `Implemented`. Phase 3B client đạt `Partial`: authenticated
-transport, remote apply và minimal UI đã có; production backend và automatic
-local mutation capture vẫn chưa có.
+Phase 2 đã đạt `Implemented`. Phase 3 client vẫn `Partial`: Phase 3B client và
+Phase 3C automatic local mutation capture đã có, nhưng production backend và
+conflict-resolution UX/policy chưa hoàn tất.
 
 ## Current limitations
 
@@ -85,8 +85,9 @@ local mutation capture vẫn chưa có.
   HTTPS transport (HTTP chỉ cho loopback), encrypted push/pull, transactional
   apply/cursor, replay journal, capability-gated bridge và minimal UI. Backend
   production, token refresh, server-side registration/revocation proof và
-  automatic capture local create/update/delete vào outbox vẫn chưa có. Vì vậy
-  local dirty state được bảo vệ fail-closed và có thể dừng pull bằng conflict.
+  automatic capture local create/update/delete qua durable intent và encrypted
+  outbox. Local mutation, version và intent commit atomically; ACK cũ không được
+  đánh dấu edit mới hơn là synced. Multi-device conflict policy/UX vẫn fail-closed.
 - `ModuleManifest` hiện là contract cho built-in modules với các fields
   `id`, `title`, `version`, `apiVersion`, `commands`, `views`, `capabilities`.
   Backend registry có validation, duplicate protection, deterministic list và

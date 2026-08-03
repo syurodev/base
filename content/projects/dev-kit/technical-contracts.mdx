@@ -125,12 +125,23 @@ và `internal/storage/{syncoutbox.go,syncidentity.go,syncremote.go}`:
   schema theo record type, rồi `SQLRemoteStore` apply mutation + cursor trong
   cùng transaction. Account binding, monotonic entity version, tombstone và
   append-only operation journal đều fail closed.
-- Local record có `sync_state=local` hoặc local deletion chưa capture sẽ không
-  bị remote overwrite/resurrect. Đây là guard tạm thời cho tới Phase 3C.
+- Production local writes dùng `SQLMutationRepository`: item row, account-neutral
+  local entity version và durable intent commit trong cùng SQLite transaction.
+  Trước connect không tạo account ID hoặc wire payload.
+- `SyncNow` đọc intent theo autoincrement sequence, mã hóa snapshot/tombstone
+  bằng authenticated account/device context, enqueue idempotently rồi atomically
+  bind entity head và xóa intent. Crash giữa enqueue/commit được retry an toàn.
+- `Connect` chỉ handshake và kiểm tra mismatch với account claim đã tồn tại;
+  account đầu tiên chỉ được claim khi user bấm `SyncNow`. Snapshot có shared
+  conservative size cap và outbox giữ causal order theo entity version.
+- Push ACK ghi applied-operation journal và chỉ đổi `sync_state=synced` nếu ACK
+  vẫn là local head, không có mutation/outbox mới hơn. Pending tombstone hoặc
+  intent mới chặn remote resurrection/apply fail-open.
 
 Migration m7 tạo `sync_outbox` và `sync_cursors`; m8 thêm sync context, lease và
-local device identity; m9 thêm account binding, entity-version ledger và applied
-operation journal. Không migration nào backfill/copy plaintext từ `vault_items`.
+local device identity; m9 thêm account binding, remote entity-version ledger và
+applied-operation journal; m10 thêm account-neutral local entity ledger + durable
+mutation intents. M10 không backfill dữ liệu cũ; app hiện greenfield.
 
 ## Bridge contract
 
