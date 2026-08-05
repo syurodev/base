@@ -65,6 +65,27 @@ transaction và automatic capture local create/update/delete của `vault_items`
 - Chưa có production backend. Entity-version arbitration và conflict-resolution
   UX cho nhiều device cùng sửa offline vẫn là scope còn lại.
 
+## Conflict resolution (Git-style)
+
+> Thiết kế (chưa implement). Xử lý conflict theo mô hình **Git**: **không tự chọn thắng**,
+> giữ record ở trạng thái conflict với **cả hai bản** để user tự giải quyết.
+
+Khi push bị server báo conflict (device khác đã tiến version cho cùng record):
+
+1. Record đánh dấu `sync_state = "conflict"`; **ours** = bản local hiện tại.
+2. Lần pull kế, op remote cùng entity của record đó (đang bị apply-guard từ chối) được
+   **giữ lại làm "theirs"** thay vì bỏ đi — client lưu bản remote cạnh bản local.
+3. UI hiển thị **ours vs theirs** (tương tự `<<<<<<< ours / ======= / >>>>>>> theirs`),
+   user chọn: **Use ours** (giữ local), **Use theirs** (lấy remote), hoặc **Edit/merge**
+   (chỉ cho note text). **Secret không merge ngầm** — chỉ chọn một bên (đúng §10.1).
+4. Sau khi giải quyết: ghi nội dung đã chọn thành **version mới = remote_head + 1**, xóa
+   trạng thái conflict + "theirs", record trở lại `local` và sync bình thường ⇒ hai device
+   hội tụ.
+
+Không có auto-resolution: mọi conflict cần hành động của user (giống Git yêu cầu resolve
+trước khi tiếp tục). Chi tiết cross-device version/head arbitration ở
+[SaaS sync backend](/dev-kit/saas-backend).
+
 ## Zero-knowledge sync (target)
 
 Thiết kế mục tiêu cho sync future:
