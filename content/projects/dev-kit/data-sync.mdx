@@ -78,6 +78,9 @@ Khi push bị server báo conflict (device khác đã tiến version cho cùng r
 3. UI hiển thị **ours vs theirs** (tương tự `<<<<<<< ours / ======= / >>>>>>> theirs`),
    user chọn: **Use ours** (giữ local), **Use theirs** (lấy remote), hoặc **Edit/merge**
    (chỉ cho note text). **Secret không merge ngầm** — chỉ chọn một bên (đúng §10.1).
+   UI đích: **3-pane merge kiểu JetBrains** (Local | Result editable | Remote, accept
+   từng hunk ◀/▶); MVP dùng marker inline `<<<<<<< / ======= / >>>>>>>` để test. Item
+   secret (db/ssh) rút gọn còn 2 lựa chọn ours/theirs.
 4. Sau khi giải quyết: ghi nội dung đã chọn thành **version mới = remote_head + 1**, xóa
    trạng thái conflict + "theirs", record trở lại `local` và sync bình thường ⇒ hai device
    hội tụ.
