@@ -63,4 +63,5 @@ trang kiểm chứng.
 2. ✅ **Đã xong**: verification và review contract `ModuleManifest`/contribution cho built-in modules; external plugin runtime vẫn chưa thuộc scope: `/dev-kit/plugins`.
 3. ✅ **Phase 3B client đã xong**: authenticated transport, remote apply/cursor và bridge/UI tối thiểu: `/dev-kit/data-sync`.
 4. ✅ **Phase 3C core đã triển khai**: atomic local mutation capture, authenticated outbox materialization, entity version và stale-ACK/tombstone guards.
-5. **Tiếp theo**: chốt server conflict arbitration + minimal conflict UX và production SaaS backend contract/deployment.
+5. **Tiếp theo**: chốt server conflict arbitration + minimal conflict UX và production SaaS backend contract/deployment. Thiết kế BE: [`/dev-kit/saas-backend`](/dev-kit/saas-backend). Có mock in-memory `cmd/mocksyncserver` để dev conflict flow client.
+6. **Hoãn tới sau khi deploy BE thật** (chạy với BE production, không phải mock): đa entity/đa record, mô phỏng latency/lỗi → retry/backoff, hội tụ conflict 2-device, auth Keycloak thật. Xem "Kiểm thử hoãn tới sau khi deploy BE thật" ở [`/dev-kit/saas-backend`](/dev-kit/saas-backend).

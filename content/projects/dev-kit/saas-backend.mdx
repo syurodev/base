@@ -327,6 +327,22 @@ CREATE UNIQUE INDEX ux_heads_account_record ON entity_heads (account_id, record_
   account isolation, revoked device, rate limit.
 - **Security review**: zero-knowledge invariant, isolation, không plaintext trong log.
 
+### Kiểm thử hoãn tới sau khi deploy BE thật (không phải mock)
+
+Mock server in-memory (`cmd/mocksyncserver`) chỉ đủ để phát triển **conflict flow phía
+client** (session/push/pull + arbitration + conflict cùng-version). Các hạng mục sau
+**cố ý hoãn** và **phải chạy với BE production** sau khi triển khai xong:
+
+- **Đa entity / đa record**: sync đồng thời nhiều record/nhiều type (note + db + ssh),
+  bảo toàn thứ tự per-entity và cursor toàn account.
+- **Mô phỏng latency / lỗi → retry/backoff**: server chậm, `408/429/5xx`, ngắt kết nối
+  giữa chừng → kiểm outbox retry, lease reclaim, idempotency không tạo bản trùng.
+- **Hội tụ conflict 2-device end-to-end** trên BE thật (arbitration bền vững + resolution).
+- **Auth thật (Keycloak)**: token hết hạn, refresh, device revoke → `401/403` mapping.
+
+> Nhắc nhở tiến trình: hoàn tất BE (Phase A) → chạy đủ ma trận trên trước khi coi Phase 3
+> là **Implemented**.
+
 ## Phasing
 
 - **BE Phase A** (đóng Phase 3 sync): Keycloak auth (email/password + GitHub, username optional) +
