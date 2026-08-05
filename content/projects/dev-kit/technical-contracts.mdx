@@ -19,8 +19,8 @@ Phần lớn contract public hiện tại đi theo chuỗi capability-gated buil
 
 `frontend/src/bridge/*` → `internal/bridge/AppService.*` →
 `AppService.call(...)` → `internal/capabilities/Gateway.Call(...)` →
-`internal/services/*` hoặc `internal/commands/Registry.Execute(...)` →
-`Repository` / `internal/storage` / endpoint bên ngoài.
+`internal/{vaultitem,notes,database,ssh,tools,syncclient,syncconflict,…}` hoặc `internal/commands/Registry.Execute(...)` →
+`Repository` / `internal/storage` / `internal/syncstore` / endpoint bên ngoài.
 
 Hai ngoại lệ hiện có cần đọc cùng boundary này:
 
@@ -28,7 +28,7 @@ Hai ngoại lệ hiện có cần đọc cùng boundary này:
   `internal/modules.Registry` và không đi qua `AppService.call(...)` hoặc
   capability audit.
 - DB/SSH service không dừng ở repository/storage; sau khi lookup profile,
-  `internal/services/database.Service` và `internal/services/ssh.Service` còn
+  `internal/database.Service` và `internal/ssh.Service` còn
   đi tiếp tới remote database/SSH endpoint.
 
 Boundary này được thể hiện ở:
@@ -98,8 +98,9 @@ MCP runtime vẫn là các phase riêng; sync là built-in client module từ Ph
 
 ## Sync foundation contract
 
-Replication client hiện nằm ở `internal/sync`, `internal/services/syncclient`
-và `internal/storage/{syncoutbox.go,syncidentity.go,syncremote.go}`:
+Replication client hiện nằm ở `internal/sync`, `internal/syncclient`,
+`internal/syncconflict` và `internal/syncstore`
+(`{syncoutbox,syncidentity,syncremote,syncconflicts,syncconflictresolve}.go`):
 
 - `SyncContext` bắt buộc `AccountID`, `DeviceID`, sync protocol version,
   caller-owned operation ID và positive entity version.
@@ -141,7 +142,17 @@ và `internal/storage/{syncoutbox.go,syncidentity.go,syncremote.go}`:
 Migration m7 tạo `sync_outbox` và `sync_cursors`; m8 thêm sync context, lease và
 local device identity; m9 thêm account binding, remote entity-version ledger và
 applied-operation journal; m10 thêm account-neutral local entity ledger + durable
-mutation intents. M10 không backfill dữ liệu cũ; app hiện greenfield.
+mutation intents; m11 thêm `sync_conflicts` để giữ bản "theirs" khi resolve
+Git-style. M10/m11 không backfill dữ liệu cũ; app hiện greenfield.
+
+Conflict resolve contract (client):
+
+- `SyncConflicts` trả metadata non-secret; `SyncConflictDetail` decrypt on-demand
+  note text cho merge UI; `SyncResolveConflict` nhận strategy
+  `use-ours` | `use-theirs` | `merge` (+ merged text cho notes).
+- Orchestration ở `internal/syncconflict`; persistence ở `internal/syncstore`;
+  `bridge` không import `storage`/`syncstore`/`sync` trực tiếp.
+- Không có auto-winner. Secret types chỉ ours/theirs.
 
 ## Bridge contract
 
@@ -153,10 +164,10 @@ mutation intents. M10 không backfill dữ liệu cũ; app hiện greenfield.
 | Notes | `NotesList`, `NotesSearch`, `NotesCreate`, `NotesGet`, `NotesDelete` | `builtin.notes` / `notes:read` hoặc `notes:write` / `note:list`, `note:search`, `note:new`, `note:<id>` | `internal/bridge/notes.go` |
 | Database | `DBListProfiles`, `DBCreateProfile`, `DBDeleteProfile`, `DBTestConnection`, `DBQuery` | `builtin.database` / `db:query` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/database.go` |
 | SSH | `SSHListProfiles`, `SSHCreateProfile`, `SSHDeleteProfile`, `SSHObserveHostKey`, `SSHTrustHostKey`, `SSHTestConnection`, `SSHRunCommand` | `builtin.ssh` / `ssh:connect` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/ssh.go` |
-| SSH forwarding | `SSHStartForward`, `SSHListForwards`, `SSHStopForward` | `builtin.ssh` / `ssh:forward` / `profile:<id>`, `forward:list`, `forward:<id>` | `internal/bridge/ssh.go`, `internal/services/ssh/forwarding.go` |
+| SSH forwarding | `SSHStartForward`, `SSHListForwards`, `SSHStopForward` | `builtin.ssh` / `ssh:forward` / `profile:<id>`, `forward:list`, `forward:<id>` | `internal/bridge/ssh.go`, `internal/ssh/forwarding.go` |
 | Tools | `ExecuteCommand` | `builtin.tools` / `tools:hash` / `command:<id>` | `internal/bridge/app_service.go`, `internal/commands/registry.go` |
 | Search | `VaultSearch` | `builtin.search` / `vault:search` / `item:search` | `internal/bridge/search.go` |
-| Sync | `SyncStatus`, `SyncConnect`, `SyncNow`, `SyncDisconnect` | `builtin.sync` / `sync:manage` / `sync:status`, `sync:connect`, `sync:run`, `sync:disconnect` | `internal/bridge/sync.go` |
+| Sync | `SyncStatus`, `SyncConnect`, `SyncNow`, `SyncDisconnect`, `SyncConflicts`, `SyncConflictDetail`, `SyncResolveConflict` | `builtin.sync` / `sync:manage` / `sync:status`, `sync:connect`, `sync:run`, `sync:disconnect`, `sync:conflicts`, `sync:resolve` | `internal/bridge/{sync,syncresolve}.go`, `internal/syncclient`, `internal/syncconflict` |
 | Modules | `ListModules` | no capability gate; registry read-through only | `internal/bridge/app_service.go`, `internal/modules/registry.go` |
 
 Hai quy tắc bridge quan trọng:
@@ -278,11 +289,15 @@ Boundary redaction:
 
 ## Persistence contract
 
-Persistence runtime hiện chia làm hai lớp:
+Persistence runtime hiện chia làm ba lớp:
 
-1. Shared item store `internal/services/vaultitem` — một `Repository` (memory +
+1. Shared item store `internal/vaultitem` — một `Repository` (memory +
    SQLite) và một `Store` lo storage/crypto/search cho mọi item type.
-2. SQLite KV + migration runner dùng chung trong `internal/storage`.
+2. SQLite kernel + migration runner trong `internal/storage` (owns table-name
+   constants, `schema_migrations`, open/KV).
+3. Sync persistence adapters trong `internal/syncstore` (outbox, cursors,
+   remote apply, identity, local mutations, conflict capture/resolve) — không
+   được import ngược từ `bridge`.
 
 Boundary ổn định:
 
@@ -303,13 +318,13 @@ Phân ranh dữ liệu nhạy cảm và metadata (mỗi type map field vào `met
 plaintext và `payload` mã hóa của `vault_items`):
 
 - Notes (`type = "note"`): `Body` được mã hóa trong payload, `Title` là plaintext
-  metadata (`internal/services/notes/notes.go`).
+  metadata (`internal/notes/notes.go`).
 - Database profiles (`type = "db-profile"`): chỉ `Password` mã hóa; `Host`, `Port`,
   `Database`, `Username`, `SSLMode` là metadata không nhạy cảm
-  (`internal/services/database/database.go`).
+  (`internal/database/database.go`).
 - SSH profiles (`type = "ssh-profile"`): chỉ `Secret` mã hóa; `Host`, `Port`,
   `Username`, `AuthMethod`, `HostKeyFingerprint` là metadata không nhạy cảm
-  (`internal/services/ssh/ssh.go`).
+  (`internal/ssh/ssh.go`).
 - Vault keyring vẫn được lưu như một row riêng qua `internal/vault/sqlkeyringstore.go`.
 
 Storage file boundary:
@@ -357,9 +372,9 @@ ràng buộc chống swap không đổi.
 New secret writes đều đi qua `vaultitem.Store.Create(...)` (gọi `SealV2` bên
 trong) từ:
 
-- `internal/services/notes/notes.go`
-- `internal/services/database/database.go`
-- `internal/services/ssh/ssh.go`
+- `internal/notes/notes.go`
+- `internal/database/database.go`
+- `internal/ssh/ssh.go`
 
 Điều này có nghĩa:
 

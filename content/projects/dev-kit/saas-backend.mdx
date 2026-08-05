@@ -347,7 +347,8 @@ client** (session/push/pull + arbitration + conflict cùng-version). Các hạng
 
 - **BE Phase A** (đóng Phase 3 sync): Keycloak auth (email/password + GitHub, username optional) +
   `session/push/pull` + arbitration + conflicts + zero-knowledge storage. Cung cấp arbitration +
-  conflicts để client hoàn tất **conflict resolution + conflict UX tối thiểu**.
+  conflicts để client hoàn tất **conflict resolution + conflict UX** trên BE thật
+  (client MVP + mock E2E đã có; xem [`/dev-kit/data-sync`](/dev-kit/data-sync)).
 - **BE Phase B** (sau): token refresh, device management UI, server-side revocation flows,
   retention/backup, multi-region.
 

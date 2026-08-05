@@ -19,8 +19,10 @@ record có `Decision`, `Context`, `Alternatives considered`, `Consequences` và
 **Decision:** DevKit dùng Wails v3 làm desktop shell, React/TypeScript cho UI,
 và Go cho core services. UI chỉ gọi typed adapter trong `frontend/src/bridge/*`;
 Go expose public surface qua `internal/bridge.AppService`; core logic nằm trong
-`internal/services/*`, `internal/vault`, `internal/storage` — không import ngược
-từ frontend generated bindings.
+`internal/{vaultitem,notes,database,ssh,tools,syncclient,syncconflict,…}`,
+`internal/vault`, `internal/storage`, `internal/syncstore` — không import ngược
+từ frontend generated bindings. Domain packages nằm phẳng dưới `internal/`
+(không còn `internal/services/`). Layering được enforce bởi `internal/arch`.
 
 **Context:** Cần một desktop app cross-platform với offline-first UX, hot-reload
 dev workflow, và security boundary rõ giữa UI untrusted-by-default và Go core
@@ -256,7 +258,7 @@ local PostgreSQL/SSH test.
 **Status:** Accepted
 
 **Decision:** Gộp ba store riêng (`notes`, `connection_profiles`, `ssh_profiles`)
-thành một bảng `vault_items` phía sau package chung `internal/services/vaultitem`
+thành một bảng `vault_items` phía sau package chung `internal/vaultitem`
 (`Record`, `Repository` memory + SQLite, và `Store` lo storage/crypto/search).
 Notes/Database/SSH service trở thành thin adapter map field vào `metadata`
 plaintext + `payload` mã hóa, giữ nguyên chữ ký public nên bridge/UI/capability
@@ -301,9 +303,9 @@ local-first.
   - `git -C /Users/syuro/Workspace/dev-kit rev-parse HEAD`
   - `rg -n 'container\.Modules\.Register|builtin\.vault|builtin\.search' /Users/syuro/Workspace/dev-kit/internal/app/app.go /Users/syuro/Workspace/dev-kit/internal/app/container.go`
   - `rg -n 'TableVaultItems|create vault_items|drop legacy' /Users/syuro/Workspace/dev-kit/internal/storage/sqlite.go`
-  - `test -d /Users/syuro/Workspace/dev-kit/internal/services/vaultitem`
+  - `test -d /Users/syuro/Workspace/dev-kit/internal/vaultitem`
 - Primary sources: `docs/architecture/devkit-architecture.md`,
   `docs/architecture/core-foundation.md`, `main.go`,
   `internal/capabilities/gateway.go`, `internal/storage/sqlite.go`,
   `internal/crypto/envelope.go`, `internal/servermode/servermode.go`,
-  `internal/services/vaultitem/store.go`, `internal/services/ssh/hostkeys.go`
+  `internal/vaultitem/store.go`, `internal/ssh/hostkeys.go`

@@ -28,7 +28,7 @@ flowchart TD
 SQLite (`devkit.db`) lưu record JSON; các field nhạy cảm (note body, credentials) được mã hóa ở **application layer** bằng vault DEK — không phải full-database encryption (SQLCipher). Metadata như title/host có thể plaintext để list/search khi vault locked. Chi tiết: [ADR-004](/dev-kit/architecture-decisions#adr-004-application-layer-encrypted-records-instead-of-sqlcipher).
 
 Notes, database profiles và SSH profiles giờ dùng chung một bảng `vault_items`
-qua store thống nhất `internal/services/vaultitem` — xem [ADR-008](/dev-kit/architecture-decisions#adr-008-unified-vault_items-store-for-built-in-item-types). Mỗi item mang sẵn hai field làm **nền cho sync tương lai**:
+qua store thống nhất `internal/vaultitem` — xem [ADR-008](/dev-kit/architecture-decisions#adr-008-unified-vault_items-store-for-built-in-item-types). Mỗi item mang sẵn hai field làm **nền cho sync**:
 
 - `key_version` — cho phép rotate DEK và re-wrap mà không phá record cũ.
 - `sync_state` (mặc định `"local"`) — đánh dấu trạng thái đồng bộ của từng item.
@@ -36,10 +36,15 @@ qua store thống nhất `internal/services/vaultitem` — xem [ADR-008](/dev-ki
 Sync client hiện đã có queue/cursor, authenticated HTTP push/pull, remote apply
 transaction và automatic capture local create/update/delete của `vault_items`.
 
-## Phase 3B sync client (implemented partially)
+## Phase 3 sync client (implemented partially)
 
 - `internal/sync` định nghĩa change contract, idempotency, retry/conflict state
   và opaque ciphertext payload.
+- Application orchestration: `internal/syncclient` (connect / syncnow / conflicts)
+  và `internal/syncconflict` (detail + resolve strategies).
+- Persistence adapters: `internal/syncstore` (outbox, cursors, remote apply,
+  identity, local mutations, conflict capture/resolve). SQLite kernel /
+  migrations vẫn ở `internal/storage`.
 - `ReplicationEnvelope` mã hoá toàn bộ record bytes, gồm metadata và nested
   payload envelope; plaintext metadata không được đưa vào outbox transport.
 - `sync_outbox` và `sync_cursors` được tạo bằng migration m7, không backfill
@@ -62,28 +67,36 @@ transaction và automatic capture local create/update/delete của `vault_items`
   và version mới không được vượt predecessor chưa synced của cùng entity.
 - Push ACK chỉ đánh dấu record `synced` khi operation/version vẫn là local head;
   stale ACK và tombstone chưa ACK không được overwrite/resurrect local state.
-- Chưa có production backend. Entity-version arbitration và conflict-resolution
-  UX cho nhiều device cùng sửa offline vẫn là scope còn lại.
+- Conflict resolve phía client đã có (xem mục dưới). Chưa có production backend;
+  server arbitration / device revocation trên BE thật vẫn là scope còn lại.
 
-## Conflict resolution (Git-style)
+## Conflict resolution (Git-style) — client implemented
 
-> Thiết kế (chưa implement). Xử lý conflict theo mô hình **Git**: **không tự chọn thắng**,
-> giữ record ở trạng thái conflict với **cả hai bản** để user tự giải quyết.
+> Xử lý conflict theo mô hình **Git**: **không tự chọn thắng**, giữ record ở
+> trạng thái conflict với **cả hai bản** để user tự giải quyết.
+> Client-side list → capture theirs → resolve đã có runtime + mock-server E2E.
+> Production SaaS arbitration vẫn xem [`/dev-kit/saas-backend`](/dev-kit/saas-backend).
 
 Khi push bị server báo conflict (device khác đã tiến version cho cùng record):
 
 1. Record đánh dấu `sync_state = "conflict"`; **ours** = bản local hiện tại.
 2. Lần pull kế, op remote cùng entity của record đó (đang bị apply-guard từ chối) được
-   **giữ lại làm "theirs"** thay vì bỏ đi — client lưu bản remote cạnh bản local.
+   **giữ lại làm "theirs"** thay vì bỏ đi — client lưu bản remote cạnh bản local
+   (`sync_conflicts` / migration m11).
 3. UI hiển thị **ours vs theirs** (tương tự `<<<<<<< ours / ======= / >>>>>>> theirs`),
    user chọn: **Use ours** (giữ local), **Use theirs** (lấy remote), hoặc **Edit/merge**
-   (chỉ cho note text). **Secret không merge ngầm** — chỉ chọn một bên (đúng §10.1).
-   UI đích: **3-pane merge kiểu JetBrains** (Local | Result editable | Remote, accept
-   từng hunk ◀/▶); MVP dùng marker inline `<<<<<<< / ======= / >>>>>>>` để test. Item
-   secret (db/ssh) rút gọn còn 2 lựa chọn ours/theirs.
+   (chỉ cho note text). **Secret không merge ngầm** — chỉ chọn một bên.
+   UI đích: **3-pane merge kiểu JetBrains** (Local | Result editable | Remote);
+   MVP hiện dùng marker inline trong `ResolvePanel`. Item secret (db/ssh) rút gọn
+   còn 2 lựa chọn ours/theirs.
 4. Sau khi giải quyết: ghi nội dung đã chọn thành **version mới = remote_head + 1**, xóa
    trạng thái conflict + "theirs", record trở lại `local` và sync bình thường ⇒ hai device
    hội tụ.
+
+Packages: `internal/syncclient.Conflicts`, `internal/syncconflict`,
+`internal/syncstore` conflict adapters, bridge `SyncConflicts` /
+`SyncConflictDetail` / `SyncResolveConflict`, UI
+`frontend/src/modules/sync/ResolvePanel.tsx`. Dev/E2E: `cmd/mocksyncserver`.
 
 Không có auto-resolution: mọi conflict cần hành động của user (giống Git yêu cầu resolve
 trước khi tiếp tục). Chi tiết cross-device version/head arbitration ở

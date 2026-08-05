@@ -10,7 +10,7 @@ Code Graph là module built-in tương lai giúp DevKit mở một project Java 
 import { Callout } from 'fumadocs-ui/components/callout';
 
 <Callout type="warn" title="Design only">
-Trang này là design cho một module chưa có runtime trong DevKit checkout hiện tại. Không có `internal/services/codegraph` hay `internal/mcp` tại thời điểm viết. Đây là tài liệu để người triển khai đọc và implement theo, không phải mô tả behavior hiện tại. Trạng thái implementation thật nằm ở [Implementation status](/dev-kit/implementation-status).
+Trang này là design cho một module chưa có runtime trong DevKit checkout hiện tại. Không có `internal/codegraph` hay `internal/mcp` tại thời điểm viết. Đây là tài liệu để người triển khai đọc và implement theo, không phải mô tả behavior hiện tại. Trạng thái implementation thật nằm ở [Implementation status](/dev-kit/implementation-status).
 </Callout>
 
 ```mermaid
@@ -133,7 +133,7 @@ sequenceDiagram
 ### Components
 
 - **Java analyzer CLI** — jar riêng, bundle cùng DevKit, dùng JavaParser + JavaSymbolSolver. One-shot: nhận project path, xuất `index.json` (nodes: class/method + annotation; edges: call/DI). Không phải long-running process, không cần RPC protocol — invoke lại mỗi lần index.
-- **`internal/services/codegraph`** (Go) — orchestrate exec subprocess, đọc `index.json`, ghi vào SQLite, expose query method (`GetApiFlow`, `ListEndpoints`, `SearchSymbol`).
+- **`internal/codegraph`** (Go) — orchestrate exec subprocess, đọc `index.json`, ghi vào SQLite, expose query method (`GetApiFlow`, `ListEndpoints`, `SearchSymbol`).
 - **Storage** — SQLite riêng cho index (không dùng `vault_items`/không qua crypto envelope, vì đây là derived data từ source code, không phải secret). Key theo project path/hash; replace toàn bộ khi re-index.
 - **Bridge + MCP adapter** — cả hai gọi cùng service method, cùng đi qua Capability Gateway, theo đúng pattern trong [Technical contracts](/dev-kit/technical-contracts).
 
