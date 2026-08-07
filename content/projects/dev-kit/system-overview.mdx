@@ -22,9 +22,9 @@ flowchart LR
 ## Layers
 
 1. **UI Shell** — điều hướng, command palette, theme, cửa sổ.
-2. **Built-in modules** — vault, notes, connections, tools; plugins host là target future.
+2. **Built-in modules** — vault, notes, SSH, tools (Database là sibling module riêng); plugins host là target future.
 3. **Capability Gateway** — choke point cho built-in calls hiện tại; Extension API cho plugin/MCP là target.
-4. **Go core services** — crypto, storage, SSH/DB adapters; sync client là target future.
+4. **Go core services** — crypto, storage, SSH adapter (và Database sibling); sync client partial — xem [Data & sync](/dev-kit/data-sync).
 5. **Local vault** — record fields nhạy cảm mã hóa ở application layer trên SQLite local.
 6. **Optional sync (target)** — client phải mã hóa blob trước upload/download.
 
