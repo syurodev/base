@@ -13,6 +13,7 @@
     "saas-backend",
     "---Modules---",
     "vault",
+    "notes",
     "connections",
     "tools",
     "codegraph",
