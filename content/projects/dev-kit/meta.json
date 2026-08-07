@@ -17,6 +17,7 @@
     "database",
     "ssh",
     "tools",
+    "environments",
     "kafka",
     "codegraph",
     "agent-hub",

@@ -256,15 +256,15 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 |---|---|---|---|
 | `kafka.listProfiles` | `read` | `builtin.kafka` / `kafka:connect` / `profile:list` | Chỉ metadata, không có secret |
 | `kafka.connectionStatus` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Trả `{connected: bool, profileId?}` — agent chỉ đọc được cluster nào đang active, không tự đổi |
-| `kafka.listTopics` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Thao tác trên cluster đang active; nếu chưa có → trigger popup chọn, xem flow ở trên. Luôn hỏi quyền trước khi chạy (xem dưới) |
-| `kafka.describeTopic` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Input: `topic`. Luôn hỏi quyền trước khi chạy |
-| `kafka.peekMessages` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Input: `topic`, `partition`, `limit?`. Giới hạn số message mặc định (NFR-4). Luôn hỏi quyền trước khi chạy |
-| `kafka.listConsumerGroups` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Luôn hỏi quyền trước khi chạy |
-| `kafka.publishMessage` | `execute` (`destructiveHint`) | `builtin.kafka` / `kafka:produce` / `connection` | Input: `topic`, `key?`, `payload`, `headers?`, `partition?`. Output: `{partition, offset, timestamp}`. Cluster đích luôn là cluster đang active — agent không truyền `profileId`. Luôn hỏi quyền trước khi chạy |
+| `kafka.listTopics` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Thao tác trên cluster đang active; nếu chưa có → trigger popup chọn, xem flow ở trên. Hỏi quyền theo policy env tag (xem dưới) |
+| `kafka.describeTopic` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Input: `topic`. Hỏi quyền theo policy env tag (xem dưới) |
+| `kafka.peekMessages` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Input: `topic`, `partition`, `limit?`. Giới hạn số message mặc định (NFR-4). Hỏi quyền theo policy env tag (xem dưới) |
+| `kafka.listConsumerGroups` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Hỏi quyền theo policy env tag (xem dưới) |
+| `kafka.publishMessage` | `execute` (`destructiveHint`) | `builtin.kafka` / `kafka:produce` / `connection` | Input: `topic`, `key?`, `payload`, `headers?`, `partition?`. Output: `{partition, offset, timestamp}`. Cluster đích luôn là cluster đang active — agent không truyền `profileId`. Hỏi quyền theo policy env tag (xem dưới) |
 
 `kafka.connect`/`kafka.disconnect` **không phải MCP tool** — cùng lý do "human-only action" đã ghi ở mục Bridge & capability. Cũng **không expose `KafkaCreateProfile`/`KafkaDeleteProfile`** qua MCP — nhận secret trực tiếp qua tham số, cùng lý do đã áp cho SSH/Database.
 
-**"Luôn hỏi quyền trước khi chạy"**: vì `env` là field bắt buộc trên mọi profile (FR-1), 5 tool ở trên **luôn** yêu cầu xác nhận tương tác mỗi lần gọi — kể cả `kafka.listTopics`/`describeTopic`/`peekMessages`/`listConsumerGroups` dù chỉ là `read`. Không có standing grant hay `allow_always` nào bỏ qua được bước này. Chi tiết cơ chế + lý do: [MCP / Agent § `env` bắt buộc](/dev-kit/mcp-agent). `kafka.listProfiles`/`kafka.connectionStatus` **không** bị luật này — chỉ đọc metadata/status, không chạm cluster thật.
+**"Hỏi quyền theo policy env tag"**: vì `env` là field bắt buộc trên mọi profile (FR-1), 5 tool ở trên tra `requiresConfirmation` của tag đó ([Environments](/dev-kit/environments)) trước khi chạy — nếu tag đó bật xác nhận, call phải qua xác nhận tương tác mỗi lần, kể cả `kafka.listTopics`/`describeTopic`/`peekMessages`/`listConsumerGroups` dù chỉ là `read`, không có `allow_always`. `env=prod` **luôn** bật (khóa cứng, không tắt được); `dev`/`stg` mặc định tắt nhưng bật lên được. Chi tiết cơ chế: [MCP / Agent § `env` bắt buộc](/dev-kit/mcp-agent). `kafka.listProfiles`/`kafka.connectionStatus` **không** bị luật này — chỉ đọc metadata/status, không chạm cluster thật.
 
 ### Error handling
 

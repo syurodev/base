@@ -125,16 +125,23 @@ Kafka UI, Database, SSH đều có ít nhất 1 MCP tool thao tác trên "1 targ
 - DevKit chạy headless (không có UI để hiện popup) → lỗi ngay lập tức, không chờ.
 - Ràng buộc tài nguyên đi kèm (kiểu "chỉ 1 connection sống") là quyết định **riêng của từng module** — không phải phần bắt buộc của pattern này. Kafka giữ đúng 1 connection vì đó là ràng buộc tài nguyên thật; Database/SSH dùng active target chỉ để đơn giản hóa MCP tool, pool/connection phía dưới không đổi, vẫn multi-profile như trước.
 
-### `env` bắt buộc trên mọi profile — luôn hỏi quyền qua MCP, kể cả read
+### `env` bắt buộc trên mọi profile — hỏi quyền qua MCP theo policy của tag
 
-Mọi profile của Kafka/Database/SSH (module dùng "active target selection") có 1 field **bắt buộc** — `env` (`dev` | `stg` | `prod`) — khai báo khi tạo profile, không có giá trị rỗng/bỏ qua được. Field này tách biệt với metadata mô tả kết nối (host, port...) — mục đích duy nhất là gắn nhãn rủi ro cho từng target.
+Mọi profile của Kafka/Database/SSH (module dùng "active target selection") có 1 field **bắt buộc** — `env` — khai báo khi tạo profile, không có giá trị rỗng/bỏ qua được. Giá trị của `env` là tên 1 tag lấy từ registry dùng chung [Environments](/dev-kit/environments) (mặc định có `dev`/`stg`/`prod`, tạo thêm tag tùy chỉnh được). Field này tách biệt với metadata mô tả kết nối (host, port...) — mục đích duy nhất là gắn nhãn rủi ro cho từng target.
 
-Luật gắn với `env`: **mọi MCP call (`origin = "mcp"`) thao tác trên active target đều phải qua xác nhận tương tác trước khi chạy — kể cả tool `read`, không có standing grant nào bỏ qua được, không có tùy chọn "luôn cho phép".** Vì `env` bắt buộc trên mọi profile, luật này áp dụng vô điều kiện cho nhóm tool đó, không có nhánh "target chưa gắn nhãn thì thôi".
+Luật gắn với `env`: **mọi MCP call (`origin = "mcp"`) thao tác trên active target phải tra `requiresConfirmation` của tag đó — nếu `true`, call phải qua xác nhận tương tác trước khi chạy (kể cả tool `read`), không có `allow_always`.** Đây không phải luật cứng cho mọi tag — `requiresConfirmation` là policy cấu hình được **per-tag**, quản lý ở [Environments](/dev-kit/environments):
+
+- `prod` mặc định `requiresConfirmation = true` và **khóa cứng, không tắt được** — dù cấu hình gì, `prod` luôn hỏi quyền.
+- `dev`/`stg` mặc định `requiresConfirmation = false` — user bật lên nếu muốn, tắt lại được.
+- Tag tùy chỉnh tự chọn giá trị khi tạo, sửa được tự do (không khóa như `prod`).
+
+Vì `env` bắt buộc trên mọi profile (không có giá trị rỗng), tag lookup luôn có kết quả — không có nhánh "target chưa gắn nhãn thì thôi" như ban đầu, chỉ có nhánh "tag đó có yêu cầu xác nhận hay không".
 
 - Cơ chế tái dùng đúng plumbing đã có cho "chưa có active target" (event → UI hiện dialog → block call, có timeout → resume) — chỉ khác nội dung dialog: xác nhận cho phép **call cụ thể này** chạy trên target đã chọn, không phải chọn target. Dialog phải hiện rõ `env` (vd nhãn màu: 🔴 prod / 🟡 stg / 🟢 dev) để người xác nhận thấy ngay mức rủi ro trước khi bấm Allow.
-- **Không có `allow_always`** — khác hẳn model đã quan sát ở `session/request_permission` của ACP (có `allow_once`/`allow_always`). Ở đây cố tình chỉ có Allow/Deny cho từng lần gọi — nếu cho `allow_always`, cluster "quên đang chọn cluster nào" sẽ quay lại đúng vấn đề mà cơ chế này sinh ra để chặn.
+- **Không có `allow_always`** khi `requiresConfirmation = true` — khác hẳn model đã quan sát ở `session/request_permission` của ACP (có `allow_once`/`allow_always`). Ở đây cố tình chỉ có Allow/Deny cho từng lần gọi — nếu cho `allow_always`, cluster "quên đang chọn cluster nào" sẽ quay lại đúng vấn đề mà cơ chế này sinh ra để chặn.
 - Phạm vi áp dụng: chỉ nhóm tool đã đổi sang "active target" (`kafka.listTopics/describeTopic/peekMessages/listConsumerGroups/publishMessage`, `db.query`, `ssh.runCommand`). **Không** áp cho `listProfiles`/`testConnection`/`connectionStatus`/`activeProfile` — các tool này chỉ đọc metadata hoặc test kết nối tạm thời, không chạm dữ liệu/hệ thống thật qua active target.
 - Call từ UI (`origin` khác `"mcp"`) không bị luật này — người dùng tự bấm trong KafkaView/DatabaseView/SSHView đã là xác nhận tường minh rồi, không cần hỏi lại.
+- Đổi `requiresConfirmation` của 1 tag (trừ `prod`) là hành động con người, không expose qua MCP — xem [Environments § MCP tool surface](/dev-kit/environments).
 
 ### Hard exclusion — nguyên tắc chung
 
