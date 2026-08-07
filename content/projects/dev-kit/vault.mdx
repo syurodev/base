@@ -70,6 +70,20 @@ audit riêng với capability **`vault:lifecycle`** (metadata `event` =
 Frontend adapter: `frontend/src/bridge/vault.ts` (`vaultStatus`, `setupVault`,
 `unlockVault` only).
 
+## MCP tool surface (design)
+
+Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
+
+| MCP tool | Effect | Map sang | Ghi chú |
+|---|---|---|---|
+| `vault.status` | `read` | `builtin.vault` / `vault:manage` / `vault` | Chỉ trạng thái (`locked`/`unlocked`/`not_configured`) |
+| `vault.search` | `read` | `builtin.search` / `vault:search` / `item:search` | Cross-type metadata search (`VaultSearch`), không decrypt payload |
+
+**Không expose qua MCP, bất kể grant**: `SetupVault`, `UnlockVault`,
+`UnlockVaultWithRecovery`, `LockVault`. Master Password là bí mật con người
+nhập — cho agent gọi được coi như xóa bỏ lý do có `VaultGate`. Đây là loại trừ
+cứng, không phải thứ mở lại được bằng cách nới policy.
+
 ## Crypto substrate (không phải “vault module”)
 
 - Envelope **V2-only** (`SealV2` / `OpenWithAD`), AAD =

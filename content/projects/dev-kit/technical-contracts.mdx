@@ -158,17 +158,17 @@ Conflict resolve contract (client):
 
 `internal/bridge` hiện publish các family operation sau:
 
-| Family | Public methods | Subject / capability / scope pattern | Evidence |
-| --- | --- | --- | --- |
-| Vault | `VaultStatus`, `SetupVault`, `UnlockVault`, `UnlockVaultWithRecovery`, `LockVault` | `builtin.vault` / `vault:manage` / `vault` | `internal/bridge/vault.go` |
-| Notes | `NotesList`, `NotesSearch`, `NotesCreate`, `NotesGet`, `NotesDelete` | `builtin.notes` / `notes:read` hoặc `notes:write` / `note:list`, `note:search`, `note:new`, `note:<id>` | `internal/bridge/notes.go` |
-| Database | `DBListProfiles`, `DBCreateProfile`, `DBDeleteProfile`, `DBTestConnection`, `DBQuery` | `builtin.database` / `db:query` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/database.go` |
-| SSH | `SSHListProfiles`, `SSHCreateProfile`, `SSHDeleteProfile`, `SSHObserveHostKey`, `SSHTrustHostKey`, `SSHTestConnection`, `SSHRunCommand` | `builtin.ssh` / `ssh:connect` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/ssh.go` |
-| SSH forwarding | `SSHStartForward`, `SSHListForwards`, `SSHStopForward` | `builtin.ssh` / `ssh:forward` / `profile:<id>`, `forward:list`, `forward:<id>` | `internal/bridge/ssh.go`, `internal/ssh/forwarding.go` |
-| Tools | `ExecuteCommand` | `builtin.tools` / `tools:hash` / `command:<id>` | `internal/bridge/app_service.go`, `internal/commands/registry.go` |
-| Search | `VaultSearch` | `builtin.search` / `vault:search` / `item:search` | `internal/bridge/search.go` |
-| Sync | `SyncStatus`, `SyncConnect`, `SyncNow`, `SyncDisconnect`, `SyncConflicts`, `SyncConflictDetail`, `SyncResolveConflict` | `builtin.sync` / `sync:manage` / `sync:status`, `sync:connect`, `sync:run`, `sync:disconnect`, `sync:conflicts`, `sync:resolve` | `internal/bridge/{sync,syncresolve}.go`, `internal/syncclient`, `internal/syncconflict` |
-| Modules | `ListModules` | no capability gate; registry read-through only | `internal/bridge/app_service.go`, `internal/modules/registry.go` |
+| Family | Public methods | Subject / capability / scope pattern | Evidence | MCP tool (design, xem [MCP / Agent](/dev-kit/mcp-agent)) |
+| --- | --- | --- | --- | --- |
+| Vault | `VaultStatus`, `SetupVault`, `UnlockVault`, `UnlockVaultWithRecovery`, `LockVault` | `builtin.vault` / `vault:manage` / `vault` | `internal/bridge/vault.go` | `vault.status` only — Setup/Unlock/Lock **không expose** qua MCP |
+| Notes | `NotesList`, `NotesSearch`, `NotesCreate`, `NotesGet`, `NotesDelete` | `builtin.notes` / `notes:read` hoặc `notes:write` / `note:list`, `note:search`, `note:new`, `note:<id>` | `internal/bridge/notes.go` | `notes.list`, `notes.search`, `notes.get`, `notes.create`, `notes.delete` |
+| Database | `DBListProfiles`, `DBCreateProfile`, `DBDeleteProfile`, `DBTestConnection`, `DBQuery` | `builtin.database` / `db:query` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/database.go` | `db.listProfiles`, `db.query` — CreateProfile/DeleteProfile để v2 |
+| SSH | `SSHListProfiles`, `SSHCreateProfile`, `SSHDeleteProfile`, `SSHObserveHostKey`, `SSHTrustHostKey`, `SSHTestConnection`, `SSHRunCommand` | `builtin.ssh` / `ssh:connect` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/ssh.go` | `ssh.listProfiles`, `ssh.testConnection`, `ssh.runCommand` — CreateProfile/DeleteProfile/ObserveHostKey/TrustHostKey **không expose** |
+| SSH forwarding | `SSHStartForward`, `SSHListForwards`, `SSHStopForward` | `builtin.ssh` / `ssh:forward` / `profile:<id>`, `forward:list`, `forward:<id>` | `internal/bridge/ssh.go`, `internal/ssh/forwarding.go` | — (non-goal, không expose qua MCP) |
+| Tools | `ExecuteCommand` | `builtin.tools` / `tools:hash` / `command:<id>` | `internal/bridge/app_service.go`, `internal/commands/registry.go` | `tools.executeCommand` |
+| Search | `VaultSearch` | `builtin.search` / `vault:search` / `item:search` | `internal/bridge/search.go` | `vault.search` |
+| Sync | `SyncStatus`, `SyncConnect`, `SyncNow`, `SyncDisconnect`, `SyncConflicts`, `SyncConflictDetail`, `SyncResolveConflict` | `builtin.sync` / `sync:manage` / `sync:status`, `sync:connect`, `sync:run`, `sync:disconnect`, `sync:conflicts`, `sync:resolve` | `internal/bridge/{sync,syncresolve}.go`, `internal/syncclient`, `internal/syncconflict` | `sync.status`, `sync.conflicts` — Connect/Now/Disconnect/ResolveConflict để v2 |
+| Modules | `ListModules` | no capability gate; registry read-through only | `internal/bridge/app_service.go`, `internal/modules/registry.go` | — (không cần, registry metadata thuần) |
 
 Hai quy tắc bridge quan trọng:
 

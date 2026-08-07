@@ -40,6 +40,21 @@ list/search → open detail → delete. Sửa nội dung sau create phải xóa 
 Subject luôn `builtin.notes`. Record ID là **24 lowercase hex**
 (`vaultitem.NewID`); bridge `recordID()` làm opaque scope, reject ID lệch format.
 
+## MCP tool surface (design)
+
+Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
+
+| MCP tool | Effect | Map sang | Ghi chú |
+|---|---|---|---|
+| `notes.list` | `read` | `builtin.notes` / `notes:read` / `note:list` | |
+| `notes.search` | `read` | `builtin.notes` / `notes:read` / `note:search` | |
+| `notes.get` | `read` | `builtin.notes` / `notes:read` / `note:<id>` | Trả cả `body` đã decrypt — note là nội dung người dùng, không phải credential như SSH/DB nên không áp rule "không trả raw secret" |
+| `notes.create` | `execute` | `builtin.notes` / `notes:write` / `note:new` | |
+| `notes.delete` | `execute` (`destructiveHint`) | `builtin.notes` / `notes:write` / `note:<id>` | |
+
+Không có `notes.update` — khớp với việc bridge hiện cũng không có
+`NotesUpdate`; agent muốn sửa nội dung phải `delete` + `create` mới, y hệt UI.
+
 ## Record shape at rest
 
 Một note = một `vaultitem.Record` trong `vault_items`:

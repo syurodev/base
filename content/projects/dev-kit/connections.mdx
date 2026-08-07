@@ -75,6 +75,26 @@ Packages: `internal/ssh/{ssh,hostkeys,forwarding}.go`,
 `internal/bridge/ssh.go`, `frontend/src/modules/ssh/{SSHView,manifest}.ts`,
 `frontend/src/bridge/ssh.ts`.
 
+## MCP tool surface (design)
+
+Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
+
+| MCP tool | Effect | Map sang | Ghi chú |
+|---|---|---|---|
+| `ssh.listProfiles` | `read` | `builtin.ssh` / `ssh:connect` / `profile:list` | Chỉ metadata (`host`, `username`...), không có secret |
+| `ssh.testConnection` | `execute` | `builtin.ssh` / `ssh:connect` / `profile:<id>` | |
+| `ssh.runCommand` | `execute` (`destructiveHint`) | `builtin.ssh` / `ssh:connect` / `profile:<id>` | Rủi ro cao nhất trong toàn bộ MCP tool surface hiện có — ứng viên đầu tiên cần policy review chặt hơn default-allow |
+
+**Không expose qua MCP ở v1**:
+
+- `SSHObserveHostKey` / `SSHTrustHostKey` — TOFU là quyết định bảo mật cần con
+  người xác nhận; agent tự trust host-key mới sẽ vô hiệu hóa chống MITM đã
+  thiết kế ở [ADR-007](/dev-kit/architecture-decisions#adr-007-verified-tls-for-remote-db-and-exact-ssh-host-key-pinning).
+- `SSHCreateProfile` / `SSHDeleteProfile` — tạo profile nhận secret trực tiếp
+  qua tham số; để v2 sau khi có UI permission review cho MCP.
+- `SSHStartForward` / `SSHListForwards` / `SSHStopForward` — mở tunnel network
+  do agent khởi tạo là blast-radius lớn, giữ nguyên non-goal bên dưới.
+
 ## Non-goals (MVP)
 
 - Public-facing tunnel / unrestricted network bind

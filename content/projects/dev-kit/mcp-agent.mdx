@@ -100,31 +100,25 @@ Ba primitive từng có — **Roots, Sampling, Logging** — đã bị deprecate
 
 ### MCP tool surface — module đã Implemented
 
-Đây là phần lấp khoảng trống chính: các module này đã chạy thật, nhưng chưa agent-reachable. Danh sách dưới **không** map 1-1 mọi bridge method — có chủ đích loại bỏ vài action nhạy cảm, xem phần "Hard exclusions" ngay sau bảng.
+Đây là phần lấp khoảng trống chính: các module này đã chạy thật, nhưng chưa agent-reachable. Chi tiết từng tool (map sang capability/scope, ghi chú) nằm ngay tại trang của module đó — trang này chỉ giữ vai trò index để tránh 2 nguồn sự thật lệch nhau khi module cập nhật:
 
-| Tool | Effect | Map sang capability/scope hiện có | Ghi chú |
-|---|---|---|---|
-| `vault.status` | `read` | `builtin.vault` / `vault:manage` / `vault` | Chỉ trả trạng thái (`locked`/`unlocked`/`not_configured`), không nhận input nhạy cảm |
-| `vault.search` | `read` | `builtin.search` / `vault:search` / `item:search` | Cross-type metadata search, không decrypt payload |
-| `notes.list` | `read` | `builtin.notes` / `notes:read` / `note:list` | |
-| `notes.search` | `read` | `builtin.notes` / `notes:read` / `note:search` | |
-| `notes.get` | `read` | `builtin.notes` / `notes:read` / `note:<id>` | Trả cả `body` đã decrypt — note là nội dung người dùng, không phải credential, nên khác nguyên tắc "không trả raw secret" áp cho SSH/DB |
-| `notes.create` | `execute` | `builtin.notes` / `notes:write` / `note:new` | |
-| `notes.delete` | `execute` (`destructiveHint`) | `builtin.notes` / `notes:write` / `note:<id>` | |
-| `ssh.listProfiles` | `read` | `builtin.ssh` / `ssh:connect` / `profile:list` | Chỉ metadata (`host`, `username`...), không có secret |
-| `ssh.testConnection` | `execute` | `builtin.ssh` / `ssh:connect` / `profile:<id>` | |
-| `ssh.runCommand` | `execute` (`destructiveHint`) | `builtin.ssh` / `ssh:connect` / `profile:<id>` | Rủi ro cao nhất trong bảng này — nên là ứng viên đầu tiên cần policy chặt hơn default-allow khi có UI permission review |
-| `db.listProfiles` | `read` | `builtin.database` / `db:query` / `profile:list` | Chỉ metadata, không có password |
-| `db.query` | `execute` (`destructiveHint`) | `builtin.database` / `db:query` / `profile:<id>` | Không phân biệt được SELECT/UPDATE ở tầng MCP hiện tại — coi mọi query là có thể phá dữ liệu |
-| `tools.executeCommand` | `execute` | `builtin.tools` / `tools:hash` / `command:<id>` | Rủi ro thấp (chỉ hashing) |
-| `sync.status` | `read` | `builtin.sync` / `sync:manage` / `sync:status` | |
-| `sync.conflicts` | `read` | `builtin.sync` / `sync:manage` / `sync:conflicts` | Chỉ metadata non-secret, giống `SyncConflicts` hiện tại |
+| Module | Trang chi tiết MCP tool surface |
+|---|---|
+| Vault | [Vault § MCP tool surface](/dev-kit/vault#mcp-tool-surface-design) — chỉ `vault.status`, `vault.search` |
+| Notes | [Notes § MCP tool surface](/dev-kit/notes#mcp-tool-surface-design) — `notes.list/search/get/create/delete` |
+| SSH | [SSH § MCP tool surface](/dev-kit/connections#mcp-tool-surface-design) — `ssh.listProfiles/testConnection/runCommand` |
+| Database, Tools, Search, Sync | [Technical contracts § Bridge contract](/dev-kit/technical-contracts#bridge-contract) — cột "MCP tool (design)" |
+| Code Graph | [Code Graph § MCP tool surface](/dev-kit/codegraph#mcp-tool-surface) |
+| Agent Hub | [Agent Hub § MCP tool surface](/dev-kit/agent-hub#mcp-tool-surface) |
 
-### Hard exclusions — không thành tool ở v1, bất kể grant
+### Hard exclusion — nguyên tắc chung
 
-- `SetupVault`, `UnlockVault`, `UnlockVaultWithRecovery`, `LockVault` — Master Password là bí mật con người nhập, để agent gọi được coi như xóa bỏ lý do có Vault Gate. Không có "capability check chặt hơn" nào bù được việc này — action này **không tồn tại** ở tầng MCP, không phải bị filter theo policy.
-- `SSHObserveHostKey` / `SSHTrustHostKey` — trust 1 host-key mới (TOFU) là quyết định bảo mật nên giữ con người xác nhận; để agent tự trust thì mất tác dụng chống MITM đã thiết kế ở [ADR-007](/dev-kit/architecture-decisions#adr-007-verified-tls-for-remote-db-and-exact-ssh-host-key-pinning).
-- `SSHStartForward`/`SSHStopForward`, `DBCreateProfile`/`SSHCreateProfile` (tạo profile mới kèm secret), `SyncConnect`/`SyncNow`/`SyncResolveConflict` — để mở ở v2 sau khi có UI permission review cho MCP; v1 giữ tối giản, xem "Out of scope".
+Một số action **không bao giờ** thành MCP tool ở v1, bất kể grant — đây là loại trừ cứng theo thiết kế, không phải thứ nới ra được bằng cách sửa policy. Hai ví dụ tiêu biểu (danh sách đầy đủ theo module nằm ở các trang trong bảng trên):
+
+- **Vault unlock/setup/lock** — Master Password là bí mật con người nhập; cho agent gọi được coi như xóa bỏ lý do có `VaultGate`.
+- **SSH host-key trust (TOFU)** — trust 1 host-key mới là quyết định bảo mật cần con người xác nhận, nếu không sẽ mất tác dụng chống MITM đã thiết kế ở [ADR-007](/dev-kit/architecture-decisions#adr-007-verified-tls-for-remote-db-and-exact-ssh-host-key-pinning).
+
+Nhóm thứ hai — tạo profile kèm secret, SSH forwarding, sync mutation — không phải loại trừ vĩnh viễn mà để mở ở v2 sau khi có UI permission review cho MCP; xem "Out of scope" ở trên.
 
 ### Error handling
 
