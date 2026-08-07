@@ -101,8 +101,9 @@ cứng, không phải thứ mở lại được bằng cách nới policy.
 | Module | `type` | Encrypted payload key id | Docs |
 |---|---|---|---|
 | Notes | `note` | `note-body` | [Notes](/dev-kit/notes) |
-| SSH | `ssh-profile` | `ssh-secret` | [SSH](/dev-kit/connections) |
-| Database | `db-profile` | `db-password` | Sibling module — xem [Implementation status](/dev-kit/implementation-status) |
+| SSH | `ssh-profile` | `ssh-secret` | [SSH](/dev-kit/ssh) |
+| Database | `db-profile` | `db-password` | [Database](/dev-kit/database) |
+| Kafka (design) | `kafka-profile` | `kafka-secret` | [Kafka UI](/dev-kit/kafka) |
 
 `vaultitem` **không** import ngược `notes` / `database` / `ssh`
 (`go test ./internal/arch/`).
@@ -117,8 +118,10 @@ cứng, không phải thứ mở lại được bằng cách nới policy.
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
-  <Card title="SSH" href="/dev-kit/connections" description="Thin adapter ssh-profile trên vaultitem" />
+  <Card title="SSH" href="/dev-kit/ssh" description="Thin adapter ssh-profile trên vaultitem" />
   <Card title="Notes" href="/dev-kit/notes" description="Thin adapter đầu tiên trên vaultitem" />
+  <Card title="Database" href="/dev-kit/database" description="Thin adapter db-profile trên vaultitem" />
+  <Card title="Kafka UI" href="/dev-kit/kafka" description="Design — kafka-profile trên vaultitem" />
   <Card title="Security model" href="/dev-kit/security" />
   <Card title="Technical contracts" href="/dev-kit/technical-contracts" />
   <Card title="Architecture decisions" href="/dev-kit/architecture-decisions" description="ADR-004/005/008" />

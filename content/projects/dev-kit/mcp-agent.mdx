@@ -72,7 +72,7 @@ Hiện tại chỉ UI (qua Bridge) gọi được các module đã Implemented (
 
 - Streamable HTTP transport / remote agent.
 - Primitive **Resources** và **Prompts** — v1 chỉ có Tools; Resources (đọc note/codegraph output qua URI) để sau nếu cần.
-- SSH forwarding tools (`ssh.startForward`/`stopForward`) — mở tunnel network do agent khởi tạo là blast-radius lớn, giữ nguyên non-goal đã ghi ở [Connections](/dev-kit/connections#non-goals-mvp).
+- SSH forwarding tools (`ssh.startForward`/`stopForward`) — mở tunnel network do agent khởi tạo là blast-radius lớn, giữ nguyên non-goal đã ghi ở [SSH](/dev-kit/ssh#non-goals-mvp).
 - Sync mutation tools (`sync.connect`/`syncNow`/`resolveConflict`) — sync client vẫn `Partial`, và để agent tự trigger sync/resolve conflict là rủi ro dữ liệu chưa cần thiết ở v1.
 
 ### Acceptance criteria
@@ -106,8 +106,11 @@ Ba primitive từng có — **Roots, Sampling, Logging** — đã bị deprecate
 |---|---|
 | Vault | [Vault § MCP tool surface](/dev-kit/vault#mcp-tool-surface-design) — chỉ `vault.status`, `vault.search` |
 | Notes | [Notes § MCP tool surface](/dev-kit/notes#mcp-tool-surface-design) — `notes.list/search/get/create/delete` |
-| SSH | [SSH § MCP tool surface](/dev-kit/connections#mcp-tool-surface-design) — `ssh.listProfiles/testConnection/runCommand` |
-| Database, Tools, Search, Sync | [Technical contracts § Bridge contract](/dev-kit/technical-contracts#bridge-contract) — cột "MCP tool (design)" |
+| Database | [Database § MCP tool surface](/dev-kit/database#mcp-tool-surface-design) — `db.listProfiles/testConnection/query` |
+| SSH | [SSH § MCP tool surface](/dev-kit/ssh#mcp-tool-surface-design) — `ssh.listProfiles/testConnection/runCommand` |
+| Tools | [Tools § MCP tool surface](/dev-kit/tools#mcp-tool-surface-design) — mỗi command 1 tool riêng (`tools.hash`, `tools.base64Encode`...) |
+| Kafka UI (design) | [Kafka UI § MCP tool surface](/dev-kit/kafka#mcp-tool-surface-design) — toàn bộ read-only |
+| Search, Sync | [Technical contracts § Bridge contract](/dev-kit/technical-contracts#bridge-contract) — cột "MCP tool (design)" |
 | Code Graph | [Code Graph § MCP tool surface](/dev-kit/codegraph#mcp-tool-surface) |
 | Agent Hub | [Agent Hub § MCP tool surface](/dev-kit/agent-hub#mcp-tool-surface) |
 
