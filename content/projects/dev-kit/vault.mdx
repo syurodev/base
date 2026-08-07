@@ -1,56 +1,111 @@
 ---
 title: Vault
-description: Master password, keyring, và substrate mã hóa application-layer dùng chung cho mọi built-in module.
+description: Master Password, keyring/DEK lifecycle, và substrate vaultitem dùng chung.
 ---
 
 # Vault
 
-Vault quản lý Master Password/DEK và cơ chế mã hóa application-layer dùng chung cho toàn bộ DevKit. Bản thân Vault **không lưu nội dung nghiệp vụ** (note, connection profile...) — đó là việc của các module consumer (Notes, Connections). Vault chỉ chịu trách nhiệm: khóa/mở, dẫn xuất khóa, và cung cấp substrate lưu trữ mã hóa dùng chung mà các module đó adapter vào.
+Vault trong DevKit gồm **hai lớp tách rõ**:
+
+1. **`internal/vault`** — lifecycle Master Password / keyring / DEK in-memory
+   (setup → unlock → lock). Không lưu note hay connection profile.
+2. **`internal/vaultitem`** — substrate item dùng chung (bảng `vault_items`,
+   envelope V2). Notes / Database / SSH là thin adapter trên lớp này.
+
+UI vault **không phải** ActivityBar module: `VaultGate` bọc toàn bộ Workbench
+và chặn mọi module cho đến khi vault `unlocked`.
 
 ```mermaid
-flowchart LR
-  UI[Vault gate UI - setup/unlock/lock] --> Bridge[Bridge adapter]
-  Bridge --> GW[Capability Gateway]
-  GW -->|vault unlocked| CORE[Vault service - internal/vault]
-  CORE --> DEK[(DEK in-memory)]
-  DEK --> SUB[vaultitem.Store - crypto envelope]
-  SUB --> DB[(SQLite: vault_keyring + vault_items)]
+flowchart TD
+  GATE[VaultGate UI]
+  GATE -->|setup / unlock| BR[frontend/src/bridge/vault.ts]
+  BR --> AS[bridge.AppService]
+  AS -->|builtin.vault / vault:manage / vault| GW[Capability Gateway]
+  GW --> VS[internal/vault.Service]
+  VS --> KR[(vault_keyring - wrapped DEK)]
+  VS -->|DEK in memory when unlocked| STORE[vaultitem.Store]
+  STORE --> ITEMS[(vault_items)]
+  NOTES[internal/notes] --> STORE
+  DB[internal/database] --> STORE
+  SSH[internal/ssh] --> STORE
 ```
 
-## Responsibilities
+## States & lifecycle (runtime)
 
-- Setup/unlock/lock vault; không để UI giữ raw key lâu hơn cần thiết.
-- Dẫn xuất DEK từ Master Password (Argon2id KDF) và giữ trong memory khi unlocked.
-- Mã hóa/giải mã field nhạy cảm qua versioned crypto envelope (**V2-only**, XChaCha20-Poly1305, associated data binding `record_type + NUL + record_id + NUL + key_id` — xem [ADR-005](/dev-kit/architecture-decisions#adr-005-v2-only-envelope-with-aad-binding)).
-- Cung cấp **substrate dùng chung** (`internal/vaultitem`, bảng `vault_items`) mà Notes/Database/SSH adapter vào thay vì mỗi module tự có store/crypto riêng — xem [ADR-008](/dev-kit/architecture-decisions#adr-008-unified-vault_items-store-for-built-in-item-types).
-- Cross-type search (`VaultSearch`) trên metadata plaintext của mọi item type, không cần giải mã payload.
+| State | Meaning |
+|---|---|
+| `not_configured` | Chưa có keyring — lần đầu phải `Setup` |
+| `locked` | Keyring đã persist; DEK không có trong memory |
+| `unlocked` | DEK nằm trong process memory; seal/open được |
 
-## Application-layer encryption, không phải full-DB encryption
+Luồng thực tế:
 
-SQLite (`devkit.db`) lưu JSON blob per record; chỉ secret field được mã hóa trước khi persist, không dùng SQLCipher — xem [ADR-004](/dev-kit/architecture-decisions#adr-004-application-layer-encrypted-records-instead-of-sqlcipher). Nhiều metadata (title, host, username) cố ý để plaintext để search/list được ngay cả khi vault đang locked.
+1. **First run** — `SetupVault(masterPassword)` (≥ 8 ký tự). Tạo keyring
+   (wrapped DEK + KDF), lưu `vault_keyring`, unlock ngay, **trả recovery key
+   đúng một lần** (không log / audit / persist recovery key).
+2. **Mọi process start sau đó** — DEK không còn → luôn `locked` cho đến khi
+   `UnlockVault(masterPassword)` (hoặc `UnlockVaultWithRecovery` — bridge có,
+   UI hiện chưa expose).
+3. **`LockVault`** — zeroize DEK trong memory. Có trên bridge; Workbench hiện
+   **không** có nút lock (chỉ restart process là về locked).
 
-## Consumers của substrate này
+Production wiring (`main.go`): `vault.NewSQLKeyringStore` trên
+`storage.TableVaultKeyring` + `vaultitem.NewSQLMutationRepository` (item write
+kèm sync intent).
 
-Vault không tự expose feature cho user — mọi built-in module dùng chung `vaultitem.Store` rồi tự định nghĩa bridge/capability riêng:
+## Bridge & capability
 
-| Module | Record type | Field mã hóa | Trang riêng |
+| Method | Capability | Scope | UI |
 |---|---|---|---|
-| Notes | `note` | `Body` | [Notes](/dev-kit/notes) |
-| Database profile | `db-profile` | `Password` | [Connections](/dev-kit/connections) |
-| SSH profile | `ssh-profile` | secret material | [Connections](/dev-kit/connections) |
+| `VaultStatus` | `vault:manage` | `vault` | `VaultGate` |
+| `SetupVault` | `vault:manage` | `vault` | Create Master Password |
+| `UnlockVault` | `vault:manage` | `vault` | Unlock DevKit |
+| `UnlockVaultWithRecovery` | `vault:manage` | `vault` | (bridge only) |
+| `LockVault` | `vault:manage` | `vault` | (bridge only) |
+
+Subject luôn `builtin.vault`. Sau setup/unlock/lock thành công, bridge ghi
+audit riêng với capability **`vault:lifecycle`** (metadata `event` =
+`setup|unlock|recovery_unlock|lock`) — không đi qua grant `vault:manage`.
+
+Frontend adapter: `frontend/src/bridge/vault.ts` (`vaultStatus`, `setupVault`,
+`unlockVault` only).
+
+## Crypto substrate (không phải “vault module”)
+
+- Envelope **V2-only** (`SealV2` / `OpenWithAD`), AAD =
+  `record_type + NUL + record_id + NUL + key_id` —
+  [ADR-005](/dev-kit/architecture-decisions#adr-005-v2-only-envelope-with-aad-binding).
+- Application-layer encryption trên SQLite, không SQLCipher —
+  [ADR-004](/dev-kit/architecture-decisions#adr-004-application-layer-encrypted-records-instead-of-sqlcipher).
+- Shared store: `internal/vaultitem` + bảng `vault_items` —
+  [ADR-008](/dev-kit/architecture-decisions#adr-008-unified-vault_items-store-for-built-in-item-types).
+- `VaultSearch` (bridge `builtin.search` / `vault:search` / `item:search`)
+  search metadata plaintext cross-type; **chưa có UI caller**.
+
+## Consumers
+
+| Module | `type` | Encrypted payload key id | Docs |
+|---|---|---|---|
+| Notes | `note` | `note-body` | [Notes](/dev-kit/notes) |
+| Database | `db-profile` | `db-password` | [Connections](/dev-kit/connections) |
+| SSH | `ssh-profile` | `ssh-secret` | [Connections](/dev-kit/connections) |
+
+`vaultitem` **không** import ngược `notes` / `database` / `ssh`
+(`go test ./internal/arch/`).
 
 ## Rules
 
-- Không log plaintext secrets.
-- Plugin chỉ đụng vault qua capability được cấp khi plugin surface có.
-- Master Password và recovery key thuộc vault lifecycle — xem [Operations](/dev-kit/operations#recovery-and-troubleshooting).
+- Không log Master Password, recovery key, hay plaintext DEK.
+- Recovery key chỉ hiện một lần sau setup — xem
+  [Operations](/dev-kit/operations#recovery-and-troubleshooting).
+- Plugin chỉ đụng vault/items qua capability khi plugin surface có.
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
-  <Card title="Notes" href="/dev-kit/notes" description="Module consumer đầu tiên của substrate này" />
-  <Card title="Connections" href="/dev-kit/connections" description="Database/SSH cũng adapter trên vaultitem" />
+  <Card title="Notes" href="/dev-kit/notes" description="Thin adapter đầu tiên trên vaultitem" />
+  <Card title="Connections" href="/dev-kit/connections" description="Database/SSH cùng pattern" />
   <Card title="Security model" href="/dev-kit/security" />
-  <Card title="Data & sync" href="/dev-kit/data-sync" />
-  <Card title="Architecture decisions" href="/dev-kit/architecture-decisions" description="ADR-004/005/008: envelope và unified store" />
+  <Card title="Technical contracts" href="/dev-kit/technical-contracts" />
+  <Card title="Architecture decisions" href="/dev-kit/architecture-decisions" description="ADR-004/005/008" />
 </Cards>

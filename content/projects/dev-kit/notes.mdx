@@ -1,46 +1,117 @@
 ---
 title: Notes
-description: Ghi chú cá nhân — thin adapter trên vaultitem substrate của Vault.
+description: Built-in notes module — thin adapter trên vaultitem, không có store riêng.
 ---
 
 # Notes
 
-Notes là built-in module lưu ghi chú cá nhân. Từ [ADR-008](/dev-kit/architecture-decisions#adr-008-unified-vault_items-store-for-built-in-item-types), Notes **không có storage/crypto riêng** — nó là thin adapter map field vào `vaultitem.Store` chung (cùng substrate với Database/SSH trong [Connections](/dev-kit/connections)), giữ nguyên chữ ký public nên bridge/UI/capability không đổi khi substrate thay đổi.
+Notes là built-in **ActivityBar module** (`frontend/src/modules/notes`). Nó
+**không** có bảng/repository/crypto riêng: service `internal/notes` là thin
+adapter map field vào `vaultitem.Store` chung (cùng substrate với Database/SSH).
+Vault lifecycle (Master Password / DEK) nằm ở [Vault](/dev-kit/vault) —
+`VaultGate` phải `unlocked` trước khi Workbench (và Notes UI) render.
 
 ```mermaid
 flowchart LR
-  UI[Notes UI] --> Bridge[frontend/src/bridge/notes.ts]
-  Bridge --> GW[Capability Gateway]
-  GW --> SVC[Notes service - internal/notes/notes.go]
-  SVC --> SUB[(vaultitem.Store - shared substrate)]
-  SUB --> DB[(vault_items, type = note)]
+  UI[NotesView] --> BR[frontend/src/bridge/notes.ts]
+  BR --> AS[bridge.AppService]
+  AS -->|builtin.notes + notes:read/write| GW[Capability Gateway]
+  GW --> SVC[internal/notes.Service]
+  SVC --> STORE[vaultitem.Store]
+  STORE -->|SealV2 / OpenWithAD| VAULT[internal/vault DEK]
+  STORE --> DB[(vault_items WHERE type = note)]
 ```
 
-## Scope (hiện tại)
+## Runtime API (không có Update)
 
-- Bridge method family: `NotesList`, `NotesSearch`, `NotesCreate`, `NotesGet`, `NotesDelete` (`internal/bridge/notes.go`).
-- Record shape (`vaultitem.Record` với `type = "note"`): `Title` là metadata **plaintext** (search/list được kể cả khi vault locked); `Body` **mã hóa** trong `payload` qua envelope với AAD `record_type = "note"`, `key_id = "note-body"`.
-- Capability grants: `builtin.notes` / `notes:read` hoặc `notes:write` / scope `note:list`, `note:search`, `note:new`, `note:<id>` — xem [Technical contracts](/dev-kit/technical-contracts).
-- Cross-type search: note title tham gia `VaultSearch` chung cùng metadata của Database/SSH profile.
+| Bridge method | Capability | Scope | Service |
+|---|---|---|---|
+| `NotesList` | `notes:read` | `note:list` | `List()` → `[]Summary` |
+| `NotesSearch` | `notes:read` | `note:search` | `Search(query)` |
+| `NotesCreate` | `notes:write` | `note:new` | `Create(title, body)` |
+| `NotesGet` | `notes:read` | `note:<24hex>` | `Get(id)` → decrypt body |
+| `NotesDelete` | `notes:write` | `note:<24hex>` | `Delete(id)` |
 
-## Known limitation
+**Không có** `NotesUpdate` / `UpdateSecret`. UI hiện tại chỉ create →
+list/search → open detail → delete. Sửa nội dung sau create phải xóa + tạo mới
+(hoặc resolve conflict qua sync merge).
 
-Title vẫn là plaintext local metadata — chưa mã hóa. Nếu sau này title cần bảo vệ chặt hơn (ví dụ khi title có thể sync ra ngoài), cần thiết kế riêng chứ không tự động theo cùng cơ chế với `Body`.
+Subject luôn `builtin.notes`. Record ID là **24 lowercase hex**
+(`vaultitem.NewID`); bridge `recordID()` làm opaque scope, reject ID lệch format.
+
+## Record shape at rest
+
+Một note = một `vaultitem.Record` trong `vault_items`:
+
+| Field | At rest | Notes |
+|---|---|---|
+| `type` | `"note"` | Schema-validated |
+| `metadata` | `{"title":"..."}` plaintext | List/search không cần decrypt |
+| `payload` | Envelope V2 của body | AAD `(note, <id>, note-body)`; `key_id` phải = `note-body` |
+| `key_version` | starts at `1` | Crypto/record version — **không** phải sync entity version |
+| `sync_state` | `"local"` on create | Local-only; omitted on sync wire snapshot |
+
+Create path:
+
+```text
+notes.Create → store.Create("note", "note-body", metaJSON, bodyBytes)
+            → vaultitem seals with vault DEK + AAD
+            → SQLMutationRepository Put (+ sync mutation intent when wired)
+```
+
+## Search
+
+- Title: luôn match (plaintext).
+- Body: chỉ khi `OpenPayload` thành công (vault unlocked).
+- Empty query → mọi note, newest `updated_at` trước.
+- Cross-type metadata search là `VaultSearch` riêng (không qua Notes UI).
+
+Trong app bình thường Notes chỉ mở sau `VaultGate` unlocked, nên body search
+luôn available trên UI path; title-only degradaton là property của service/bridge
+khi vault locked.
+
+## UI flow (`NotesView`)
+
+1. Form title + body → **Add encrypted note** (`createNote`).
+2. Search box gọi `searchNotes` / `listNotes`.
+3. Click title → `getNote` (decrypt body) → detail pane.
+4. Delete → `deleteNote`.
+
+Manifest: `frontend/src/modules/notes/manifest.ts` khai báo
+`notes:read` / `notes:write` (declaration metadata); grant thật nằm ở
+`internal/app/container.go`.
 
 ## Sync & conflict
 
-Khi sync client bật (target/partial — xem [Data & sync](/dev-kit/data-sync)), conflict resolve cho Notes dùng strategy `merge-notes` (bên cạnh `use-ours`/`use-theirs` chung cho mọi record type) — vì note text là nội dung tự do, cần merge thủ công thay vì chỉ chọn 1 bên.
+Notes sync như mọi `vault_items` record (`record_type=note`), không có pipeline
+riêng — xem [Data & sync](/dev-kit/data-sync).
+
+Conflict resolve strategies:
+
+| Strategy | Notes |
+|---|---|
+| `use-ours` / `use-theirs` | Mọi record type |
+| `merge` | **Chỉ notes** — reseal merged text dưới `note-body`; secret types → `ErrNotMergeable` |
+
+UI MVP: Git markers trong `ResolvePanel` (3-pane JetBrains vẫn là target).
+
+## Known limitations
+
+- Title plaintext local — encrypt riêng nếu title ever sync/sensitive.
+- No in-place edit API.
+- Legacy table `notes` đã drop ở migration m6; không còn backfill path.
 
 ## Rules
 
-- Không log plaintext note body.
-- Đọc `Body` yêu cầu vault đã unlock; UI không giữ raw `Body` lâu hơn cần thiết sau khi hiển thị.
+- Không log plaintext body.
+- Không giữ raw body ở UI lâu hơn cần sau khi hiển thị detail.
+- Không bypass gateway; mọi call đi `AppService.call` + capability check.
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
-  <Card title="Vault" href="/dev-kit/vault" description="Substrate mã hóa và unlock/lock mà Notes adapter vào" />
-  <Card title="Connections" href="/dev-kit/connections" description="Database/SSH — cùng pattern thin adapter" />
-  <Card title="Data & sync" href="/dev-kit/data-sync" description="Conflict resolve merge-notes" />
-  <Card title="Technical contracts" href="/dev-kit/technical-contracts" description="Bridge method table và capability grants" />
+  <Card title="Vault" href="/dev-kit/vault" description="Keyring/DEK + vaultitem substrate" />
+  <Card title="Connections" href="/dev-kit/connections" description="Cùng thin-adapter pattern" />
+  <Card title="Data & sync" href="/dev-kit/data-sync" description="Conflict merge cho notes" />
+  <Card title="Technical contracts" href="/dev-kit/technical-contracts" description="Bridge + capability table" />
 </Cards>
