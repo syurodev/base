@@ -65,10 +65,17 @@ flowchart LR
 | `SSHStartForward` | `ssh:forward` | `profile:<id>` |
 | `SSHListForwards` | `ssh:forward` | `forward:list` |
 | `SSHStopForward` | `ssh:forward` | `forward:<id>` |
+| `SSHSetActiveProfile` (design) | `ssh:connect` | `profile:<id>` |
+| `SSHActiveProfile` (design) | `ssh:connect` | `profile:active` |
 
 Subject luôn `builtin.ssh`. Profile ID là 24 lowercase hex (opaque qua
 `recordID()`). Grants thật ở `internal/app/container.go`; manifest chỉ
 declaration metadata (`ssh:connect`, `ssh:forward`).
+
+`SSHSetActiveProfile`/`SSHActiveProfile` là 2 method mới cho phần "active
+profile cho agent" — xem [MCP tool surface](#mcp-tool-surface-design) bên
+dưới. UI hiện tại (`SSHRunCommand` nhận `profileId` tường minh mỗi lần gọi)
+**không đổi gì** — 2 method này chỉ phục vụ agent qua MCP.
 
 Packages: `internal/ssh/{ssh,hostkeys,forwarding}.go`,
 `internal/bridge/ssh.go`, `frontend/src/modules/ssh/{SSHView,manifest}.ts`,
@@ -81,8 +88,9 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 | MCP tool | Effect | Map sang | Ghi chú |
 |---|---|---|---|
 | `ssh.listProfiles` | `read` | `builtin.ssh` / `ssh:connect` / `profile:list` | Chỉ metadata (`host`, `username`...), không có secret |
-| `ssh.testConnection` | `execute` | `builtin.ssh` / `ssh:connect` / `profile:<id>` | |
-| `ssh.runCommand` | `execute` (`destructiveHint`) | `builtin.ssh` / `ssh:connect` / `profile:<id>` | Rủi ro cao nhất trong toàn bộ MCP tool surface hiện có — ứng viên đầu tiên cần policy review chặt hơn default-allow |
+| `ssh.testConnection` | `execute` | `builtin.ssh` / `ssh:connect` / `profile:<id>` | Nhận `profileId` tường minh — test 1 profile cụ thể, không đụng active profile |
+| `ssh.activeProfile` | `read` | `builtin.ssh` / `ssh:connect` / `profile:active` | Trả `{profileId?}` — agent chỉ đọc, không tự đổi |
+| `ssh.runCommand` | `execute` (`destructiveHint`) | `builtin.ssh` / `ssh:connect` / `profile:active` | Không nhận `profileId` — chạy trên **active profile cho agent**. Rủi ro cao nhất trong toàn bộ MCP tool surface hiện có — ứng viên đầu tiên cần policy review chặt hơn default-allow |
 
 **Không expose qua MCP ở v1**:
 
@@ -91,8 +99,33 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
   thiết kế ở [ADR-007](/dev-kit/architecture-decisions#adr-007-verified-tls-for-remote-db-and-exact-ssh-host-key-pinning).
 - `SSHCreateProfile` / `SSHDeleteProfile` — tạo profile nhận secret trực tiếp
   qua tham số; để v2 sau khi có UI permission review cho MCP.
+- `SSHSetActiveProfile` — chọn active profile luôn là hành động của con
+  người, cùng nguyên tắc human-only action đã áp cho unlock vault / trust
+  host-key ở trên.
 - `SSHStartForward` / `SSHListForwards` / `SSHStopForward` — mở tunnel network
   do agent khởi tạo là blast-radius lớn, giữ nguyên non-goal bên dưới.
+
+### Active profile cho agent — không đổi resource model hiện có
+
+`ssh.runCommand` qua MCP dùng khái niệm **active profile riêng cho agent**,
+tách biệt hoàn toàn khỏi cách UI hoạt động hôm nay:
+
+- UI (`SSHRunCommand` qua bridge) **không đổi gì** — vẫn nhận `profileId`
+  tường minh mỗi lần gọi. `SSHStartForward` cũng không đổi — vẫn cho nhiều
+  forward chạy song song trên nhiều profile khác nhau như hiện tại.
+- Agent qua MCP thì khác: `ssh.runCommand` không nhận `profileId`. Nếu agent
+  gọi mà chưa có active profile, DevKit hiện popup cho user chọn 1 trong các
+  profile đã lưu (giống hệt cơ chế đã thiết kế cho [Kafka UI](/dev-kit/kafka),
+  mục "Agent gọi khi chưa có cluster active"); lựa chọn giữ nguyên (sticky)
+  tới khi user tự đổi qua `SSHView` hoặc sidebar.
+- Host-key trust (TOFU) vẫn hoạt động độc lập, theo từng profile như hiện
+  tại — chọn active profile không tự động trust host-key của profile đó nếu
+  chưa được approve trước.
+- Khác Kafka: đây không phải ràng buộc tài nguyên — SSH vẫn dial theo từng
+  request như hiện tại, không giữ 1 session sống duy nhất. "Active profile"
+  chỉ là lớp chọn target cho agent.
+- Timeout cho popup và fallback khi DevKit chạy headless áp dụng y hệt NFR-9
+  của Kafka UI.
 
 ## Non-goals (MVP)
 

@@ -114,6 +114,17 @@ Ba primitive từng có — **Roots, Sampling, Logging** — đã bị deprecate
 | Code Graph | [Code Graph § MCP tool surface](/dev-kit/codegraph#mcp-tool-surface) |
 | Agent Hub | [Agent Hub § MCP tool surface](/dev-kit/agent-hub#mcp-tool-surface) |
 
+### Active target selection — pattern chung cho tool cần 1 target sống
+
+Kafka UI, Database, SSH đều có ít nhất 1 MCP tool thao tác trên "1 target đang chọn" (cluster/profile) thay vì nhận ID làm tham số. Quy ước chung cho pattern này, áp dụng cho mọi module sau này có nhu cầu tương tự:
+
+- Tool đó **không nhận ID** trong `inputSchema` — target lấy từ state "active" nội bộ của service, tách biệt với cách UI vẫn hoạt động (UI tiếp tục nhận ID tường minh mỗi lần gọi, không đổi).
+- Chưa có active target khi agent gọi → DevKit hiện popup cho user chọn, **không lỗi ngay** — call gốc block tới khi user chọn xong (có timeout) rồi tự resume.
+- Method đổi active target (`*SetActiveProfile`/`KafkaConnect`...) là **bridge-only, không expose qua MCP** — chọn target luôn là hành động của con người, cùng nhóm với Hard exclusion bên dưới.
+- Lựa chọn **sticky** — giữ nguyên tới khi user tự đổi qua UI của module đó hoặc sidebar, không tự reset giữa các lần gọi.
+- DevKit chạy headless (không có UI để hiện popup) → lỗi ngay lập tức, không chờ.
+- Ràng buộc tài nguyên đi kèm (kiểu "chỉ 1 connection sống") là quyết định **riêng của từng module** — không phải phần bắt buộc của pattern này. Kafka giữ đúng 1 connection vì đó là ràng buộc tài nguyên thật; Database/SSH dùng active target chỉ để đơn giản hóa MCP tool, pool/connection phía dưới không đổi, vẫn multi-profile như trước.
+
 ### Hard exclusion — nguyên tắc chung
 
 Một số action **không bao giờ** thành MCP tool ở v1, bất kể grant — đây là loại trừ cứng theo thiết kế, không phải thứ nới ra được bằng cách sửa policy. Hai ví dụ tiêu biểu (danh sách đầy đủ theo module nằm ở các trang trong bảng trên):

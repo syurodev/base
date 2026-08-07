@@ -60,7 +60,8 @@ Khi debug 1 consumer bị lag, muốn xem message thật trong topic, hoặc c�
 | FR-5 | List consumer group của cluster đang online, kèm lag (current offset vs log-end-offset) theo từng partition. |
 | FR-6 | Test connection cho 1 profile **trước khi lưu** — dùng connection tạm thời riêng, không làm thay đổi cluster đang online. |
 | FR-7 | Publish 1 message vào topic của cluster đang online — nhận `key` (optional), `value`/payload, `headers` (optional), `partition` (optional, mặc định để broker tự chọn theo key). Trả về `partition` + `offset` thật của message vừa ghi. |
-| FR-8 | Expose MCP tool cho agent: list profile, connect, disconnect, xem trạng thái connection, list topic, describe topic, peek message, list consumer group, publish message. |
+| FR-8 | Expose MCP tool cho agent: list profile, xem trạng thái connection, list topic, describe topic, peek message, list consumer group, publish message. Không expose `connect`/`disconnect` — chọn cluster luôn là hành động của con người. |
+| FR-9 | Khi agent gọi 1 tool cần cluster active mà chưa có, DevKit tự hiện popup cho user chọn 1 trong các profile đã lưu; sau khi chọn, cluster đó giữ nguyên làm active tới khi user tự đổi (vào KafkaView hoặc sidebar) — agent không cần biết/truyền `profileId` ở bất kỳ tool nào. |
 
 ### Non-functional requirements
 
@@ -74,6 +75,7 @@ Khi debug 1 consumer bị lag, muốn xem message thật trong topic, hoặc c�
 | NFR-6 | Producer **không** tự tạo topic khi topic đích chưa tồn tại (`allow.auto.create.topics = false` phía client) — publish vào topic sai tên phải fail rõ ràng, không âm thầm tạo topic rác. |
 | NFR-7 | Publish dùng `acks = all` mặc định — chỉ trả thành công khi broker xác nhận ghi, không báo thành công sớm rồi mất message. |
 | NFR-8 | Chuyển connection (connect sang profile khác) phải atomic — không có race giữa 1 request đang chạy trên cluster hiện tại với lệnh `KafkaConnect` sang cluster khác; request đang chạy dở khi connection bị đóng phải trả lỗi rõ ràng, không panic hay trả kết quả từ cluster sai. |
+| NFR-9 | Popup chọn cluster (khi agent gọi mà chưa có active) phải có timeout hữu hạn — không block MCP call vô thời hạn chờ user. DevKit chạy headless (không có UI) phải fail ngay thay vì cố hiện popup không tồn tại. |
 
 ### Out of scope (v1)
 
@@ -89,12 +91,14 @@ Khi debug 1 consumer bị lag, muốn xem message thật trong topic, hoặc c�
 - Tạo 1 profile Kafka hợp lệ, test connection thành công (chưa cần connect thật).
 - Connect profile A → `kafka.connectionStatus` trả đúng A đang online.
 - Đang connect A, connect sang profile B → A tự đóng, `kafka.connectionStatus` chỉ còn trả B, không có thời điểm nào thấy cả 2.
-- Gọi `kafka.listTopics`/`kafka.peekMessages`/`kafka.publishMessage` khi **chưa connect cluster nào** → lỗi rõ ràng (`kafka.notConnected`), không phải danh sách rỗng hay treo ngầm định.
+- Agent gọi `kafka.listTopics`/`kafka.peekMessages`/`kafka.publishMessage` khi **chưa có cluster active** → DevKit hiện popup chọn profile; user chọn xong, call gốc tự resume trên cluster vừa chọn, không phải gọi lại thủ công.
+- User không phản hồi popup trong timeout → `operation_cancelled`, không treo MCP call vô thời hạn.
+- DevKit chạy headless và chưa có cluster active → `kafka.selectionRequired` ngay lập tức, không cố hiện popup.
 - List topic trên cluster đang online có ít nhất 1 topic thật → trả đúng tên + số partition.
 - Peek message trên 1 topic có data thật → nội dung khớp message đã biết trước (raw hoặc JSON parse đúng).
 - Consumer group có lag thật → số lag hiển thị khớp với giá trị đo được độc lập (vd qua `kafka-consumer-groups.sh`).
 - Publish 1 message qua UI vào topic thật (đã connect cluster đó) → message xuất hiện đúng nội dung khi consume lại bằng tool ngoài (vd `kafka-console-consumer`).
-- Agent gọi `kafka.publishMessage` qua MCP với `topic`/`payload` hợp lệ, sau khi đã `kafka.connect` đúng cluster → nhận lại `partition`+`offset` thật, message consume lại đúng nội dung.
+- Agent gọi `kafka.publishMessage` qua MCP với `topic`/`payload` hợp lệ (không truyền `profileId`) khi đã có cluster active đúng ý → nhận lại `partition`+`offset` thật, message consume lại đúng nội dung.
 - Publish vào topic không tồn tại → lỗi rõ ràng, topic không bị tự động tạo (NFR-6).
 - SASL credential sai → lỗi `connection_failed` rõ ràng, không treo UI/MCP.
 
@@ -111,7 +115,7 @@ sequenceDiagram
   participant OldConn as Connection cũ (nếu có)
   participant Broker as Kafka cluster mới
 
-  User->>UI: Chọn profile B, bấm Connect
+  User->>UI: Chọn profile B, bấm Connect (từ KafkaView hoặc sidebar)
   UI->>GW: kafka.connect(profileId=B)
   GW->>Svc: forward (allowed, effect=execute, capability=kafka:connect)
   alt đang có connection sống (profile A)
@@ -121,6 +125,37 @@ sequenceDiagram
   Broker-->>Svc: kết nối thành công
   Svc-->>UI: {connected: true, profileId: B}
 ```
+
+`kafka.connect`/`kafka.disconnect` là **bridge method, không phải MCP tool** — chỉ UI (KafkaView hoặc sidebar quick-switch) gọi được, agent không tự chọn cluster. Đây là human-only action, cùng nguyên tắc đã áp cho unlock vault / trust SSH host-key.
+
+### Agent gọi khi chưa có cluster active (popup chọn)
+
+```mermaid
+sequenceDiagram
+  participant Agent as AI Agent
+  participant MCP as MCP tool
+  participant GW as Capability Gateway
+  participant Svc as KafkaService (Go)
+  participant UI as KafkaView (Wails event)
+  participant User
+
+  Agent->>MCP: kafka.listTopics() (không có profileId)
+  MCP->>GW: check policy (effect=read, kafka:connect)
+  GW->>Svc: forward (allowed)
+  Svc->>Svc: activeProfile == nil
+  Svc->>UI: emit event "kafka.selectClusterRequired"
+  UI->>User: hiện popup chọn 1 trong các profile đã lưu
+  User->>UI: chọn profile B
+  UI->>Svc: kafka.connect(profileId=B) (bridge call bình thường)
+  Svc->>Svc: set activeProfile = B, mở connection
+  Svc-->>MCP: resume kafka.listTopics() trên B
+  MCP-->>Agent: kết quả
+  alt user không phản hồi trong timeout, hoặc DevKit đang chạy headless (không có UI để hiện popup)
+    Svc-->>MCP: operation_cancelled (timeout) hoặc kafka.selectionRequired (headless)
+  end
+```
+
+Lựa chọn của user **sticky** — giữ nguyên làm active cluster cho tới khi user tự đổi (vào KafkaView hoặc sidebar chọn lại), không tự động reset giữa các lần gọi MCP.
 
 ### Peek message flow
 
@@ -136,7 +171,7 @@ sequenceDiagram
   User->>UI: Chọn topic + partition
   UI->>GW: kafka.peekMessages(topic, partition, limit)
   GW->>Svc: forward (allowed, effect=read)
-  Svc->>Svc: kiểm tra đang có connection sống, nếu không → lỗi kafka.notConnected
+  Svc->>Svc: kiểm tra activeProfile — nếu chưa có, chạy flow popup ở trên trước
   Svc->>Client: fetch từ offset (latest - limit) hoặc offset chỉ định
   Client->>Broker: Fetch request
   Broker-->>Client: message batch
@@ -158,7 +193,7 @@ sequenceDiagram
   Agent->>MCP: kafka.publishMessage(topic, key, payload, headers)
   MCP->>GW: check policy (module=kafka, effect=execute, capability=kafka:produce)
   GW->>Svc: forward (allowed)
-  Svc->>Svc: kiểm tra đang có connection sống, nếu không → lỗi kafka.notConnected
+  Svc->>Svc: kiểm tra activeProfile — nếu chưa có, chạy flow popup ở trên trước
   Svc->>Client: produce(topic, key, payload, headers), acks=all
   Client->>Broker: Produce request
   Broker-->>Client: ack (partition, offset)
@@ -173,6 +208,7 @@ sequenceDiagram
 
 - **`internal/kafka`** (Go) — orchestrate Kafka client, đọc/ghi vaultitem profile, expose query method (`ListTopics`, `DescribeTopic`, `PeekMessages`, `ListConsumerGroups`, `PublishMessage`). Giữ **đúng 1 field connection sống** (`activeConn`, kèm mutex) — không phải map nhiều connection theo profile.
 - **Kafka client library** — pure Go, không cgo (ứng viên: `github.com/twmb/franz-go` hoặc `github.com/segmentio/kafka-go`) — cần cả admin/consume (read) lẫn producer (publish).
+- **Backend → frontend event cho popup chọn cluster** — khi 1 call cần `activeConn` mà chưa có, `KafkaService` emit Wails event (`runtime.EventsEmit`) để `KafkaView` hiện popup chọn profile, rồi block call gốc tới khi UI gọi lại `KafkaConnect` hoặc hết timeout. Đây là hướng backend-initiated push đầu tiên trong DevKit — mọi bridge method khác từ trước tới nay đều UI-initiated request/response, không có tiền lệ.
 - **Storage** — connection profile qua `vaultitem.Store` chung, **không** phải store riêng — cùng pattern Notes/Database/SSH theo [ADR-008](/dev-kit/architecture-decisions#adr-008-unified-vault_items-store-for-built-in-item-types). Message/topic data **không** persist — chỉ query/publish on-demand, không cache lâu dài.
 - **Bridge + MCP adapter** — cùng gọi `KafkaService`, cùng đi qua Capability Gateway, đúng pattern Code Graph/Agent Hub.
 
@@ -208,6 +244,8 @@ Hai tầng tách riêng: **lưu trữ** nhiều profile cùng lúc (giống SSH/
 
 Từ `KafkaConnect` trở xuống, method **không nhận `profileId`** làm tham số — chúng thao tác trên connection đang online, xác định bởi state nội bộ của `KafkaService` (mục Components), không phải theo tham số request. Scope `connection` là scope cố định cho "cluster hiện đang online", khác `profile:<id>` (theo từng record) mà `KafkaListProfiles`/`KafkaCreateProfile`/`KafkaDeleteProfile`/`KafkaTestConnection`/`KafkaConnect` vẫn dùng vì các method đó thao tác trên 1 profile cụ thể theo ID.
 
+`KafkaConnect`/`KafkaDisconnect` **là bridge method, chỉ UI gọi được** (từ KafkaView hoặc sidebar, hoặc gián tiếp từ popup ở flow "Agent gọi khi chưa có cluster active"). Agent không tự chọn cluster.
+
 ### MCP tool surface (design)
 
 Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
@@ -215,25 +253,25 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 | MCP tool | Effect | Map sang | Ghi chú |
 |---|---|---|---|
 | `kafka.listProfiles` | `read` | `builtin.kafka` / `kafka:connect` / `profile:list` | Chỉ metadata, không có secret |
-| `kafka.connect` | `execute` | `builtin.kafka` / `kafka:connect` / `profile:<id>` | Input: `profileId`. Đóng connection cũ (nếu có) trước khi mở connection mới |
-| `kafka.disconnect` | `execute` | `builtin.kafka` / `kafka:connect` / `connection` | Không input |
-| `kafka.connectionStatus` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Trả `{connected: bool, profileId?}` |
-| `kafka.listTopics` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Thao tác trên cluster đang online; lỗi `kafka.notConnected` nếu chưa connect |
+| `kafka.connectionStatus` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Trả `{connected: bool, profileId?}` — agent chỉ đọc được cluster nào đang active, không tự đổi |
+| `kafka.listTopics` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Thao tác trên cluster đang active; nếu chưa có → trigger popup chọn, xem flow ở trên |
 | `kafka.describeTopic` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Input: `topic` |
 | `kafka.peekMessages` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | Input: `topic`, `partition`, `limit?`. Giới hạn số message mặc định (NFR-4) |
 | `kafka.listConsumerGroups` | `read` | `builtin.kafka` / `kafka:connect` / `connection` | |
-| `kafka.publishMessage` | `execute` (`destructiveHint`) | `builtin.kafka` / `kafka:produce` / `connection` | Input: `topic`, `key?`, `payload`, `headers?`, `partition?`. Output: `{partition, offset, timestamp}`. Lỗi `kafka.notConnected` nếu chưa connect |
+| `kafka.publishMessage` | `execute` (`destructiveHint`) | `builtin.kafka` / `kafka:produce` / `connection` | Input: `topic`, `key?`, `payload`, `headers?`, `partition?`. Output: `{partition, offset, timestamp}`. Cluster đích luôn là cluster đang active — agent không truyền `profileId` |
 
-**Không expose `KafkaCreateProfile`/`KafkaDeleteProfile`** qua MCP — nhận secret trực tiếp qua tham số, cùng lý do đã áp cho SSH/Database.
+`kafka.connect`/`kafka.disconnect` **không phải MCP tool** — cùng lý do "human-only action" đã ghi ở mục Bridge & capability. Cũng **không expose `KafkaCreateProfile`/`KafkaDeleteProfile`** qua MCP — nhận secret trực tiếp qua tham số, cùng lý do đã áp cho SSH/Database.
 
 ### Error handling
 
 - Broker unreachable / auth fail (`KafkaConnect` hoặc `KafkaTestConnection`) → `connection_failed`, cùng error contract với SSH/Database (`internal/apperrors`).
-- Gọi bất kỳ method nào thao tác trên "cluster đang online" (`ListTopics`, `DescribeTopic`, `PeekMessages`, `ListConsumerGroups`, `PublishMessage`) khi **chưa từng connect** hoặc **đã disconnect** → `kafka.notConnected`, không trả kết quả rỗng ngầm định.
-- Timeout cho mọi call (admin lẫn publish) → `operation_cancelled`, không treo UI/MCP vô thời hạn (NFR-3).
+- Gọi 1 method cần cluster active (`ListTopics`, `DescribeTopic`, `PeekMessages`, `ListConsumerGroups`, `PublishMessage`) khi **chưa có active** → trigger popup chọn cluster (không lỗi ngay), chờ user chọn trong timeout rồi resume call gốc.
+- User không phản hồi popup trong timeout (đề xuất mặc định vài phút, cần chốt số cụ thể khi implement) → `operation_cancelled`.
+- DevKit đang chạy headless/server mode (không có UI để hiện popup — [ADR-006](/dev-kit/architecture-decisions#adr-006-loopback-only-server-mode)) và chưa có active cluster → `kafka.selectionRequired` ngay lập tức, không chờ.
+- Timeout cho mọi call tới broker (sau khi đã có active, admin lẫn publish) → `operation_cancelled`, không treo UI/MCP vô thời hạn (NFR-3).
 - Peek message trên topic/partition không tồn tại → lỗi rõ ràng, không trả mảng rỗng ngầm định.
 - Publish vào topic không tồn tại → lỗi rõ ràng, topic **không** tự tạo (NFR-6). Publish không nhận `acks` xác nhận từ broker trong timeout → `operation_cancelled`, không báo thành công khi chưa chắc chắn broker đã ghi.
-- Request đang chạy trên connection bị đóng giữa chừng do `KafkaConnect` sang profile khác (NFR-8) → lỗi rõ ràng (`operation_cancelled` hoặc `kafka.notConnected` tùy thời điểm), không panic, không trả kết quả lẫn giữa 2 cluster.
+- Request đang chạy trên connection bị đóng giữa chừng do `KafkaConnect` sang profile khác (NFR-8) → `operation_cancelled`, không panic, không trả kết quả lẫn giữa 2 cluster.
 
 ### Known ceiling (v1)
 
@@ -242,12 +280,14 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 - Không ACL management, không multi-cluster mirroring view.
 - Giới hạn peek mặc định nhỏ (ví dụ 50 message/lần) để tránh treo UI với topic lớn — số cụ thể cần chốt khi implement.
 - Chỉ 1 cluster online tại 1 thời điểm — xem/thao tác cluster khác bắt buộc phải connect lại, không có chế độ xem song song nhiều cluster.
+- Agent không có cách nào tự đổi cluster active — nếu cần cluster khác với cluster user đã chọn, agent chỉ có thể báo cho user, không tự gọi connect được.
 
 ## Open questions
 
 - Giới hạn peek mặc định nên là bao nhiêu message/request — cố định hay user config được?
 - Publish có cần rate limit riêng (per profile hoặc per subject) để tránh agent spam 1 topic thật không?
 - Có cần thêm Schema Registry decode/encode (Avro/Protobuf) khi có nhu cầu vượt raw/JSON không?
+- Timeout mặc định cho popup chọn cluster nên là bao nhiêu — cố định hay theo config?
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
