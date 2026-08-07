@@ -125,6 +125,17 @@ Kafka UI, Database, SSH đều có ít nhất 1 MCP tool thao tác trên "1 targ
 - DevKit chạy headless (không có UI để hiện popup) → lỗi ngay lập tức, không chờ.
 - Ràng buộc tài nguyên đi kèm (kiểu "chỉ 1 connection sống") là quyết định **riêng của từng module** — không phải phần bắt buộc của pattern này. Kafka giữ đúng 1 connection vì đó là ràng buộc tài nguyên thật; Database/SSH dùng active target chỉ để đơn giản hóa MCP tool, pool/connection phía dưới không đổi, vẫn multi-profile như trước.
 
+### `env` bắt buộc trên mọi profile — luôn hỏi quyền qua MCP, kể cả read
+
+Mọi profile của Kafka/Database/SSH (module dùng "active target selection") có 1 field **bắt buộc** — `env` (`dev` | `stg` | `prod`) — khai báo khi tạo profile, không có giá trị rỗng/bỏ qua được. Field này tách biệt với metadata mô tả kết nối (host, port...) — mục đích duy nhất là gắn nhãn rủi ro cho từng target.
+
+Luật gắn với `env`: **mọi MCP call (`origin = "mcp"`) thao tác trên active target đều phải qua xác nhận tương tác trước khi chạy — kể cả tool `read`, không có standing grant nào bỏ qua được, không có tùy chọn "luôn cho phép".** Vì `env` bắt buộc trên mọi profile, luật này áp dụng vô điều kiện cho nhóm tool đó, không có nhánh "target chưa gắn nhãn thì thôi".
+
+- Cơ chế tái dùng đúng plumbing đã có cho "chưa có active target" (event → UI hiện dialog → block call, có timeout → resume) — chỉ khác nội dung dialog: xác nhận cho phép **call cụ thể này** chạy trên target đã chọn, không phải chọn target. Dialog phải hiện rõ `env` (vd nhãn màu: 🔴 prod / 🟡 stg / 🟢 dev) để người xác nhận thấy ngay mức rủi ro trước khi bấm Allow.
+- **Không có `allow_always`** — khác hẳn model đã quan sát ở `session/request_permission` của ACP (có `allow_once`/`allow_always`). Ở đây cố tình chỉ có Allow/Deny cho từng lần gọi — nếu cho `allow_always`, cluster "quên đang chọn cluster nào" sẽ quay lại đúng vấn đề mà cơ chế này sinh ra để chặn.
+- Phạm vi áp dụng: chỉ nhóm tool đã đổi sang "active target" (`kafka.listTopics/describeTopic/peekMessages/listConsumerGroups/publishMessage`, `db.query`, `ssh.runCommand`). **Không** áp cho `listProfiles`/`testConnection`/`connectionStatus`/`activeProfile` — các tool này chỉ đọc metadata hoặc test kết nối tạm thời, không chạm dữ liệu/hệ thống thật qua active target.
+- Call từ UI (`origin` khác `"mcp"`) không bị luật này — người dùng tự bấm trong KafkaView/DatabaseView/SSHView đã là xác nhận tường minh rồi, không cần hỏi lại.
+
 ### Hard exclusion — nguyên tắc chung
 
 Một số action **không bao giờ** thành MCP tool ở v1, bất kể grant — đây là loại trừ cứng theo thiết kế, không phải thứ nới ra được bằng cách sửa policy. Hai ví dụ tiêu biểu (danh sách đầy đủ theo module nằm ở các trang trong bảng trên):

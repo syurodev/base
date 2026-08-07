@@ -90,7 +90,16 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 | `ssh.listProfiles` | `read` | `builtin.ssh` / `ssh:connect` / `profile:list` | Chỉ metadata (`host`, `username`...), không có secret |
 | `ssh.testConnection` | `execute` | `builtin.ssh` / `ssh:connect` / `profile:<id>` | Nhận `profileId` tường minh — test 1 profile cụ thể, không đụng active profile |
 | `ssh.activeProfile` | `read` | `builtin.ssh` / `ssh:connect` / `profile:active` | Trả `{profileId?}` — agent chỉ đọc, không tự đổi |
-| `ssh.runCommand` | `execute` (`destructiveHint`) | `builtin.ssh` / `ssh:connect` / `profile:active` | Không nhận `profileId` — chạy trên **active profile cho agent**. Rủi ro cao nhất trong toàn bộ MCP tool surface hiện có — ứng viên đầu tiên cần policy review chặt hơn default-allow |
+| `ssh.runCommand` | `execute` (`destructiveHint`) | `builtin.ssh` / `ssh:connect` / `profile:active` | Không nhận `profileId` — chạy trên **active profile cho agent**. Rủi ro cao nhất trong toàn bộ MCP tool surface hiện có. Luôn hỏi quyền trước khi chạy (xem dưới) |
+
+**"Luôn hỏi quyền trước khi chạy"**: cần thêm field bắt buộc `env`
+(`dev`/`stg`/`prod`) vào metadata `ssh-profile`. `SSHCreateProfile` phải
+reject nếu thiếu `env`. Vì `env` bắt buộc trên mọi profile, `ssh.runCommand`
+qua MCP **luôn** yêu cầu xác nhận tương tác mỗi lần gọi, không có
+`allow_always` — đặc biệt quan trọng ở đây vì đây là tool rủi ro cao nhất
+trong toàn bộ MCP tool surface hiện có. Chi tiết cơ chế:
+[MCP / Agent § `env` bắt buộc](/dev-kit/mcp-agent). `ssh.listProfiles`/
+`ssh.testConnection`/`ssh.activeProfile` không bị luật này.
 
 **Không expose qua MCP ở v1**:
 

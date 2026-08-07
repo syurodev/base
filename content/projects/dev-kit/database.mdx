@@ -210,7 +210,17 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 | `db.listProfiles` | `read` | `builtin.database` / `db:query` / `profile:list` | Chỉ metadata, không có password |
 | `db.testConnection` | `execute` | `builtin.database` / `db:query` / `profile:<id>` | Nhận `profileId` tường minh — test 1 profile cụ thể, không đụng active profile |
 | `db.activeProfile` | `read` | `builtin.database` / `db:query` / `profile:active` | Trả `{profileId?}` — agent chỉ đọc, không tự đổi |
-| `db.query` | `execute` (`destructiveHint`) | `builtin.database` / `db:query` / `profile:active` | Không nhận `profileId` — chạy trên **active profile cho agent**. Không phân biệt SELECT/UPDATE — coi mọi query là có thể phá dữ liệu |
+| `db.query` | `execute` (`destructiveHint`) | `builtin.database` / `db:query` / `profile:active` | Không nhận `profileId` — chạy trên **active profile cho agent**. Không phân biệt SELECT/UPDATE — coi mọi query là có thể phá dữ liệu. Luôn hỏi quyền trước khi chạy (xem dưới) |
+
+**"Luôn hỏi quyền trước khi chạy"**: cần thêm field bắt buộc `env`
+(`dev`/`stg`/`prod`) vào metadata `db-profile` — không có trong bảng
+Vaultitem contract hiện tại (vì đó là mô tả runtime Postgres đã Implemented;
+`env` là field mới, design only). `DBCreateProfile` phải reject nếu thiếu
+`env`. Vì `env` bắt buộc trên mọi profile, `db.query` qua MCP **luôn** yêu cầu
+xác nhận tương tác mỗi lần gọi, không có `allow_always`. Chi tiết cơ chế:
+[MCP / Agent § `env` bắt buộc](/dev-kit/mcp-agent). `db.listProfiles`/
+`db.testConnection`/`db.activeProfile` không bị luật này — chỉ đọc
+metadata/status hoặc test kết nối tạm thời.
 
 **Không expose qua MCP ở v1**: `DBCreateProfile` / `DBDeleteProfile` — nhận
 password trực tiếp qua tham số, để v2 sau khi có UI permission review cho MCP.
