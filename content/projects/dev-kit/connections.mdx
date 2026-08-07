@@ -1,38 +1,100 @@
 ---
-title: Connections
-description: SSH, database và profile kết nối được bảo vệ.
+title: SSH
+description: SSH profiles, host-key trust, chạy lệnh, và TCP forwarding loopback-only.
 ---
 
-# Connections
+# SSH
 
-Module connections quản lý profile SSH/DB và metadata kết nối — secrets nằm trong vault.
+Trang này mô tả built-in module **SSH** (ActivityBar title `SSH`, view id
+`ssh.connections`). Secrets nằm trong vaultitem substrate; lifecycle Master
+Password nằm ở [Vault](/dev-kit/vault).
+
+> Database (`internal/database` + ActivityBar `Database`) là module sibling
+> riêng — **không** nằm trong scope trang này. Evidence DB xem
+> [Implementation status](/dev-kit/implementation-status).
 
 ```mermaid
-flowchart TD
-  UI[Connections UI] --> GW[Capability Gateway]
-  GW --> CONN[Connection service]
-  CONN --> VAULT[(Secret material in vault)]
-  CONN --> SESS[SSH session / DB query]
+flowchart LR
+  UI[SSHView] --> BR[frontend/src/bridge/ssh.ts]
+  BR --> AS[bridge.AppService SSH*]
+  AS -->|builtin.ssh| GW[Capability Gateway]
+  GW -->|ssh:connect / ssh:forward| SVC[internal/ssh.Service]
+  SVC --> STORE[vaultitem.Store]
+  STORE --> ITEMS[(vault_items type = ssh-profile)]
+  SVC --> NET[Live SSH dial / forward]
 ```
 
-## Scope (hiện tại)
+## Vaultitem contract
 
-- Lưu profile SSH/PostgreSQL trong vault; không hardcode secret trong config plaintext.
-- SSH: test connection, trust host-key pin, chạy lệnh từ shell UI, và tạo local/remote TCP forwarding.
-- PostgreSQL: query và schema browse qua connection pool với TLS verify-full mặc định cho remote host.
-- Đóng/cleanup session rõ ràng sau thao tác; xóa profile hoặc shutdown app sẽ dừng các forward liên quan.
+| Field | Value |
+|---|---|
+| Record `type` | `ssh-profile` |
+| Payload `key_id` | `ssh-secret` |
+| Metadata (plaintext) | `name`, `host`, `port`, `username`, `auth_method`, `host_key_fingerprint` |
+| Payload (encrypted) | password **hoặc** private-key PEM (`auth_method` = `password` \| `key`) |
 
-Forward listeners chỉ bind loopback, không persist qua restart, và dùng capability riêng `ssh:forward`.
+- Passphrase của encrypted PEM **không** persist — chỉ truyền per-operation từ UI
+  rồi zeroize sau parse.
+- Forward sessions **không** phải vault item (in-memory runtime only).
+
+## UI & runtime flows (`SSHView`)
+
+1. **Profile CRUD** — create (name/host/port/username/auth/secret) → list →
+   select → delete. Delete profile cũng dừng mọi forward gắn profile đó.
+2. **Host-key TOFU** — `ObserveHostKey` dừng handshake trước auth và trả
+   SHA-256 fingerprint; user approve → `TrustHostKey` ghi fingerprint vào
+   metadata. Dial với pin rỗng **luôn reject**; pin sai reject (exact match).
+3. **Test connection** — dial + auth với secret đã seal; không mở shell dài.
+4. **Run command** — one-shot remote command; UI có field passphrase tùy chọn;
+   output trả về `CombinedOutput`.
+5. **TCP forwarding** — start/list/stop local (`-L`) hoặc remote (`-R`):
+   - Listen chỉ **loopback** (không public bind).
+   - Không persist qua restart; stop / delete profile / app shutdown đều cleanup.
+   - Capability riêng `ssh:forward`.
+
+## Bridge & capability
+
+| Method | Capability | Scope |
+|---|---|---|
+| `SSHListProfiles` | `ssh:connect` | `profile:list` |
+| `SSHCreateProfile` | `ssh:connect` | `profile:new` |
+| `SSHDeleteProfile` | `ssh:connect` | `profile:<id>` |
+| `SSHObserveHostKey` | `ssh:connect` | `profile:<id>` |
+| `SSHTrustHostKey` | `ssh:connect` | `profile:<id>` |
+| `SSHTestConnection` | `ssh:connect` | `profile:<id>` |
+| `SSHRunCommand` | `ssh:connect` | `profile:<id>` |
+| `SSHStartForward` | `ssh:forward` | `profile:<id>` |
+| `SSHListForwards` | `ssh:forward` | `forward:list` |
+| `SSHStopForward` | `ssh:forward` | `forward:<id>` |
+
+Subject luôn `builtin.ssh`. Profile ID là 24 lowercase hex (opaque qua
+`recordID()`). Grants thật ở `internal/app/container.go`; manifest chỉ
+declaration metadata (`ssh:connect`, `ssh:forward`).
+
+Packages: `internal/ssh/{ssh,hostkeys,forwarding}.go`,
+`internal/bridge/ssh.go`, `frontend/src/modules/ssh/{SSHView,manifest}.ts`,
+`frontend/src/bridge/ssh.ts`.
 
 ## Non-goals (MVP)
 
-- Enterprise policy phức tạp
-- Chia sẻ connection cho team qua cloud plaintext
-- Public-facing tunnel listener hoặc unrestricted network bind
+- Public-facing tunnel / unrestricted network bind
+- Persist forward definitions across restart
+- Per-destination allowlist hoặc enterprise policy
+- Team share connection profile qua cloud plaintext
+- Custom CA pinning ngoài system trust (N/A cho SSH host-key path hiện tại)
+
+## Known limitations
+
+- Host-key trust UX vẫn manual (observe → approve).
+- Passphrase đi qua bridge call metadata — phụ thuộc redaction + UI không log.
+- Target host/port do user chọn; chưa có policy prompt giàu hơn.
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
-  <Card title="Implementation status" href="/dev-kit/implementation-status" description="Evidence paths và capability scope" />
-  <Card title="Architecture decisions" href="/dev-kit/architecture-decisions" description="ADR-007: TLS và host-key pinning" />
+  <Card title="Vault" href="/dev-kit/vault" description="Keyring/DEK + vaultitem substrate" />
+  <Card title="Implementation status" href="/dev-kit/implementation-status" description="SSH evidence + remaining scope" />
+  <Card title="Technical contracts" href="/dev-kit/technical-contracts" description="Bridge SSH family" />
+  <Card title="Architecture decisions" href="/dev-kit/architecture-decisions" description="ADR-007: host-key pinning" />
+  <Card title="Security controls" href="/dev-kit/security-controls" description="SSH pinning + forward loopback" />
 </Cards>

@@ -87,8 +87,8 @@ Frontend adapter: `frontend/src/bridge/vault.ts` (`vaultStatus`, `setupVault`,
 | Module | `type` | Encrypted payload key id | Docs |
 |---|---|---|---|
 | Notes | `note` | `note-body` | [Notes](/dev-kit/notes) |
-| Database | `db-profile` | `db-password` | [Connections](/dev-kit/connections) |
-| SSH | `ssh-profile` | `ssh-secret` | [Connections](/dev-kit/connections) |
+| SSH | `ssh-profile` | `ssh-secret` | [SSH](/dev-kit/connections) |
+| Database | `db-profile` | `db-password` | Sibling module — xem [Implementation status](/dev-kit/implementation-status) |
 
 `vaultitem` **không** import ngược `notes` / `database` / `ssh`
 (`go test ./internal/arch/`).
@@ -103,8 +103,8 @@ Frontend adapter: `frontend/src/bridge/vault.ts` (`vaultStatus`, `setupVault`,
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
+  <Card title="SSH" href="/dev-kit/connections" description="Thin adapter ssh-profile trên vaultitem" />
   <Card title="Notes" href="/dev-kit/notes" description="Thin adapter đầu tiên trên vaultitem" />
-  <Card title="Connections" href="/dev-kit/connections" description="Database/SSH cùng pattern" />
   <Card title="Security model" href="/dev-kit/security" />
   <Card title="Technical contracts" href="/dev-kit/technical-contracts" />
   <Card title="Architecture decisions" href="/dev-kit/architecture-decisions" description="ADR-004/005/008" />

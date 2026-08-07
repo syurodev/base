@@ -7,7 +7,8 @@ description: Built-in notes module — thin adapter trên vaultitem, không có 
 
 Notes là built-in **ActivityBar module** (`frontend/src/modules/notes`). Nó
 **không** có bảng/repository/crypto riêng: service `internal/notes` là thin
-adapter map field vào `vaultitem.Store` chung (cùng substrate với Database/SSH).
+adapter map field vào `vaultitem.Store` chung (cùng substrate với SSH và các
+module vault-item khác).
 Vault lifecycle (Master Password / DEK) nằm ở [Vault](/dev-kit/vault) —
 `VaultGate` phải `unlocked` trước khi Workbench (và Notes UI) render.
 
@@ -111,7 +112,7 @@ import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
   <Card title="Vault" href="/dev-kit/vault" description="Keyring/DEK + vaultitem substrate" />
-  <Card title="Connections" href="/dev-kit/connections" description="Cùng thin-adapter pattern" />
+  <Card title="SSH" href="/dev-kit/connections" description="Cùng thin-adapter pattern trên vaultitem" />
   <Card title="Data & sync" href="/dev-kit/data-sync" description="Conflict merge cho notes" />
   <Card title="Technical contracts" href="/dev-kit/technical-contracts" description="Bridge + capability table" />
 </Cards>
