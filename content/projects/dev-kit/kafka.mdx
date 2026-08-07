@@ -1,21 +1,22 @@
 ---
 title: Kafka UI
-description: Duyệt Kafka cluster (topic, partition, consumer group) read-only, không cần rời DevKit.
+description: Duyệt Kafka cluster (topic, partition, consumer group) và publish message, điều khiển được từ agent qua MCP.
 ---
 
 # Kafka UI
 
-Kafka UI là module built-in tương lai giúp dev xem nhanh trạng thái 1 Kafka cluster (topic, message, consumer group lag) ngay trong DevKit thay vì cài riêng 1 desktop client khác hay gõ `kafka-console-consumer` thủ công. V1 **chỉ đọc** — không có produce message, giữ đúng tinh thần least-privilege đã áp cho mọi module khác (agent/UI reachable không có nghĩa mọi action đều mở).
+Kafka UI là built-in module cho DevKit để làm việc với 1 Kafka cluster — xem topic/partition, peek message, theo dõi consumer group lag, và publish message — mà không rời DevKit hay gõ CLI thủ công. Connection profile (bootstrap servers, SASL/SSL) dùng chung substrate với SSH/Database.
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
 <Callout type="warn" title="Design only">
-Trang này là design cho module chưa có runtime trong DevKit checkout hiện tại. Không có `internal/kafka` tại thời điểm viết. Trạng thái implementation thật nằm ở [Implementation status](/dev-kit/implementation-status).
+Chưa có `internal/kafka` trong checkout hiện tại. Trạng thái implementation thật nằm ở [Implementation status](/dev-kit/implementation-status).
 </Callout>
 
 ```mermaid
 flowchart TD
   UI[KafkaView] --> BR[Bridge]
+  AGENT[AI Agent] --> MCP[MCP tool] --> GW
   BR --> GW[Capability Gateway]
   GW --> SVC[KafkaService - Go]
   SVC --> STORE[vaultitem.Store]
@@ -30,22 +31,23 @@ Module đăng ký qua `ModuleManifest` như `vault`/`notes`/`database`/`ssh`/`to
 
 ### Vấn đề
 
-Khi debug 1 consumer bị lag hoặc muốn xem message thật đang nằm trong topic, dev phải rời DevKit sang 1 tool Kafka UI khác hoặc gõ CLI thủ công — mất context, không tận dụng được connection profile/vault đã có sẵn trong DevKit.
+Khi debug 1 consumer bị lag, muốn xem message thật trong topic, hoặc cần gửi 1 message test để trigger lại 1 flow — dev phải rời DevKit sang tool Kafka UI khác hoặc gõ CLI thủ công, mất context và không tận dụng được connection profile/vault đã có sẵn.
 
 ### Mục tiêu (goals)
 
 - Quản lý connection profile Kafka (bootstrap servers, SASL/SSL) qua vault, cùng pattern với SSH/Database.
-- List topic, describe partition/replication, peek message gần nhất — không cần rời DevKit.
-- Xem consumer group và lag để chẩn đoán nhanh "consumer có đang theo kịp không".
-- Expose qua MCP để agent tự tra cứu topic/lag khi debug, không cần hỏi người dùng paste log tay.
+- List topic, describe partition/replication, peek message gần nhất.
+- Xem consumer group và lag để chẩn đoán "consumer có đang theo kịp không".
+- Publish message vào topic — cho cả người dùng qua UI và agent qua MCP.
+- Expose toàn bộ thao tác trên qua MCP để agent tự tra cứu và publish khi debug, không cần hỏi người dùng làm hộ.
 
 ### Actors
 
 | Actor | Nhu cầu |
 |---|---|
-| Developer dùng DevKit | Xem nhanh topic/message/lag mà không rời app, không cài tool khác |
-| AI agent (qua MCP) | Tra cứu topic/consumer group khi debug, nhận structured data thay vì phải parse CLI output |
-| Người triển khai module | Biết rõ ranh giới read-only v1, không tự ý thêm produce/mutating action |
+| Developer dùng DevKit | Xem nhanh topic/message/lag và publish message test, không rời app |
+| AI agent (qua MCP) | Tra cứu topic/consumer group và publish message khi debug, nhận structured data thay vì phải parse CLI output |
+| Người triển khai module | Biết rõ capability nào gate read, capability nào gate publish, để cấp quyền tách bạch |
 
 ### Functional requirements
 
@@ -56,7 +58,8 @@ Khi debug 1 consumer bị lag hoặc muốn xem message thật đang nằm trong
 | FR-3 | Peek N message gần nhất (mặc định nhỏ, ví dụ 50) của 1 topic/partition, từ offset cụ thể hoặc `latest`. |
 | FR-4 | List consumer group, kèm lag (current offset vs log-end-offset) theo từng partition. |
 | FR-5 | Test connection trước khi lưu profile, trả lỗi rõ ràng nếu auth/broker unreachable. |
-| FR-6 | Expose MCP tool cho agent: list profile, list topic, describe topic, peek message, list consumer group. |
+| FR-6 | Publish 1 message vào topic chỉ định — nhận `key` (optional), `value`/payload, `headers` (optional), `partition` (optional, mặc định để broker tự chọn theo key). Trả về `partition` + `offset` thật của message vừa ghi. |
+| FR-7 | Expose MCP tool cho agent: list profile, list topic, describe topic, peek message, list consumer group, publish message. |
 
 ### Non-functional requirements
 
@@ -64,17 +67,19 @@ Khi debug 1 consumer bị lag hoặc muốn xem message thật đang nằm trong
 |---|---|
 | NFR-1 | Secret (SASL password, SSL client key) mã hóa qua vaultitem envelope, cùng contract với SSH/DB — không log plaintext. |
 | NFR-2 | TLS/SASL default giữ tinh thần [ADR-007](/dev-kit/architecture-decisions#adr-007-verified-tls-for-remote-db-and-exact-ssh-host-key-pinning) — không hạ chuẩn bảo mật cho remote cluster. |
-| NFR-3 | Mọi admin call (list topic, describe, peek) phải có timeout, cancel được — không treo UI/MCP nếu broker không phản hồi. |
+| NFR-3 | Mọi call tới broker (admin lẫn publish) có timeout, cancel được — không treo UI/MCP nếu broker không phản hồi. |
 | NFR-4 | Peek message giới hạn kích thước/số lượng mặc định — không tải nguyên topic lớn vào memory. |
 | NFR-5 | Client library thuần Go, không cgo — cùng lý do DevKit đã chọn `modernc.org/sqlite` thay vì driver cgo khác. |
+| NFR-6 | Producer **không** tự tạo topic khi topic đích chưa tồn tại (`allow.auto.create.topics = false` phía client) — publish vào topic sai tên phải fail rõ ràng, không âm thầm tạo topic rác. |
+| NFR-7 | Publish dùng `acks = all` mặc định — chỉ trả thành công khi broker xác nhận ghi, không báo thành công sớm rồi mất message. |
 
 ### Out of scope (v1)
 
-- **Produce message** — v1 read-only tuyệt đối, không có nút publish.
-- **Schema Registry / Avro / Protobuf decode** — v1 chỉ hiển thị raw bytes hoặc parse JSON nếu payload là JSON text; không tích hợp Confluent Schema Registry.
+- **Schema Registry / Avro / Protobuf** — v1 chỉ nhận/hiển thị raw bytes hoặc JSON text; không tích hợp Confluent Schema Registry cho cả peek lẫn publish.
 - Mutating consumer group action (reset offset, rebalance trigger).
+- Batch publish nhiều message trong 1 call — publish v1 chỉ 1 message/lần.
 - ACL management, multi-cluster mirroring/replication view.
-- Produce/consume qua UI dạng terminal tương tác.
+- Terminal tương tác kiểu `kafka-console-producer`/`consumer`.
 
 ### Acceptance criteria
 
@@ -82,8 +87,10 @@ Khi debug 1 consumer bị lag hoặc muốn xem message thật đang nằm trong
 - List topic trên cluster có ít nhất 1 topic thật → trả đúng tên + số partition.
 - Peek message trên 1 topic có data thật → nội dung khớp message đã biết trước (raw hoặc JSON parse đúng).
 - Consumer group có lag thật → số lag hiển thị khớp với giá trị đo được độc lập (vd qua `kafka-consumer-groups.sh`).
+- Publish 1 message qua UI vào topic thật → message xuất hiện đúng nội dung khi consume lại bằng tool ngoài (vd `kafka-console-consumer`).
+- Agent gọi `kafka.publishMessage` qua MCP với `profileId`/`topic`/`payload` hợp lệ → nhận lại `partition`+`offset` thật, message consume lại đúng nội dung.
+- Publish vào topic không tồn tại → lỗi rõ ràng, topic không bị tự động tạo (NFR-6).
 - SASL credential sai → lỗi `connection_failed` rõ ràng, không treo UI/MCP.
-- Agent gọi `kafka.produce` (nếu vô tình được implement) → phải không tồn tại, không phải bị chặn bởi policy.
 
 ## Flow
 
@@ -108,13 +115,35 @@ sequenceDiagram
   Svc-->>UI: {messages: [{offset, key, value, timestamp}]}
 ```
 
+### Publish message flow (agent qua MCP)
+
+```mermaid
+sequenceDiagram
+  participant Agent as AI Agent
+  participant MCP as MCP tool
+  participant GW as Capability Gateway
+  participant Svc as KafkaService (Go)
+  participant Client as Kafka client
+  participant Broker as Kafka cluster
+
+  Agent->>MCP: kafka.publishMessage(profileId, topic, key, payload, headers)
+  MCP->>GW: check policy (module=kafka, effect=execute, capability=kafka:produce)
+  GW->>Svc: forward (allowed)
+  Svc->>Client: produce(topic, key, payload, headers), acks=all
+  Client->>Broker: Produce request
+  Broker-->>Client: ack (partition, offset)
+  Client-->>Svc: ack
+  Svc-->>MCP: {partition, offset, timestamp}
+  MCP-->>Agent: kết quả
+```
+
 ## Technical design
 
 ### Components
 
-- **`internal/kafka`** (Go) — orchestrate Kafka client, đọc/ghi vaultitem profile, expose query method (`ListTopics`, `DescribeTopic`, `PeekMessages`, `ListConsumerGroups`).
-- **Kafka client library** — pure Go, không cgo (ứng viên: `github.com/twmb/franz-go` hoặc `github.com/segmentio/kafka-go`) — đủ cho admin + consume read-only, không cần producer phức tạp vì v1 không produce.
-- **Storage** — connection profile qua `vaultitem.Store` chung, **không** phải store riêng — cùng pattern Notes/Database/SSH theo [ADR-008](/dev-kit/architecture-decisions#adr-008-unified-vault_items-store-for-built-in-item-types). Message/topic data **không** persist — chỉ query on-demand, không cache lâu dài.
+- **`internal/kafka`** (Go) — orchestrate Kafka client, đọc/ghi vaultitem profile, expose query method (`ListTopics`, `DescribeTopic`, `PeekMessages`, `ListConsumerGroups`, `PublishMessage`).
+- **Kafka client library** — pure Go, không cgo (ứng viên: `github.com/twmb/franz-go` hoặc `github.com/segmentio/kafka-go`) — cần cả admin/consume (read) lẫn producer (publish).
+- **Storage** — connection profile qua `vaultitem.Store` chung, **không** phải store riêng — cùng pattern Notes/Database/SSH theo [ADR-008](/dev-kit/architecture-decisions#adr-008-unified-vault_items-store-for-built-in-item-types). Message/topic data **không** persist — chỉ query/publish on-demand, không cache lâu dài.
 - **Bridge + MCP adapter** — cùng gọi `KafkaService`, cùng đi qua Capability Gateway, đúng pattern Code Graph/Agent Hub.
 
 ### Vaultitem contract
@@ -140,8 +169,9 @@ Nhiều profile cùng lúc (giống SSH/Database) — không phải mô hình "1
 | `KafkaDescribeTopic` | `kafka:connect` | `profile:<id>` |
 | `KafkaPeekMessages` | `kafka:connect` | `profile:<id>` |
 | `KafkaListConsumerGroups` | `kafka:connect` | `profile:<id>` |
+| `KafkaPublishMessage` | `kafka:produce` | `profile:<id>` |
 
-1 capability `kafka:connect` dùng chung cho toàn bộ — không tách theo action vì v1 toàn bộ đều là read/test, risk profile giống nhau (khác SSH phải tách `ssh:connect`/`ssh:forward` vì `forward` mở network tunnel, risk hẳn khác).
+2 capability tách riêng: `kafka:connect` cho toàn bộ thao tác đọc/quản lý profile, `kafka:produce` riêng cho publish. Publish ghi dữ liệu thật vào hệ thống downstream (consumer khác có thể phản ứng ngay với message vừa gửi) — risk khác hẳn nhóm còn lại, nên tách capability để cấp/thu hồi quyền publish độc lập với quyền đọc, đúng pattern đã dùng cho `ssh:connect`/`ssh:forward`.
 
 ### MCP tool surface (design)
 
@@ -154,27 +184,29 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 | `kafka.describeTopic` | `read` | `builtin.kafka` / `kafka:connect` / `profile:<id>` | |
 | `kafka.peekMessages` | `read` | `builtin.kafka` / `kafka:connect` / `profile:<id>` | Giới hạn số message mặc định (NFR-4) |
 | `kafka.listConsumerGroups` | `read` | `builtin.kafka` / `kafka:connect` / `profile:<id>` | |
+| `kafka.publishMessage` | `execute` (`destructiveHint`) | `builtin.kafka` / `kafka:produce` / `profile:<id>` | Input: `profileId`, `topic`, `key?`, `payload`, `headers?`, `partition?`. Output: `{partition, offset, timestamp}` |
 
-Toàn bộ `readOnlyHint = true` — v1 không có tool nào `execute`/`destructiveHint` vì không có produce hay mutating action nào tồn tại. **Không expose `KafkaCreateProfile`/`KafkaDeleteProfile`** qua MCP — nhận secret trực tiếp qua tham số, cùng lý do đã áp cho SSH/Database.
+**Không expose `KafkaCreateProfile`/`KafkaDeleteProfile`** qua MCP — nhận secret trực tiếp qua tham số, cùng lý do đã áp cho SSH/Database.
 
 ### Error handling
 
 - Broker unreachable / auth fail → `connection_failed`, cùng error contract với SSH/Database (`internal/apperrors`).
-- Timeout cho mọi admin call → `operation_cancelled`, không treo UI/MCP vô thời hạn (NFR-3).
+- Timeout cho mọi call (admin lẫn publish) → `operation_cancelled`, không treo UI/MCP vô thời hạn (NFR-3).
 - Peek message trên topic/partition không tồn tại → lỗi rõ ràng, không trả mảng rỗng ngầm định.
+- Publish vào topic không tồn tại → lỗi rõ ràng, topic **không** tự tạo (NFR-6). Publish không nhận `acks` xác nhận từ broker trong timeout → `operation_cancelled`, không báo thành công khi chưa chắc chắn broker đã ghi.
 
 ### Known ceiling (v1)
 
-- Read-only tuyệt đối — không produce, không reset offset, không mutating consumer group action.
-- Message decode chỉ raw bytes hoặc JSON text parse — không Avro/Protobuf/Schema Registry.
+- Message decode/encode chỉ raw bytes hoặc JSON text — không Avro/Protobuf/Schema Registry, cho cả peek lẫn publish.
+- Publish chỉ 1 message/lần, không batch.
 - Không ACL management, không multi-cluster mirroring view.
 - Giới hạn peek mặc định nhỏ (ví dụ 50 message/lần) để tránh treo UI với topic lớn — số cụ thể cần chốt khi implement.
 
 ## Open questions
 
 - Giới hạn peek mặc định nên là bao nhiêu message/request — cố định hay user config được?
-- Có cần thêm Schema Registry decode (Avro/Protobuf) ở v2 không, hay giữ raw/JSON mãi vì đủ dùng cho debug nhanh?
-- Produce message có nên mở ở v2 không, hay giữ Kafka UI vĩnh viễn read-only và để việc produce cho CLI/tool khác chuyên biệt hơn?
+- Publish có cần rate limit riêng (per profile hoặc per subject) để tránh agent spam 1 topic thật không?
+- Có cần thêm Schema Registry decode/encode (Avro/Protobuf) khi có nhu cầu vượt raw/JSON không?
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 

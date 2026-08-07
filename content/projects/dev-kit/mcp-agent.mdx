@@ -109,7 +109,7 @@ Ba primitive từng có — **Roots, Sampling, Logging** — đã bị deprecate
 | Database | [Database § MCP tool surface](/dev-kit/database#mcp-tool-surface-design) — `db.listProfiles/testConnection/query` |
 | SSH | [SSH § MCP tool surface](/dev-kit/ssh#mcp-tool-surface-design) — `ssh.listProfiles/testConnection/runCommand` |
 | Tools | [Tools § MCP tool surface](/dev-kit/tools#mcp-tool-surface-design) — mỗi command 1 tool riêng (`tools.hash`, `tools.base64Encode`...) |
-| Kafka UI (design) | [Kafka UI § MCP tool surface](/dev-kit/kafka#mcp-tool-surface-design) — toàn bộ read-only |
+| Kafka UI (design) | [Kafka UI § MCP tool surface](/dev-kit/kafka#mcp-tool-surface-design) — read + `kafka.publishMessage` (execute, capability riêng `kafka:produce`) |
 | Search, Sync | [Technical contracts § Bridge contract](/dev-kit/technical-contracts#bridge-contract) — cột "MCP tool (design)" |
 | Code Graph | [Code Graph § MCP tool surface](/dev-kit/codegraph#mcp-tool-surface) |
 | Agent Hub | [Agent Hub § MCP tool surface](/dev-kit/agent-hub#mcp-tool-surface) |
