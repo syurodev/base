@@ -49,8 +49,12 @@ transaction và automatic capture local create/update/delete của `vault_items`
   payload envelope; plaintext metadata không được đưa vào outbox transport.
 - `sync_outbox` và `sync_cursors` được tạo bằng migration m7, không backfill
   hoặc thay đổi dữ liệu hiện có trong `vault_items`.
+- `internal/auth` dùng Authorization Code + PKCE S256 với system browser và
+  loopback callback `127.0.0.1`; refresh token rotation nằm trong OS keychain,
+  còn access token chỉ giữ runtime. Gateway origin production được pin là
+  `https://api.synx.io.vn`, không nhận endpoint/token từ UI.
 - Handshake `/v1/sync/session` lấy account identity từ authenticated server
-  response; bearer chỉ giữ runtime và redirect bị từ chối.
+  response; transport refresh access token trước request và redirect bị từ chối.
 - HTTP push/pull yêu cầu HTTPS, trừ explicit loopback development endpoint;
   request, response, batch và ciphertext đều bounded.
 - Remote snapshots được decrypt/validate ở client rồi apply cùng cursor trong
@@ -67,8 +71,11 @@ transaction và automatic capture local create/update/delete của `vault_items`
   và version mới không được vượt predecessor chưa synced của cùng entity.
 - Push ACK chỉ đánh dấu record `synced` khi operation/version vẫn là local head;
   stale ACK và tombstone chưa ACK không được overwrite/resurrect local state.
-- Conflict resolve phía client đã có (xem mục dưới). Chưa có production backend;
-  server arbitration / device revocation trên BE thật vẫn là scope còn lại.
+- Conflict resolve phía client đã có (xem mục dưới). Companion Java backend đã
+  implement durable PostgreSQL arbitration, account/device session, revoke
+  enforcement, push/pull và gateway-signed identity boundary. Single-device
+  deployment smoke đã pass ngày 2026-08-10 (session, push, pull, apply); còn
+  thiếu convergence/retry/revocation matrix trên stack deploy thật.
 
 ## Conflict resolution (Git-style) — client implemented
 
@@ -121,7 +128,7 @@ Thiết kế mục tiêu cho sync future:
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
-  <Card title="SaaS sync backend" href="/dev-kit/saas-backend" description="Spring Boot 4 + Keycloak + PG18 + Redis" />
+  <Card title="SaaS sync backend" href="/dev-kit/saas-backend" description="Spring Boot 4 + Gateway MVC + Keycloak + PG18" />
   <Card title="Vault" href="/dev-kit/vault" />
   <Card title="Notes" href="/dev-kit/notes" description="Conflict resolve strategy merge (notes-only)" />
   <Card title="Security model" href="/dev-kit/security" />

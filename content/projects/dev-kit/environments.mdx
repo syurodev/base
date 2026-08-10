@@ -9,8 +9,8 @@ Environments là registry dùng chung cho **env tag** (`dev`, `stg`, `prod`, và
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout type="warn" title="Design only">
-Chưa có `internal/environments` trong checkout hiện tại. Trạng thái implementation thật nằm ở [Implementation status](/dev-kit/implementation-status).
+<Callout type="info" title="Registry và Settings UI Implemented; MCP còn design">
+`internal/environments` (registry + policy service, memory và SQL repository), migration `env_tags`, 4 bridge method (`EnvListTags`/`EnvCreateTag`/`EnvUpdateTag`/`EnvDeleteTag`) và Settings UI quản lý tag đã chạy thật, có test. SSH và Database đã bắt buộc `env` khi tạo profile. Toàn bộ MCP tool surface vẫn design (chưa có MCP runtime nên `requiresConfirmation` chưa có consumer runtime). Kafka module bản thân nó vẫn Design only nên chưa lookup tag được. Trạng thái implementation đầy đủ nằm ở [Implementation status](/dev-kit/implementation-status).
 </Callout>
 
 ```mermaid
@@ -52,24 +52,28 @@ flowchart TD
 User tạo tag mới ngoài 3 default (vd `qa`, `canary`, `sandbox`) — `isBuiltin = false`, `locked = false`, `requiresConfirmation` tự chọn lúc tạo và sửa được sau đó, không giới hạn như `prod`.
 
 - Tên tag tùy chỉnh không được trùng tag đã có (built-in lẫn custom khác).
-- Xóa 1 tag tùy chỉnh đang được ít nhất 1 profile Kafka/Database/SSH tham chiếu → reject (`env.tagInUse`) — bắt profile đổi sang tag khác trước, không xóa ngầm rồi để profile trỏ vào tag không tồn tại.
+- **Chưa có "tag in use" guard khi xóa** — deliberate cut (ponytail), không phải thiếu sót: `EnvDeleteTag` xóa tag tùy chỉnh ngay cả khi có profile đang tham chiếu, để lại profile với tên tag không còn tồn tại. Rủi ro chỉ đáng kể khi có consumer đọc `RequiresConfirmation` (MCP, chưa tồn tại); xem callout ở mục "Cách Kafka/Database/SSH dùng tag" bên dưới. Thêm cross-service check khi MCP thật cần policy này.
 
-## Bridge & capability (design)
+## Bridge & capability
 
-| Method | Capability | Scope |
-|---|---|---|
-| `EnvListTags` | `env:read` | `tag:list` |
-| `EnvCreateTag` | `env:write` | `tag:new` |
-| `EnvUpdateTag` | `env:write` | `tag:<id>` |
-| `EnvDeleteTag` | `env:write` | `tag:<id>` |
+| Method | Capability | Scope | Status |
+|---|---|---|---|
+| `EnvListTags` | `env:read` | `tag:list` | Implemented |
+| `EnvCreateTag` | `env:write` | `tag:new` | Implemented |
+| `EnvUpdateTag` | `env:write` | `tag:<id>` | Implemented |
+| `EnvDeleteTag` | `env:write` | `tag:<id>` | Implemented |
 
-Subject luôn `builtin.environments`. `EnvUpdateTag`/`EnvDeleteTag` trên tag `locked = true` (tức `prod`) luôn reject với lỗi rõ ràng (`env.tagLocked`), bất kể caller là ai hay grant gì — đây là loại trừ cứng ở tầng service, không phải thứ policy có thể nới ra.
+Evidence: `internal/environments/{environments,memory,sqlrepository}.go`, `internal/bridge/environments.go`; tests: `internal/environments/*_test.go`, `internal/bridge/environments_test.go`. Frontend module `settings` gọi đủ list/create/update/delete ở `frontend/src/modules/settings/SettingsView.tsx`; form SSH/Database dùng `frontend/src/bridge/environments.ts` để chọn tag có sẵn.
+
+Subject luôn `builtin.environments`. `EnvUpdateTag`/`EnvDeleteTag` trên tag `locked = true` (tức `prod`) luôn reject với lỗi rõ ràng (`ErrTagLocked`), bất kể caller là ai hay grant gì — đây là loại trừ cứng ở tầng service (`internal/environments/environments.go`), không phải thứ policy có thể nới ra. `dev`/`stg`/`prod` (builtin) không xóa được qua `EnvDeleteTag` dù không `locked`.
 
 ## Cách Kafka/Database/SSH dùng tag
 
-Profile của cả 3 module lưu **tên tag** (string, vd `"prod"`) trong metadata — không copy `requiresConfirmation` vào profile. Khi 1 MCP call chạm active target, service tương ứng (KafkaService/DatabaseService/SSHService) tra cứu tag theo tên qua `EnvironmentService` để lấy `requiresConfirmation` **tại thời điểm gọi** — đổi flag của 1 tag có hiệu lực ngay cho mọi profile đang mang tag đó, không cần sửa từng profile.
+Database và SSH profile đã lưu **tên tag** (string, vd `"prod"`) trong metadata plaintext (field `env`, bắt buộc — `DBCreateProfile`/`SSHCreateProfile` reject nếu thiếu hoặc tên tag không tồn tại trong registry). Validate này chạy qua `EnvLookup.Exists(name)`, một interface khai báo riêng ở `internal/database`/`internal/ssh` (không import `internal/environments` — "accept interfaces, return structs"), được thỏa bởi `*environments.Service` khi wiring ở `internal/app/container.go`. Kafka module chưa có code (`internal/kafka` không tồn tại) nên chưa lưu/lookup tag được — phần dưới đây vẫn là design cho cả 3 module.
 
-Nếu profile tham chiếu 1 tên tag không còn tồn tại (trường hợp hiếm, dữ liệu hỏng) → coi như `requiresConfirmation = true` (fail closed), không phải `false`.
+<Callout type="warn" title="Fail-closed vẫn là design, chưa phải guarantee runtime">
+Ý tưởng: khi 1 MCP call chạm active target, service tương ứng tra cứu tag theo tên qua `EnvironmentService` để lấy `requiresConfirmation` tại thời điểm gọi; nếu tag không còn tồn tại → coi như `requiresConfirmation = true` (fail closed). **Chưa có runtime nào đọc `RequiresConfirmation` cả** (không có MCP) — validate hiện tại chỉ chạy ở thời điểm tạo profile, không re-validate khi tag bị xóa sau đó. Đây là nghĩa vụ bắt buộc cho người implement MCP confirmation gate sau này, không phải thứ package `environments` đã tự đảm bảo — xem comment `ponytail:` ở `internal/environments/environments.go` (`DeleteTag`).
+</Callout>
 
 ## MCP tool surface (design)
 

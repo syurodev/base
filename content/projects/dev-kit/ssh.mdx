@@ -29,8 +29,10 @@ flowchart LR
 |---|---|
 | Record `type` | `ssh-profile` |
 | Payload `key_id` | `ssh-secret` |
-| Metadata (plaintext) | `name`, `host`, `port`, `username`, `auth_method`, `host_key_fingerprint` |
+| Metadata (plaintext) | `name`, `host`, `port`, `username`, `auth_method`, `host_key_fingerprint`, `env` |
 | Payload (encrypted) | password **hoặc** private-key PEM (`auth_method` = `password` \| `key`) |
+
+`env` là bắt buộc: `SSHCreateProfile` reject nếu thiếu hoặc tên tag không tồn tại trong registry [Environments](/dev-kit/environments) (qua `EnvLookup.Exists(name)`, `internal/ssh/ssh.go`).
 
 - Passphrase của encrypted PEM **không** persist — chỉ truyền per-operation từ UI
   rồi zeroize sau parse.
@@ -92,16 +94,16 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 | `ssh.activeProfile` | `read` | `builtin.ssh` / `ssh:connect` / `profile:active` | Trả `{profileId?}` — agent chỉ đọc, không tự đổi |
 | `ssh.runCommand` | `execute` (`destructiveHint`) | `builtin.ssh` / `ssh:connect` / `profile:active` | Không nhận `profileId` — chạy trên **active profile cho agent**. Rủi ro cao nhất trong toàn bộ MCP tool surface hiện có. Hỏi quyền theo policy env tag (xem dưới) |
 
-**"Hỏi quyền theo policy env tag"**: cần thêm field bắt buộc `env` vào
-metadata `ssh-profile`. `SSHCreateProfile` phải reject nếu thiếu `env`. Giá
-trị `env` là tên 1 tag trong registry [Environments](/dev-kit/environments)
-(`dev`/`stg`/`prod` mặc định, tạo thêm tùy chỉnh được). `ssh.runCommand` qua
-MCP tra `requiresConfirmation` của tag đó trước khi chạy — nếu bật, phải xác
-nhận tương tác mỗi lần gọi, không có `allow_always`. `env=prod` luôn bật
-(khóa cứng); `dev`/`stg` mặc định tắt nhưng bật lên được — đáng cân nhắc bật
-sẵn cho SSH vì đây là tool rủi ro cao nhất trong toàn bộ MCP tool surface
-hiện có, dù không bắt buộc như `prod`. Chi tiết cơ chế:
-[MCP / Agent § `env` bắt buộc](/dev-kit/mcp-agent). `ssh.listProfiles`/
+**"Hỏi quyền theo policy env tag"**: field bắt buộc `env` trên
+metadata `ssh-profile` đã **Implemented** (xem Vaultitem contract ở trên).
+Phần còn design: `ssh.runCommand` qua MCP tra `requiresConfirmation` của tag
+đó trước khi chạy — chưa có vì chưa có MCP runtime để đọc field này. Khi có,
+thiết kế là: nếu bật, phải xác nhận tương tác mỗi lần gọi, không có
+`allow_always`; `env=prod` luôn bật (khóa cứng, đã đúng ở tầng
+`internal/environments.Service`); `dev`/`stg` mặc định tắt nhưng bật lên
+được — đáng cân nhắc bật sẵn cho SSH vì đây là tool rủi ro cao nhất trong
+toàn bộ MCP tool surface hiện có, dù không bắt buộc như `prod`. Chi tiết cơ
+chế: [MCP / Agent § `env` bắt buộc](/dev-kit/mcp-agent). `ssh.listProfiles`/
 `ssh.testConnection`/`ssh.activeProfile` không bị luật này.
 
 **Không expose qua MCP ở v1**:

@@ -15,8 +15,9 @@ flowchart LR
   EXT --> GW[Capability Gateway]
   GW --> CORE[Go Core Services]
   CORE --> VAULT[(Vault: encrypted fields)]
-  CORE --> SYNC[Sync client target]
-  SYNC --> CLOUD[(Encrypted blobs)]
+  CORE --> SYNC[Sync client]
+  SYNC -->|Keycloak token + encrypted blobs| EDGE[Gateway MVC]
+  EDGE --> CLOUD[(Sync API + PostgreSQL)]
 ```
 
 ## Layers
@@ -26,12 +27,14 @@ flowchart LR
 3. **Capability Gateway** — choke point cho built-in calls hiện tại; Extension API cho plugin/MCP là target.
 4. **Go core services** — crypto, storage, SSH adapter (và Database sibling); sync client partial — xem [Data & sync](/dev-kit/data-sync).
 5. **Local vault** — record fields nhạy cảm mã hóa ở application layer trên SQLite local.
-6. **Optional sync (target)** — client phải mã hóa blob trước upload/download.
+6. **Optional sync** — client mã hóa blob trước upload/download; Gateway xác
+   thực Keycloak token và API chỉ lưu opaque envelope cùng routing metadata.
 
 ## Key boundaries
 
 - UI/plugin **không** đọc DEK/Master Password trực tiếp.
-- Sync server **không** nên cần plaintext notes/secrets (zero-knowledge là mục tiêu sync future).
+- Sync server **không** cần plaintext notes/secrets; backend contract lưu opaque
+  envelope và arbitration metadata.
 - Hook chỉ notify; hành động nhạy cảm phải qua Capability Gateway (built-in hiện tại) hoặc Extension API (target cho plugin/MCP).
 
 Chi tiết runtime và evidence theo checkout hiện tại: [Implementation status](/dev-kit/implementation-status).

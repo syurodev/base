@@ -120,6 +120,10 @@ Replication client hiện nằm ở `internal/sync`, `internal/syncclient`,
   tạo authorization.
 - `/v1/sync/session` tạo `AuthSession` từ account/device/expiry do server trả;
   bearer private, runtime-only và bị loại khi expiry hoặc HTTP `401/403`.
+- `internal/auth` là token source cho production sync: Authorization Code + PKCE
+  S256 mở browser, callback chỉ ở `127.0.0.1`, và refresh token quay vòng trong
+  OS keychain. `syncclient.ConnectWithTokenSource` lấy access token mới trước
+  request; frontend/bridge không nhận hoặc trả bearer/refresh token.
 - `HTTPTransport` chỉ cho HTTPS hoặc explicit loopback HTTP, reject redirect và
   bound request/response, batch, ciphertext trước khi allocate/decode.
 - Pull decrypt snapshot bằng local vault, validate outer/inner identity và
@@ -167,7 +171,8 @@ Conflict resolve contract (client):
 | SSH forwarding | `SSHStartForward`, `SSHListForwards`, `SSHStopForward` | `builtin.ssh` / `ssh:forward` / `profile:<id>`, `forward:list`, `forward:<id>` | `internal/bridge/ssh.go`, `internal/ssh/forwarding.go` | — (non-goal, không expose qua MCP) |
 | Tools | `ExecuteCommand` | `builtin.tools` / `tools:hash` / `command:<id>` | `internal/bridge/app_service.go`, `internal/commands/registry.go` | `tools.executeCommand` |
 | Search | `VaultSearch` | `builtin.search` / `vault:search` / `item:search` | `internal/bridge/search.go` | `vault.search` |
-| Sync | `SyncStatus`, `SyncConnect`, `SyncNow`, `SyncDisconnect`, `SyncConflicts`, `SyncConflictDetail`, `SyncResolveConflict` | `builtin.sync` / `sync:manage` / `sync:status`, `sync:connect`, `sync:run`, `sync:disconnect`, `sync:conflicts`, `sync:resolve` | `internal/bridge/{sync,syncresolve}.go`, `internal/syncclient`, `internal/syncconflict` | `sync.status`, `sync.conflicts` — Connect/Now/Disconnect/ResolveConflict để v2 |
+| Sync | `AuthStatus`, `AuthLogin`, `AuthLogout`, `SyncStatus`, `SyncConnect`, `SyncNow`, `SyncDisconnect`, `SyncConflicts`, `SyncConflictDetail`, `SyncResolveConflict` | `builtin.sync` / `sync:manage` / `sync:status`, `sync:login`, `sync:logout`, `sync:connect`, `sync:run`, `sync:disconnect`, `sync:conflicts`, `sync:resolve` | `internal/bridge/{sync,syncresolve}.go`, `internal/auth`, `internal/syncclient`, `internal/syncconflict` | `sync.status`, `sync.conflicts` — auth/connect/now/disconnect/resolve để v2 |
+| Environments | `EnvListTags`, `EnvCreateTag`, `EnvUpdateTag`, `EnvDeleteTag` | `builtin.environments` / `env:read` hoặc `env:write` / `tag:list`, `tag:new`, `tag:<id>` | `internal/bridge/environments.go`, `internal/environments` | `env.listTags` (design, xem [Environments](/dev-kit/environments)) — Create/Update/Delete không expose qua MCP |
 | Modules | `ListModules` | no capability gate; registry read-through only | `internal/bridge/app_service.go`, `internal/modules/registry.go` | — (không cần, registry metadata thuần) |
 
 Hai quy tắc bridge quan trọng:
@@ -199,6 +204,7 @@ Built-in subjects đang được container cấp sẵn trong
 - `builtin.vault`
 - `builtin.search`
 - `builtin.sync`
+- `builtin.environments`
 
 Capability names public hiện tại:
 
@@ -211,6 +217,8 @@ Capability names public hiện tại:
 - `vault:manage`
 - `vault:search`
 - `sync:manage`
+- `env:read`
+- `env:write`
 
 Scope families hiện tại:
 
@@ -226,6 +234,9 @@ Scope families hiện tại:
 - `forward:<forward-id>`
 - `vault`
 - `item:search`
+- `tag:list`
+- `tag:new`
+- `tag:<record-id>`
 
 Generic command scope construction is broader than the runtime surface today:
 
@@ -309,7 +320,10 @@ Boundary ổn định:
 - Table hiện tại được chốt trong `internal/storage/sqlite.go`:
   `vault_keyring` và `vault_items` (id TEXT PRIMARY KEY, type TEXT, data TEXT).
   Ba bảng cũ `notes`/`connection_profiles`/`ssh_profiles` đã bị drop (migration
-  m6) và thay bằng `vault_items`.
+  m6) và thay bằng `vault_items`. Migration m12 thêm bảng riêng `env_tags`
+  (id, name UNIQUE, requires_confirmation, is_builtin, locked) — **không** đi
+  qua `vault_items`, vì env tag không phải secret và không cần vault unlocked
+  để đọc/quản lý; xem [Environments](/dev-kit/environments).
 - `storage.Migrate(...)` chạy migration forward-only, idempotent, có version,
   bằng `schema_migrations` trong `internal/storage/{sqlite,migrations}.go`
   (m5 tạo `vault_items`, m6 drop bảng cũ).
@@ -320,11 +334,11 @@ plaintext và `payload` mã hóa của `vault_items`):
 - Notes (`type = "note"`): `Body` được mã hóa trong payload, `Title` là plaintext
   metadata (`internal/notes/notes.go`).
 - Database profiles (`type = "db-profile"`): chỉ `Password` mã hóa; `Host`, `Port`,
-  `Database`, `Username`, `SSLMode` là metadata không nhạy cảm
+  `Database`, `Username`, `SSLMode`, `Env` là metadata không nhạy cảm
   (`internal/database/database.go`).
 - SSH profiles (`type = "ssh-profile"`): chỉ `Secret` mã hóa; `Host`, `Port`,
-  `Username`, `AuthMethod`, `HostKeyFingerprint` là metadata không nhạy cảm
-  (`internal/ssh/ssh.go`).
+  `Username`, `AuthMethod`, `HostKeyFingerprint`, `Env` là metadata không nhạy
+  cảm (`internal/ssh/ssh.go`).
 - Vault keyring vẫn được lưu như một row riêng qua `internal/vault/sqlkeyringstore.go`.
 
 Storage file boundary:

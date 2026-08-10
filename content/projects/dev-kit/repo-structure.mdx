@@ -20,6 +20,7 @@ internal/
   app/               Composition root: DI container, registries, permission grants
   bridge/            Wails boundary: DTOs, capability-gated calls, error redaction
   capabilities/      Capability gateway — authorizes privileged calls + audit
+  auth/              OIDC PKCE browser flow + OS-keychain refresh-token rotation
   permissions/       Permission policy + request model
   audit/             Audit event sink + field redaction
   commands/          Command registry
@@ -27,6 +28,7 @@ internal/
   crypto/            AEAD, Argon2id KDF, versioned envelope
   vault/             Master-password keyring + in-memory DEK
   vaultitem/         Vault-item substrate (Record + Repository + seal/open)
+  environments/      Env tag registry (dev/stg/prod + custom) + Repository (memory/SQL)
   notes/             Notes module
   database/          Database-connection module (pgx)
   ssh/               SSH module (profiles, host keys, port forwarding)

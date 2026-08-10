@@ -1,6 +1,6 @@
 ---
 title: SaaS sync backend
-description: Thiết kế backend đồng bộ zero-knowledge (Spring Boot 4 + Keycloak + PostgreSQL 18 + Redis).
+description: Backend đồng bộ zero-knowledge (Spring Boot 4 + Gateway MVC + Keycloak + PostgreSQL 18).
 ---
 
 # SaaS sync backend
@@ -9,7 +9,11 @@ Backend là **target tùy chọn** của sync: chỉ lưu blob đã mã hóa + m
 xử version per-entity, và **không bao giờ thấy plaintext**. Thiết kế bám đúng contract client
 đã có trong `internal/sync` — xem [Data & sync](/dev-kit/data-sync).
 
-> Trạng thái: **Design only**. Chưa có runtime backend. Trang này là spec để triển khai.
+> Trạng thái: **Partial**. Backend Phase A và Gateway MVC đã có runtime trong
+> `/Users/syuro/Workspace/PERSONAL/dev-kit`; desktop PKCE và rotating refresh
+> token đã có runtime trong `/Users/syuro/Workspace/dev-kit`. Basic E2E trên
+> deployment thật đã pass ngày 2026-08-10: login, session, one push, pull và
+> apply. Ma trận multi-device/retry/revoke vẫn chưa hoàn tất.
 
 ## Nguyên tắc
 
@@ -27,47 +31,61 @@ xử version per-entity, và **không bao giờ thấy plaintext**. Thiết kế
 |---|---|---|
 | Runtime | **Java 25** | Virtual threads cho IO-bound sync API. |
 | Framework | **Spring Boot 4** | Spring MVC + Spring Security OAuth2 Resource Server. |
+| Edge | **Spring Cloud Gateway Server Web MVC 5.0.2** | Validate Keycloak JWT, sanitize header, ký JWT nội bộ ngắn hạn. |
 | IdP | **Keycloak** | Email/password + GitHub social; username optional. |
 | DB | **PostgreSQL 18** | PK dùng **UUID v7** native `uuidv7()`; append-only log. |
-| Cache/lock | **Redis** | Idempotency fast-path, rate limit, distributed lock, JWKS cache. |
-| Migration | Flyway/Liquibase | Forward-only, versioned. |
+| Cache/lock | **Không dùng trong Phase A** | PostgreSQL unique constraints, transaction và advisory lock là correctness source. |
+| Migration | **Liquibase** | Forward-only, versioned. |
 
 ## Auth — Phase 1 (Keycloak)
 
 Phương thức đăng nhập giai đoạn đầu:
 
-- **Email + password** — self-registration bật, email là định danh đăng nhập.
+- **Email + password** — target cho hosted realm; local import hiện tắt
+  self-registration để không mở account creation ngoài ý muốn.
 - **GitHub login** — Keycloak GitHub Identity Provider (social login, state + PKCE).
 - **Username không bắt buộc** khi đăng ký (dùng email hoặc auto-generate), **cập nhật sau** trong profile.
 
-Cấu hình: realm `devkit`, client `devkit-desktop` (public, PKCE). Desktop lấy access token qua
-**Authorization Code + PKCE** (mở system browser) hoặc **Device Authorization Grant**.
+Cấu hình hiện có: realm `devkit`, client `devkit-desktop` (public, PKCE S256).
+Desktop lấy access token qua **Authorization Code + PKCE** bằng system browser;
+refresh token quay vòng được lưu trong OS keychain và access token chỉ tồn tại
+trong memory. Khi Keycloak từ chối refresh, DevKit xóa credential cũ rồi yêu cầu
+login browser lại.
+Realm import không tạo user và không chứa GitHub secret; social login, password
+policy và registration policy phải cấu hình qua secret/deployment riêng.
 
-Spring API là **Resource Server**: verify JWT (issuer = realm, `aud`, `exp`, `nbf`, chữ ký qua JWKS
-cache ở Redis). Keycloak `sub` → `account` (bảng `accounts`, PK UUID v7). `account_id` dùng trong
-protocol chính là `accounts.id` (server-authoritative, không lấy từ request body).
+Gateway là **Keycloak Resource Server**: verify chữ ký, issuer, audience, `exp`,
+`nbf` và stable `sub`, loại identity/forwarded header do client gửi, rồi ký JWT
+nội bộ RS256 tối đa 45 giây. Spring API chỉ tin JWT nội bộ qua Gateway JWKS và
+verify thêm `upstream_iss`/`upstream_exp`. Keycloak `sub` → `account` (bảng
+`accounts`, PK UUID v7); `account_id` luôn server-authoritative.
 
 ```mermaid
 sequenceDiagram
   participant App as DevKit desktop
   participant KC as Keycloak
+  participant GW as Gateway MVC
   participant API as Sync API
   App->>KC: Login (email/password HOẶC GitHub) + PKCE
   KC-->>App: access token (JWT)
-  App->>API: GET /v1/sync/session (Bearer + X-DevKit-Device-ID + protocol)
-  API->>KC: verify JWT (JWKS cached ở Redis)
+  App->>GW: GET /v1/sync/session (Bearer + device + protocol)
+  GW->>KC: verify JWT bằng issuer + JWKS
+  GW->>GW: strip identity headers + ký internal JWT
+  GW->>API: proxy qua private network
   API->>API: map sub -> account (tạo nếu lần đầu), đăng ký/kiểm device
-  API-->>App: {account_id, device_id, expires_at}
+  API-->>GW: {account_id, device_id, expires_at}
+  GW-->>App: response
 ```
 
 ## Kiến trúc
 
 ```mermaid
 flowchart LR
-  App[DevKit desktop] -->|Bearer + device + protocol| API[Spring Boot Sync API]
+  App[DevKit desktop] -->|Keycloak bearer + device + protocol| GW[Gateway MVC]
+  GW -->|Gateway JWT, private network| API[Spring Boot Sync API]
   API --> PG[(PostgreSQL 18)]
-  API --> RS[(Redis)]
-  API -->|JWKS verify| KC[Keycloak]
+  GW -->|JWKS verify| KC[Keycloak]
+  API -->|Gateway JWKS| GW
 ```
 
 ## API contract (khớp client `internal/sync`)
@@ -136,9 +154,9 @@ Trả ops của account có `seq > cursor`, order theo `seq`, ≤ limit; **envel
 
 ## Arbitration (lõi server)
 
-Mỗi op trong push chạy trong **một transaction + khóa per `(account, record)`** (PG row-lock
-trên `entity_heads`, hoặc `pg_advisory_xact_lock(hash(account,record))`; thêm Redis lock per-account
-khi chạy nhiều instance):
+Mỗi op trong push chạy trong **một transaction + PostgreSQL advisory lock** per
+`(account, record)`. Database unique constraints vẫn bảo vệ invariant khi scale
+nhiều instance:
 
 ```mermaid
 sequenceDiagram
@@ -285,17 +303,16 @@ CREATE TABLE entity_heads (
 CREATE UNIQUE INDEX ux_heads_account_record ON entity_heads (account_id, record_id);
 ```
 
-## Redis
+## Concurrency và idempotency
 
-- **Idempotency fast-path**: `acct:{id}:op:{opid}` (TTL) né hit PG cho replay; nguồn chân lý vẫn là
-  `UNIQUE(account_id, operation_id)`.
-- **Distributed lock** per account cho arbitration khi scale nhiều instance.
-- **Rate limit** (token bucket) trên session/push/pull theo account + device + IP.
-- **JWKS / token cache** cho verify JWT.
+Phase A không dùng Redis. PostgreSQL là correctness source: unique constraints
+chặn replay, transaction bao trọn log + entity head, và advisory lock serialize
+arbitration theo account/record. Rate limit phân tán là production-hardening
+follow-up, không được thay thế correctness constraint bằng cache.
 
 ## Security (bảo mật tuyệt đối)
 
-- **Transport**: TLS 1.3 bắt buộc (client ép HTTPS trừ loopback dev), HSTS. Redis AUTH + TLS.
+- **Transport**: TLS 1.3 bắt buộc ở production edge (client ép HTTPS trừ loopback dev), HSTS.
 - **Token**: verify đầy đủ `iss/aud/exp/nbf/signature` qua JWKS pinned; từ chối token khác realm/client.
 - **Account isolation**: mọi truy vấn `WHERE account_id = <từ token>`; **không bao giờ** tin `account_id`
   trong body. Cross-account → `403`.
@@ -303,11 +320,13 @@ CREATE UNIQUE INDEX ux_heads_account_record ON entity_heads (account_id, record_
 - **Zero-knowledge**: lưu `envelope` opaque, echo nguyên vẹn, server không có key và không giải mã.
 - **Caps**: mirror client (1 MiB/op, 1000/batch, 4 MiB body) để chống oversize/DoS.
 - **Replay**: `UNIQUE(account_id, operation_id)`. **Chống rollback**: head chỉ tiến.
-- **Rate limiting** (Redis) + Keycloak brute-force detection cho login.
+- **Rate limiting** ở edge là follow-up; Keycloak brute-force detection bảo vệ login.
 - **DB least-privilege**: role app chỉ có quyền trên đúng các bảng cần; không superuser; PG at-rest
   encryption ở tầng disk.
-- **Input validation**: identifier không chứa control char / path separator (mirror rule client) để
-  không phá AAD binding.
+- **Input validation**: record/account/device/operation identifiers không chứa
+  control char hoặc path separator để không phá AAD binding. `idempotency_key`
+  là opaque namespaced hash (`dev-kit/sync/queue/v2:<hash>`) và được phép có
+  `/`; vẫn bị giới hạn độ dài và cấm control character.
 - **Logging/audit**: structured + redaction; **không** log ciphertext/plaintext/token; audit chỉ
   metadata an toàn (`audit_events`). Không trả stack trace cho client.
 - **Supply chain**: pin dependency, scan CVE; secrets qua vault/env, không hardcode.
@@ -315,7 +334,8 @@ CREATE UNIQUE INDEX ux_heads_account_record ON entity_heads (account_id, record_
 
 ## Deployment & ops
 
-- `docker-compose` (keycloak, postgres:18, redis, api) cho dev; **testcontainers** cho test.
+- `docker-compose` chạy hai PostgreSQL 18 tách biệt, Keycloak, API và Gateway;
+  chỉ Gateway là public sync entrypoint. **Testcontainers** dùng cho backend test.
 - API **stateless** → scale ngang; migration forward-only (Flyway/Liquibase).
 - Observability: health/metrics/tracing — không lộ secret.
 
@@ -326,6 +346,17 @@ CREATE UNIQUE INDEX ux_heads_account_record ON entity_heads (account_id, record_
 - **Unit**: arbitration (fast-forward / stale / gap / replay), concurrency 2-device (1 win + 1 conflict),
   account isolation, revoked device, rate limit.
 - **Security review**: zero-knowledge invariant, isolation, không plaintext trong log.
+
+Runtime evidence hiện có:
+
+- backend Phase A và Go production-transport contract E2E đã có; commit
+  `d54a72f` sửa contract cho namespaced client idempotency key;
+- `gateway/` có integration test cho Keycloak-compatible JWKS, audience reject,
+  header sanitization, internal signature/claims và public-only JWKS;
+- `keycloak/realm-devkit.json` cấu hình public client PKCE S256 và audience mapper;
+- Compose giữ Keycloak DB, service DB và sync private network tách biệt.
+- deployed smoke ngày 2026-08-10 xác nhận Keycloak browser login → Gateway
+  session → one encrypted push → pull/apply với desktop thật.
 
 ### Kiểm thử hoãn tới sau khi deploy BE thật (không phải mock)
 
@@ -340,16 +371,19 @@ client** (session/push/pull + arbitration + conflict cùng-version). Các hạng
 - **Hội tụ conflict 2-device end-to-end** trên BE thật (arbitration bền vững + resolution).
 - **Auth thật (Keycloak)**: token hết hạn, refresh, device revoke → `401/403` mapping.
 
-> Nhắc nhở tiến trình: hoàn tất BE (Phase A) → chạy đủ ma trận trên trước khi coi Phase 3
-> là **Implemented**.
+> Nhắc nhở tiến trình: BE Phase A, Gateway và desktop auth đã có runtime; phải
+> chạy đủ ma trận trên trước khi coi Phase 3 là **Implemented**.
 
 ## Phasing
 
-- **BE Phase A** (đóng Phase 3 sync): Keycloak auth (email/password + GitHub, username optional) +
-  `session/push/pull` + arbitration + conflicts + zero-knowledge storage. Cung cấp arbitration +
-  conflicts để client hoàn tất **conflict resolution + conflict UX** trên BE thật
-  (client MVP + mock E2E đã có; xem [`/dev-kit/data-sync`](/dev-kit/data-sync)).
-- **BE Phase B** (sau): token refresh, device management UI, server-side revocation flows,
+- **BE Phase A — Implemented**: `session/push/pull`, PostgreSQL arbitration,
+  conflicts, zero-knowledge storage, account/device session và revocation guard.
+- **Gateway milestone — Implemented**: Keycloak validation, identity sanitization,
+  short-lived internal JWT/JWKS, realm/client import và private-network Compose.
+- **Desktop auth milestone — Basic E2E pass**: Authorization Code + PKCE,
+  refresh/logout, OS-keychain refresh-token rotation và không còn nhập bearer
+  thủ công.
+- **BE Phase B — Sau**: device management UI, operational revocation flows,
   retention/backup, multi-region.
 
 import { Cards, Card } from 'fumadocs-ui/components/card';

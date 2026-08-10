@@ -41,12 +41,13 @@ trang kiểm chứng.
 ## Phase 3 — SaaS sync
 
 - Status: Partial
-- Goal: Xây local sync foundation zero-knowledge cho multi-device personal use mà chưa thêm SaaS backend production.
-- Evidence: `internal/sync/{contract,outbox,envelope,queue,transport,runner,session,httptransport}.go`; orchestration ở `internal/syncclient` + `internal/syncconflict`; persistent state/apply/conflicts ở `internal/syncstore`; bridge/UI ở `internal/bridge/{sync,syncresolve}.go` và `frontend/src/modules/sync`.
-- Current implementation: Phase 3B có authenticated transport/pull/apply/UI. Phase 3C tự capture local create/update/delete qua atomic mutation journal, materialize thành encrypted authenticated outbox khi `SyncNow`, cấp entity version đơn điệu và reconcile ACK theo current head. Local dirty/tombstone chưa ACK không bị remote overwrite/resurrect. Git-style conflict list/capture/resolve (ours/theirs/`merge` cho notes) đã có runtime + `cmd/mocksyncserver` E2E; không auto-winner.
+- Goal: Hoàn thiện sync zero-knowledge nhiều thiết bị từ desktop tới backend thật, với Keycloak là source identity và Gateway là trust boundary công khai.
+- Evidence client: `internal/sync/{contract,outbox,envelope,queue,transport,runner,session,httptransport}.go`; orchestration ở `internal/syncclient` + `internal/syncconflict`; persistent state/apply/conflicts ở `internal/syncstore`; bridge/UI ở `internal/bridge/{sync,syncresolve}.go` và `frontend/src/modules/sync`.
+- Evidence backend: companion checkout `/Users/syuro/Workspace/PERSONAL/dev-kit` có Spring Boot API `session/push/pull`, PostgreSQL arbitration/audit, gateway JWT validation và `gateway/` dùng Spring Cloud Gateway Server Web MVC để validate Keycloak token, strip spoofable headers, ký JWT nội bộ và publish JWKS.
+- Current implementation: Phase 3B/3C client và Git-style conflict flow đã có runtime + mock E2E. Backend Phase A, Gateway/Keycloak realm import, private-network Compose và desktop Authorization Code + PKCE/refresh-token rotation cũng đã có runtime/test. Basic deployment E2E đã pass (Keycloak login, session, push, pull, apply). Phase vẫn `Partial` vì chưa chạy ma trận hội tụ/retry/revocation với stack deploy thật.
 - Done when: Có sync client/queue/conflict flow đầy đủ, blob mã hóa end-to-end, device/session binding, pull/apply policy, bridge/UI tối thiểu, và security review chứng minh server không cần plaintext.
 - Dependencies: Local data model ổn định từ Phase 1, envelope/versioning rules từ Phase 0, và contract boundaries từ Phase 2.
-- Out of scope: SaaS backend production, team vault, realtime collaboration, server-side plaintext search.
+- Out of scope: Team vault, realtime collaboration và server-side plaintext search.
 
 ## Phase 4–5 — Plugins and marketplace
 
@@ -66,10 +67,11 @@ trang kiểm chứng.
 5. ✅ **Conflict resolve client đã xong (MVP)**: list → capture theirs → resolve
    ours/theirs/`merge` (notes-only); mock E2E qua `cmd/mocksyncserver`. Chi tiết:
    [`/dev-kit/data-sync`](/dev-kit/data-sync).
-6. **Tiếp theo**: production SaaS backend contract/deployment (Keycloak +
-   session/push/pull + arbitration). Thiết kế BE:
-   [`/dev-kit/saas-backend`](/dev-kit/saas-backend).
-7. **Hoãn tới sau khi deploy BE thật** (không phải mock): đa entity/đa record,
+6. ✅ **Backend Phase A + Gateway MVC đã có runtime**: Keycloak trust boundary,
+   session/push/pull, PostgreSQL arbitration/audit, internal JWT/JWKS và private
+   network Compose. Chi tiết: [`/dev-kit/saas-backend`](/dev-kit/saas-backend).
+7. **Tiếp theo**: chạy đa entity/đa record,
    latency/lỗi → retry/backoff, hội tụ conflict 2-device trên BE, auth Keycloak
-   thật, JetBrains 3-pane merge UI. Xem "Kiểm thử hoãn tới sau khi deploy BE thật"
+   thật và device revoke. JetBrains 3-pane merge UI có thể làm sau. Xem
+   "Kiểm thử hoãn tới sau khi deploy BE thật"
    ở [`/dev-kit/saas-backend`](/dev-kit/saas-backend).
