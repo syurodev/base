@@ -9,11 +9,12 @@ Backend là **target tùy chọn** của sync: chỉ lưu blob đã mã hóa + m
 xử version per-entity, và **không bao giờ thấy plaintext**. Thiết kế bám đúng contract client
 đã có trong `internal/sync` — xem [Data & sync](/dev-kit/data-sync).
 
-> Trạng thái: **Partial**. Backend Phase A và Gateway MVC đã có runtime trong
-> `/Users/syuro/Workspace/PERSONAL/dev-kit`; desktop PKCE và rotating refresh
-> token đã có runtime trong `/Users/syuro/Workspace/dev-kit`. Basic E2E trên
-> deployment thật đã pass ngày 2026-08-10: login, session, one push, pull và
-> apply. Ma trận multi-device/retry/revoke vẫn chưa hoàn tất.
+> Trạng thái: **Implemented** (Phase A closure). Backend Phase A và Gateway MVC đã có
+> runtime trong `/Users/syuro/Workspace/PERSONAL/dev-kit/dev-kit-backend` (commit
+> `cca601f`); desktop PKCE, enrollment handshake và rotating refresh token đã có
+> runtime trong worktree `feat/phase-3-sync-closure` (commit `7708b99`). Deployed
+> matrix G1–G4 pass ngày 2026-08-10 qua `go test ./cmd/synce2e/ -count=1 -timeout 15m`
+> trên Compose stack (Keycloak → Gateway → Sync API → PostgreSQL).
 
 ## Nguyên tắc
 
@@ -350,29 +351,39 @@ follow-up, không được thay thế correctness constraint bằng cache.
 Runtime evidence hiện có:
 
 - backend Phase A và Go production-transport contract E2E đã có; commit
-  `d54a72f` sửa contract cho namespaced client idempotency key;
+  `d54a72f` sửa contract cho namespaced client idempotency key; matrix runbook
+  ở `cca601f`;
 - `gateway/` có integration test cho Keycloak-compatible JWKS, audience reject,
   header sanitization, internal signature/claims và public-only JWKS;
 - `keycloak/realm-devkit.json` cấu hình public client PKCE S256 và audience mapper;
 - Compose giữ Keycloak DB, service DB và sync private network tách biệt.
 - deployed smoke ngày 2026-08-10 xác nhận Keycloak browser login → Gateway
   session → one encrypted push → pull/apply với desktop thật.
+- deployed matrix G1–G4 pass ngày 2026-08-10 qua `cmd/synce2e/` (commit
+  `7708b99`): multi-entity pull/apply, retry/idempotency, two-device conflict
+  convergence, refresh-expiry và device revoke.
 
-### Kiểm thử hoãn tới sau khi deploy BE thật (không phải mock)
+### Deployed matrix (`cmd/synce2e`)
 
-Mock server in-memory (`cmd/mocksyncserver`) chỉ đủ để phát triển **conflict flow phía
-client** (session/push/pull + arbitration + conflict cùng-version). Các hạng mục sau
-**cố ý hoãn** và **phải chạy với BE production** sau khi triển khai xong:
+Ma trận hội tụ trên Compose stack thật (không dùng `cmd/mocksyncserver`) chạy
+qua opt-in suite `cmd/synce2e/`:
 
-- **Đa entity / đa record**: sync đồng thời nhiều record/nhiều type (note + db + ssh),
-  bảo toàn thứ tự per-entity và cursor toàn account.
-- **Mô phỏng latency / lỗi → retry/backoff**: server chậm, `408/429/5xx`, ngắt kết nối
-  giữa chừng → kiểm outbox retry, lease reclaim, idempotency không tạo bản trùng.
-- **Hội tụ conflict 2-device end-to-end** trên BE thật (arbitration bền vững + resolution).
-- **Auth thật (Keycloak)**: token hết hạn, refresh, device revoke → `401/403` mapping.
+```bash
+# Compose stack up (gateway :8082, keycloak :8081, devkit-db)
+# Token fixture: DEVKIT_DEPLOYED_E2E_URL + DEVKIT_DEPLOYED_E2E_TOKEN
+set -a; . .superpowers/sdd/deployed-e2e.env; set +a
+go test ./cmd/synce2e/ -count=1 -timeout 15m
+```
 
-> Nhắc nhở tiến trình: BE Phase A, Gateway và desktop auth đã có runtime; phải
-> chạy đủ ma trận trên trước khi coi Phase 3 là **Implemented**.
+| Gate | Test | Pass khi |
+|---|---|---|
+| G1 | `TestG1MultiEntityPullApply` | Device A tạo/sửa note + database + ssh; device B pull/apply đủ; cursor tiến. |
+| G2 | `TestG2PushRetriesWithoutDuplicateLog` | `408`/`429`/`5xx` hoặc connection drop → retry; không tạo bản trùng. |
+| G3 | `TestG3Resolve*` | Hai device diverge; capture theirs; resolve ours/theirs/merge hội tụ. |
+| G4 | `TestG4RevokedDeviceRejected`, `TestG4ExpiredCredentialsClearSession` | Revoke → `401/403`; expired credentials → clear session. |
+
+Mock server in-memory (`cmd/mocksyncserver`) vẫn giữ regression cho conflict flow
+phía client; deployed matrix là evidence chính cho Phase 3 closure.
 
 ## Phasing
 
@@ -380,9 +391,9 @@ client** (session/push/pull + arbitration + conflict cùng-version). Các hạng
   conflicts, zero-knowledge storage, account/device session và revocation guard.
 - **Gateway milestone — Implemented**: Keycloak validation, identity sanitization,
   short-lived internal JWT/JWKS, realm/client import và private-network Compose.
-- **Desktop auth milestone — Basic E2E pass**: Authorization Code + PKCE,
-  refresh/logout, OS-keychain refresh-token rotation và không còn nhập bearer
-  thủ công.
+- **Desktop auth milestone — Implemented**: Authorization Code + PKCE,
+  enrollment handshake, refresh/logout, OS-keychain refresh-token rotation,
+  deployed matrix G1–G4 (`cmd/synce2e/`, commit `7708b99`).
 - **BE Phase B — Sau**: device management UI, operational revocation flows,
   retention/backup, multi-region.
 
