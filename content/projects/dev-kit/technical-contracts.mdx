@@ -168,6 +168,7 @@ Conflict resolve contract (client):
 | Tools | `ExecuteCommand` | `builtin.tools` / `tools:hash` / `command:<id>` | `internal/bridge/app_service.go`, `internal/commands/registry.go` | `tools.executeCommand` |
 | Search | `VaultSearch` | `builtin.search` / `vault:search` / `item:search` | `internal/bridge/search.go` | `vault.search` |
 | Sync | `SyncStatus`, `SyncConnect`, `SyncNow`, `SyncDisconnect`, `SyncConflicts`, `SyncConflictDetail`, `SyncResolveConflict` | `builtin.sync` / `sync:manage` / `sync:status`, `sync:connect`, `sync:run`, `sync:disconnect`, `sync:conflicts`, `sync:resolve` | `internal/bridge/{sync,syncresolve}.go`, `internal/syncclient`, `internal/syncconflict` | `sync.status`, `sync.conflicts` — Connect/Now/Disconnect/ResolveConflict để v2 |
+| Environments | `EnvListTags`, `EnvCreateTag`, `EnvUpdateTag`, `EnvDeleteTag` | `builtin.environments` / `env:read`\|`env:write` / `tag:list`, `tag:new`, `tag:<id>` | `internal/bridge/environments.go`, `internal/environments` | `env.listTags` only — Create/Update/Delete **không expose** qua MCP |
 | Modules | `ListModules` | no capability gate; registry read-through only | `internal/bridge/app_service.go`, `internal/modules/registry.go` | — (không cần, registry metadata thuần) |
 
 Hai quy tắc bridge quan trọng:
@@ -320,11 +321,12 @@ plaintext và `payload` mã hóa của `vault_items`):
 - Notes (`type = "note"`): `Body` được mã hóa trong payload, `Title` là plaintext
   metadata (`internal/notes/notes.go`).
 - Database profiles (`type = "db-profile"`): chỉ `Password` mã hóa; `Host`, `Port`,
-  `Database`, `Username`, `SSLMode` là metadata không nhạy cảm
-  (`internal/database/database.go`).
+  `Database`, `Username`, `SSLMode`, `env` là metadata không nhạy cảm
+  (`internal/database/database.go`). `env` bắt buộc lúc create và phải tồn tại
+  trong [Environments](/dev-kit/environments) registry.
 - SSH profiles (`type = "ssh-profile"`): chỉ `Secret` mã hóa; `Host`, `Port`,
-  `Username`, `AuthMethod`, `HostKeyFingerprint` là metadata không nhạy cảm
-  (`internal/ssh/ssh.go`).
+  `Username`, `AuthMethod`, `HostKeyFingerprint`, `env` là metadata không nhạy cảm
+  (`internal/ssh/ssh.go`). Cùng rule validate `env` như Database.
 - Vault keyring vẫn được lưu như một row riêng qua `internal/vault/sqlkeyringstore.go`.
 
 Storage file boundary:
