@@ -66,11 +66,15 @@ Builtin không xóa được (`DeleteTag` reject `IsBuiltin` / `Locked`).
 `CreateTag(name, requiresConfirmation)` → `isBuiltin=false`, `locked=false`.
 Trùng tên (builtin hoặc custom) → `ErrTagExists`.
 
-**Known gap (khớp code):** `DeleteTag` **chưa** chặn “tag đang được profile
-tham chiếu”. SSH/DB chỉ validate `Exists` lúc **create** profile. Khi wire MCP
-confirmation gate, reader phải fail-closed nếu tên env trên profile không
-resolve được (`requiresConfirmation = true`). Thêm cross-service in-use check
-khi UX cần chặn xóa.
+**Delete in-use (Implemented):** `DeleteTag` tra `ProfileEnvUsage` (composition
+root quét `ssh-profile` / `db-profile` metadata.env). Tag còn được profile
+tham chiếu → `ErrTagInUse` (`environment tag is in use`); bridge map
+`validation_failed`. Đổi profile sang tag khác rồi mới xóa được.
+
+SSH/DB vẫn chỉ validate `Exists` lúc **create**. Khi wire MCP confirmation
+gate, reader phải fail-closed nếu tên env trên profile không resolve được
+(`requiresConfirmation = true`) — phòng dữ liệu hỏng / race, không thay cho
+guard delete.
 
 ## Bridge & capability (Implemented)
 
