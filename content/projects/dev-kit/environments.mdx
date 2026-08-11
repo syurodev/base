@@ -1,12 +1,12 @@
 ---
 title: Environments
-description: Env tag registry (dev/stg/prod + custom) dùng cho SSH/Database profiles; MCP confirmation policy là design.
+description: Env tag registry (dev/stg/prod + custom) dùng cho SSH/Database/Kafka profiles; MCP confirmation policy là design.
 ---
 
 # Environments
 
 Environments là registry dùng chung cho **env tag** (`dev`, `stg`, `prod`, và
-tag tùy chỉnh). SSH và Database **bắt buộc** gán một tag hợp lệ khi tạo
+tag tùy chỉnh). SSH, Database, và Kafka **bắt buộc** gán một tag hợp lệ khi tạo
 profile (validate qua `EnvLookup.Exists`). Mỗi tag mang flag
 `requiresConfirmation` — dành cho **MCP confirmation policy** khi module MCP
 được triển khai; hiện tại registry + Settings UI đã ship, còn consumer MCP
@@ -31,6 +31,7 @@ flowchart TD
 
   SSH[internal/ssh] -->|EnvLookup.Exists at create| SVC
   DBMOD[internal/database] -->|EnvLookup.Exists at create| SVC
+  KAFKA[internal/kafka] -->|EnvLookup.Exists at create| SVC
   MCP[MCP confirmation gate] -.->|design| SVC
 ```
 
@@ -67,11 +68,11 @@ Builtin không xóa được (`DeleteTag` reject `IsBuiltin` / `Locked`).
 Trùng tên (builtin hoặc custom) → `ErrTagExists`.
 
 **Delete in-use (Implemented):** `DeleteTag` tra `ProfileEnvUsage` (composition
-root quét `ssh-profile` / `db-profile` metadata.env). Tag còn được profile
-tham chiếu → `ErrTagInUse` (`environment tag is in use`); bridge map
+root quét `ssh-profile` / `db-profile` / `kafka-profile` metadata.env). Tag còn
+được profile tham chiếu → `ErrTagInUse` (`environment tag is in use`); bridge map
 `validation_failed`. Đổi profile sang tag khác rồi mới xóa được.
 
-SSH/DB vẫn chỉ validate `Exists` lúc **create**. Khi wire MCP confirmation
+SSH/DB/Kafka vẫn chỉ validate `Exists` lúc **create**. Khi wire MCP confirmation
 gate, reader phải fail-closed nếu tên env trên profile không resolve được
 (`requiresConfirmation = true`) — phòng dữ liệu hỏng / race, không thay cho
 guard delete.
@@ -88,7 +89,7 @@ guard delete.
 Subject `builtin.environments`. Grants ở `internal/app/container.go`.
 `UpdateTag`/`DeleteTag` trên `prod` (locked) luôn reject ở service layer.
 
-## Cách SSH/Database dùng tag (Implemented)
+## Cách SSH/Database/Kafka dùng tag (Implemented)
 
 Profile lưu **tên tag** string trong metadata (`env`), không copy
 `requiresConfirmation`. Create path:
@@ -97,9 +98,8 @@ Profile lưu **tên tag** string trong metadata (`env`), không copy
 CreateProfile(..., Env) → reject if Env == "" || !envs.Exists(Env)
 ```
 
-UI: dropdown env trên `SSHView` / `DatabaseView` (load qua `EnvListTags`).
-
-Kafka (design) sẽ dùng cùng pattern khi module đó được implement.
+UI: dropdown env trên `SSHView` / `DatabaseView` / `KafkaView` (load qua
+`EnvListTags`).
 
 ## MCP tool surface (design — deferred)
 
@@ -135,6 +135,7 @@ import { Cards, Card } from 'fumadocs-ui/components/card';
 <Cards>
   <Card title="SSH" href="/dev-kit/ssh" description="env bắt buộc trên ssh-profile" />
   <Card title="Database" href="/dev-kit/database" description="env bắt buộc trên db-profile" />
+  <Card title="Kafka" href="/dev-kit/kafka" description="env bắt buộc trên kafka-profile" />
   <Card title="MCP / Agent" href="/dev-kit/mcp-agent" description="Confirmation gate — design" />
   <Card title="Implementation status" href="/dev-kit/implementation-status" />
   <Card title="Technical contracts" href="/dev-kit/technical-contracts" />

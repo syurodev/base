@@ -27,7 +27,8 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 | Tools | Implemented | `internal/tools/hash.go`, `internal/commands/registry.go`; test: `internal/tools/hash_test.go`; UI: `frontend/src/modules/tools/ToolsView.tsx`. | Mở rộng thêm tools khi product cần. |
 | SSH | Implemented | `internal/ssh/{ssh,hostkeys,forwarding}.go`; create bắt buộc `env` hợp lệ (`EnvLookup`); bridge `internal/bridge/ssh.go`; UI `frontend/src/modules/ssh/SSHView.tsx` (dropdown env). | Forward runtime-only, loopback-only. MCP active-profile / confirmation gate deferred. |
 | Database | Implemented | `internal/database/{database,pool}.go`; create bắt buộc `env` hợp lệ; bridge `internal/bridge/database.go`; UI `frontend/src/modules/database/DatabaseView.tsx` (dropdown env). Postgres/`pgx` only. | Multi-engine MySQL/MariaDB vẫn design. MCP active-profile / confirmation deferred. |
-| Environments | Implemented | `internal/environments/{environments,memory,sqlrepository}.go`; migration m12 `env_tags` seed `dev`/`stg`/`prod`; bridge `Env*`; UI Settings; `DeleteTag` chặn tag-in-use qua `ProfileEnvUsage` (`internal/app/envusage.go` quét ssh/db profiles). | MCP confirmation reader chưa có; fail-closed cho env không resolve vẫn bắt buộc khi wire MCP. |
+| Kafka | Implemented | `internal/kafka/{kafka,client,broker}.go`; create bắt buộc `env` hợp lệ; bridge `internal/bridge/kafka.go`; UI `frontend/src/modules/kafka/KafkaView.tsx` (dropdown env). franz-go client (pure Go). | MCP tool surface, cluster-selection popup flow, và env confirmation gate deferred. Schema Registry/Avro out of scope v1. |
+| Environments | Implemented | `internal/environments/{environments,memory,sqlrepository}.go`; migration m12 `env_tags` seed `dev`/`stg`/`prod`; bridge `Env*`; UI Settings; `DeleteTag` chặn tag-in-use qua `ProfileEnvUsage` (`internal/app/envusage.go` quét ssh/db/kafka profiles). | MCP confirmation reader chưa có; fail-closed cho env không resolve vẫn bắt buộc khi wire MCP. |
 | Vault item store | Implemented | `internal/vaultitem/vaultitem.go`, `internal/vaultitem/memory.go`, `internal/vaultitem/sqlrepository.go`, `internal/vaultitem/store.go`; tests: `internal/vaultitem/memory_test.go`, `internal/vaultitem/sqlrepository_test.go`, `internal/vaultitem/store_test.go`; bridge search: `internal/bridge/search.go`, `internal/bridge/search_test.go`. | Search hiện là substring trên metadata JSON; chưa có index trên cột `type`. |
 | Capability Gateway | Implemented | `internal/capabilities/gateway.go`, `internal/permissions/policy.go`, `internal/audit/events.go`, `internal/bridge/gateway.go`; tests: `internal/capabilities/gateway_test.go`, `internal/bridge/gateway_test.go`; grants gồm `builtin.search`/`vault:search`/`item:search` cho cross-type search. | Cần mở rộng policy khi external callers / plugin surface xuất hiện. |
 | ModuleManifest / Internal Extension API | Implemented | `internal/modules/registry.go` và `internal/app/app.go` định nghĩa/đăng ký manifest; `internal/bridge/app_service.go` expose public metadata (DTO co-located theo handler file); frontend manifests, parity validation và minimal functional UX ở `frontend/src/modules/{registry.ts,*/manifest.ts}` và `frontend/src/workbench/{Workbench.tsx,ActivityBar.tsx,CommandPalette.tsx}`; tests: `internal/modules/registry_test.go`, `internal/bridge/app_service_test.go`. | External plugin runtime chưa nằm trong scope. |
@@ -41,13 +42,14 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 
 - Checked on: 2026-08-11
 - DevKit checkout branch: `main`
-- DevKit checkout commit: `4389aae` (tip at doc sync)
-- DevKit checkout status: Environments registry + SSH/DB `env` required;
-  OIDC/`cloudconfig` Sync login; synce2e harness. MCP/Kafka vẫn design-only.
+- DevKit checkout commit: `31ab777` (tip at doc sync)
+- DevKit checkout status: Environments registry + SSH/DB/Kafka `env` required;
+  Kafka UI/bridge Implemented; OIDC/`cloudconfig` Sync login; synce2e harness.
+  MCP vẫn design-only.
 - Verification commands run (representative):
-  - `test -d internal/environments && test -d internal/auth && test -d internal/cloudconfig`
-  - `go test ./internal/arch/ ./internal/environments/ ./internal/ssh/ ./internal/database/ -count=1`
-  - `rg -n 'Env is required|unknown env tag' internal/ssh internal/database`
+  - `test -d internal/environments && test -d internal/auth && test -d internal/cloudconfig && test -d internal/kafka`
+  - `go test ./internal/arch/ ./internal/environments/ ./internal/ssh/ ./internal/database/ ./internal/kafka/ ./internal/bridge/ -count=1 -run 'Kafka|EnvInUse'`
+  - `rg -n 'Env is required|unknown env tag' internal/ssh internal/database internal/kafka`
 
 Phase 2 đã đạt `Implemented`. Environments registry Implemented. Phase 3 client
 vẫn `Partial` (conflict UX MVP + auth/cloudconfig có; MCP confirmation /
@@ -62,7 +64,11 @@ JetBrains 3-pane vẫn deferred).
   command execution, and loopback-only local/remote TCP forwarding. Forward
   sessions are runtime-only and stop on profile delete / app shutdown.
 - Database Postgres profiles cũng bắt buộc `env`; multi-engine vẫn design.
-- Environments Settings quản lý tag; `requiresConfirmation` chưa có MCP reader.
+- Kafka profiles bắt buộc `env`; UI/bridge path Implemented (profiles, connect,
+  topics, peek, consumer groups, publish). MCP tools và cluster-selection popup
+  flow vẫn design-only.
+- Environments Settings quản lý tag; `DeleteTag` scan gồm `kafka-profile`;
+  `requiresConfirmation` chưa có MCP reader.
 - MCP runtime is still design-only in this checkout.
 - External plugin runtime is still design-only in this checkout.
 - Sync client hiện có server-authoritative account session, runtime-only bearer,

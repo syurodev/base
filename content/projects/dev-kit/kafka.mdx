@@ -9,8 +9,12 @@ Kafka UI là built-in module cho DevKit để làm việc với 1 Kafka cluster 
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout type="warn" title="Design only">
-Chưa có `internal/kafka` trong checkout hiện tại. Trạng thái implementation thật nằm ở [Implementation status](/dev-kit/implementation-status).
+<Callout type="info" title="Implemented — UI + bridge; MCP deferred">
+Runtime có `internal/kafka`, bridge `Kafka*`, và UI `KafkaView`. Profiles, connect,
+topics, peek, consumer groups, và publish đi qua capability gateway (`kafka:connect` /
+`kafka:produce`). MCP tool surface, cluster-selection popup flow, và env confirmation
+gate vẫn **design only** — xem [MCP / Agent](/dev-kit/mcp-agent) và
+[Implementation status](/dev-kit/implementation-status).
 </Callout>
 
 ```mermaid
@@ -225,7 +229,7 @@ sequenceDiagram
 
 Hai tầng tách riêng: **lưu trữ** nhiều profile cùng lúc (giống SSH/Database, vì dev thường có nhiều cluster cố định dev/staging/prod cần cấu hình sẵn), nhưng **kết nối** chỉ 1 tại một thời điểm — giống mô hình "1 active" của Code Graph, áp cho tầng connection chứ không áp cho tầng storage.
 
-### Bridge & capability (design)
+### Bridge & capability (Implemented)
 
 | Method | Capability | Scope |
 |---|---|---|
