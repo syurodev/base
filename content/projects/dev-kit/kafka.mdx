@@ -9,8 +9,12 @@ Kafka UI là built-in module cho DevKit để làm việc với 1 Kafka cluster 
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout type="warn" title="Design only">
-Chưa có `internal/kafka` trong checkout hiện tại. Trạng thái implementation thật nằm ở [Implementation status](/dev-kit/implementation-status).
+<Callout type="info" title="Implemented — UI + bridge; MCP deferred">
+Runtime có `internal/kafka`, bridge `Kafka*`, và UI `KafkaView`. Profiles, connect,
+topics, peek, consumer groups, và publish đi qua capability gateway (`kafka:connect` /
+`kafka:produce`). MCP tool surface, cluster-selection popup flow, và env confirmation
+gate vẫn **design only** — xem [MCP / Agent](/dev-kit/mcp-agent) và
+[Implementation status](/dev-kit/implementation-status).
 </Callout>
 
 ```mermaid
@@ -53,7 +57,7 @@ Khi debug 1 consumer bị lag, muốn xem message thật trong topic, hoặc c�
 
 | ID | Requirement |
 |---|---|
-| FR-1 | User tạo được connection profile Kafka (bootstrap servers, security protocol, SASL mechanism, credential, **`env` bắt buộc** — `dev`/`stg`/`prod`) — lưu qua vaultitem, cùng pattern SSH/Database. Lưu được **nhiều** profile cùng lúc. |
+| FR-1 | User tạo được connection profile Kafka (bootstrap servers, security protocol, SASL mechanism, credential, **`env` bắt buộc**) — lưu qua vaultitem, cùng pattern SSH/Database đã Implemented (validate qua [Environments](/dev-kit/environments) registry). Lưu được **nhiều** profile cùng lúc. |
 | FR-2 | Connect 1 profile để đưa cluster đó thành "online" (`KafkaConnect`). Tại một thời điểm, `KafkaService` chỉ giữ **đúng 1** connection sống — connect sang profile khác tự đóng connection hiện tại trước khi mở connection mới, không có khoảng nào 2 cluster cùng online. |
 | FR-3 | List topic trong cluster đang online, kèm số partition + replication factor. |
 | FR-4 | Peek N message gần nhất (mặc định nhỏ, ví dụ 50) của 1 topic/partition trong cluster đang online, từ offset cụ thể hoặc `latest`. |
@@ -225,7 +229,7 @@ sequenceDiagram
 
 Hai tầng tách riêng: **lưu trữ** nhiều profile cùng lúc (giống SSH/Database, vì dev thường có nhiều cluster cố định dev/staging/prod cần cấu hình sẵn), nhưng **kết nối** chỉ 1 tại một thời điểm — giống mô hình "1 active" của Code Graph, áp cho tầng connection chứ không áp cho tầng storage.
 
-### Bridge & capability (design)
+### Bridge & capability (Implemented)
 
 | Method | Capability | Scope |
 |---|---|---|
@@ -264,7 +268,7 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 
 `kafka.connect`/`kafka.disconnect` **không phải MCP tool** — cùng lý do "human-only action" đã ghi ở mục Bridge & capability. Cũng **không expose `KafkaCreateProfile`/`KafkaDeleteProfile`** qua MCP — nhận secret trực tiếp qua tham số, cùng lý do đã áp cho SSH/Database.
 
-**"Hỏi quyền theo policy env tag"**: vì `env` là field bắt buộc trên mọi profile (FR-1), 5 tool ở trên tra `requiresConfirmation` của tag đó ([Environments](/dev-kit/environments)) trước khi chạy — nếu tag đó bật xác nhận, call phải qua xác nhận tương tác mỗi lần, kể cả `kafka.listTopics`/`describeTopic`/`peekMessages`/`listConsumerGroups` dù chỉ là `read`, không có `allow_always`. `env=prod` **luôn** bật (khóa cứng, không tắt được); `dev`/`stg` mặc định tắt nhưng bật lên được. Chi tiết cơ chế: [MCP / Agent § `env` bắt buộc](/dev-kit/mcp-agent). `kafka.listProfiles`/`kafka.connectionStatus` **không** bị luật này — chỉ đọc metadata/status, không chạm cluster thật.
+**"Hỏi quyền theo policy env tag"**: vì `env` là field bắt buộc trên mọi profile (FR-1), 5 tool ở trên tra `requiresConfirmation` của tag đó ([Environments](/dev-kit/environments)) trước khi chạy — nếu tag đó bật xác nhận, call phải qua xác nhận tương tác mỗi lần (Allow/Deny), **env luôn thắng** mọi `allow_always` đã nhớ; nếu tag không bật confirmation, dialog có thể Offer Allow always (cache theo tool tới restart). `env=prod` **luôn** bật (khóa cứng); `dev`/`stg` mặc định tắt nhưng bật lên được. Chi tiết: [MCP / Agent](/dev-kit/mcp-agent). `kafka.listProfiles`/`kafka.connectionStatus` **không** bị luật này.
 
 ### Error handling
 

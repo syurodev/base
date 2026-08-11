@@ -29,14 +29,15 @@ flowchart LR
 |---|---|
 | Record `type` | `db-profile` |
 | Payload `key_id` | `db-password` |
-| Metadata (plaintext) | `Host`, `Port`, `Database`, `Username`, `SSLMode`, `Env` |
+| Metadata (plaintext) | `Host`, `Port`, `Database`, `Username`, `SSLMode`, **`env`** |
 | Payload (encrypted) | `Password` |
 
-`Env` là bắt buộc: `DBCreateProfile` reject nếu thiếu hoặc tên tag không tồn tại trong registry [Environments](/dev-kit/environments) (qua `EnvLookup.Exists(name)`, `internal/database/database.go`).
-
-Driver hiện tại là `pgx` (`internal/database/pool.go`) — chỉ nói chuyện được
-với PostgreSQL. Không có field phân biệt engine trong metadata vì chưa cần —
-đây chính là phần phải thêm khi mở rộng driver (xem phần Design bên dưới).
+- **`env` (Implemented):** tên tag trong [Environments](/dev-kit/environments).
+  `DBCreateProfile` reject nếu thiếu hoặc tag không tồn tại. UI create form có
+  dropdown env (`EnvListTags`).
+- Driver hiện tại là `pgx` (`internal/database/pool.go`) — chỉ PostgreSQL.
+  Không có field `engine` trong metadata vì chưa cần — thêm khi mở rộng
+  driver (xem Design bên dưới).
 
 ## TLS default và giới hạn runtime (hiện tại — Postgres)
 
@@ -214,16 +215,13 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 | `db.activeProfile` | `read` | `builtin.database` / `db:query` / `profile:active` | Trả `{profileId?}` — agent chỉ đọc, không tự đổi |
 | `db.query` | `execute` (`destructiveHint`) | `builtin.database` / `db:query` / `profile:active` | Không nhận `profileId` — chạy trên **active profile cho agent**. Không phân biệt SELECT/UPDATE — coi mọi query là có thể phá dữ liệu. Hỏi quyền theo policy env tag (xem dưới) |
 
-**"Hỏi quyền theo policy env tag"**: field bắt buộc `Env` trên metadata
-`db-profile` đã **Implemented** (xem Vaultitem contract ở trên). Phần còn
-design: `db.query` qua MCP tra `requiresConfirmation` của tag đó trước khi
-chạy — chưa có vì chưa có MCP runtime để đọc field này. Khi có, thiết kế là:
-nếu bật, phải xác nhận tương tác mỗi lần gọi, không có `allow_always`;
-`env=prod` luôn bật (khóa cứng, đã đúng ở tầng `internal/environments.Service`);
-`dev`/`stg` mặc định tắt nhưng bật lên được. Chi tiết cơ chế:
-[MCP / Agent § `env` bắt buộc](/dev-kit/mcp-agent). `db.listProfiles`/
-`db.testConnection`/`db.activeProfile` không bị luật này — chỉ đọc
-metadata/status hoặc test kết nối tạm thời.
+**"Hỏi quyền theo policy env tag" (MCP — Implemented):** field `env` trên
+`db-profile` **đã Implemented** (create-time validate + UI dropdown). `db.query`
+qua MCP tra `requiresConfirmation` của tag trước khi chạy — nếu bật, xác nhận
+mỗi lần gọi (**env thắng** `allow_always`); khi env không bắt confirmation có
+thể Allow always. `env=prod` luôn bật (locked). Unresolvable env → fail closed.
+Chi tiết: [MCP / Agent](/dev-kit/mcp-agent), [Environments](/dev-kit/environments).
+`db.listProfiles` / `db.testConnection` / `db.activeProfile` không bị luật này.
 
 **Không expose qua MCP ở v1**: `DBCreateProfile` / `DBDeleteProfile` — nhận
 password trực tiếp qua tham số, để v2 sau khi có UI permission review cho MCP.

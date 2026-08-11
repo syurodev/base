@@ -25,72 +25,74 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 | Vault | Implemented | `internal/vault/service.go`, `internal/vault/keyringstore.go`, `internal/vault/sqlkeyringstore.go`; tests: `internal/vault/service_test.go`, `internal/vault/keyringstore_test.go`, `internal/vault/sqlkeyringstore_test.go`; UI: `frontend/src/workbench/VaultGate.tsx`. | Hoàn thiện UX và policy cho recovery / strength hints nếu cần. |
 | Notes | Implemented | `internal/notes/notes.go` (thin adapter trên `vaultitem.Store`); tests: `internal/notes/notes_test.go`; UI: `frontend/src/modules/notes/NotesView.tsx`. | Title vẫn là metadata plaintext; cần encrypt title nếu titles ever sync. |
 | Tools | Implemented | `internal/tools/hash.go`, `internal/commands/registry.go`; test: `internal/tools/hash_test.go`; UI: `frontend/src/modules/tools/ToolsView.tsx`. | Mở rộng thêm tools khi product cần. |
-| SSH | Implemented | `internal/ssh/ssh.go`, `internal/ssh/hostkeys.go`, `internal/ssh/forwarding.go`; tests: `internal/ssh/ssh_test.go`, `internal/ssh/hostkeys_test.go`, `internal/ssh/forwarding_test.go`, `internal/ssh/integration_test.go`; bridge: `internal/bridge/ssh.go`; UI: `frontend/src/modules/ssh/SSHView.tsx`. | Forward definitions are runtime-only; local and remote listeners are loopback-only. Future work may add richer UX or policy prompts. |
-| Database | Implemented | `internal/database/database.go` (thin adapter trên `vaultitem.Store`), `internal/database/pool.go`; tests: `internal/database/database_test.go`, `internal/database/pool_test.go`, `internal/database/integration_test.go`; UI: `frontend/src/modules/database/DatabaseView.tsx`. | SQLite vẫn là application-layer encrypted profile store, không phải full-disk DB encryption. |
+| SSH | Implemented | `internal/ssh/{ssh,hostkeys,forwarding,active}.go`; create bắt buộc `env` hợp lệ (`EnvLookup`); bridge `internal/bridge/ssh.go` + active profile; UI `frontend/src/modules/ssh/SSHView.tsx` (dropdown env). | Forward runtime-only, loopback-only. |
+| Database | Implemented | `internal/database/{database,pool,active}.go`; create bắt buộc `env` hợp lệ; bridge `internal/bridge/database.go` + active profile; UI `frontend/src/modules/database/DatabaseView.tsx` (dropdown env). Postgres/`pgx` only. | Multi-engine MySQL/MariaDB vẫn design. |
+| Kafka | Implemented | `internal/kafka/{kafka,client,broker,active}.go`; create bắt buộc `env` hợp lệ; bridge `internal/bridge/kafka.go` + active cluster; UI `frontend/src/modules/kafka/KafkaView.tsx` (dropdown env). franz-go client (pure Go). | Schema Registry/Avro out of scope v1. |
+| Environments | Implemented | `internal/environments/{environments,memory,sqlrepository}.go`; migration m12 `env_tags` seed `dev`/`stg`/`prod`; `RequiresConfirmation` fail-closed; bridge `Env*`; UI Settings; `DeleteTag` chặn tag-in-use qua `ProfileEnvUsage` (`internal/app/envusage.go` quét ssh/db/kafka profiles). | — |
 | Vault item store | Implemented | `internal/vaultitem/vaultitem.go`, `internal/vaultitem/memory.go`, `internal/vaultitem/sqlrepository.go`, `internal/vaultitem/store.go`; tests: `internal/vaultitem/memory_test.go`, `internal/vaultitem/sqlrepository_test.go`, `internal/vaultitem/store_test.go`; bridge search: `internal/bridge/search.go`, `internal/bridge/search_test.go`. | Search hiện là substring trên metadata JSON; chưa có index trên cột `type`. |
 | Capability Gateway | Implemented | `internal/capabilities/gateway.go`, `internal/permissions/policy.go`, `internal/audit/events.go`, `internal/bridge/gateway.go`; tests: `internal/capabilities/gateway_test.go`, `internal/bridge/gateway_test.go`; grants gồm `builtin.search`/`vault:search`/`item:search` cho cross-type search. | Cần mở rộng policy khi external callers / plugin surface xuất hiện. |
 | ModuleManifest / Internal Extension API | Implemented | `internal/modules/registry.go` và `internal/app/app.go` định nghĩa/đăng ký manifest; `internal/bridge/app_service.go` expose public metadata (DTO co-located theo handler file); frontend manifests, parity validation và minimal functional UX ở `frontend/src/modules/{registry.ts,*/manifest.ts}` và `frontend/src/workbench/{Workbench.tsx,ActivityBar.tsx,CommandPalette.tsx}`; tests: `internal/modules/registry_test.go`, `internal/bridge/app_service_test.go`. | External plugin runtime chưa nằm trong scope. |
-| Sync / Replication client | Implemented | Phase 3B transport/pull/apply, Phase 3C local mutation flow và **Git-style conflict resolve** đã có. `internal/auth` dùng Authorization Code + PKCE S256 qua system browser + loopback callback, refresh-token rotation trong OS keychain và access token chỉ in-memory. `syncclient.ConnectWithTokenSource` lấy token mới trước request; `SyncConnect` pin Gateway `https://api.synx.io.vn`. Enrollment token gửi trên sync session handshake (`83b15e5`). Deployed matrix G1–G4 pass qua `cmd/synce2e/` trên Compose stack (branch `feat/phase-3-sync-closure`, commit `7708b99`): multi-entity pull/apply, retry/idempotency, two-device conflict convergence, refresh-expiry và device revoke. Evidence: `internal/auth/{service,keyring_store}.go`, `internal/syncclient/{service,connect,syncnow}.go`, `internal/bridge/sync.go`, `cmd/synce2e/`; tests `internal/auth/service_test.go`, `internal/bridge/sync_test.go`, `go test ./cmd/synce2e/ -count=1 -timeout 15m`. | JetBrains 3-pane merge UI vẫn deferred UX polish, không phải blocker Phase 3. |
-| Sync SaaS backend + auth gateway | Implemented | Companion checkout `/Users/syuro/Workspace/PERSONAL/dev-kit/dev-kit-backend` (branch `main`, commit `cca601f`): Spring Boot `session/push/pull`, PostgreSQL 18 Liquibase schema, account/device registration + revoke guard, atomic arbitration/audit và Go transport contract E2E. `gateway/` dùng Spring Cloud Gateway MVC để validate Keycloak JWT, strip identity/proxy headers, ký JWT nội bộ ≤45s và publish public JWKS. Deployed matrix G1–G4 pass qua desktop `cmd/synce2e/` trên Compose stack; matrix runbook ở `cca601f`. | Phase B follow-up: device management UI, operational revocation flows, distributed rate limit, key-rotation runbook, retention/backup, multi-region. |
-| MCP | Design only | Centralized architecture sources: `/dev-kit/mcp-agent`, `/dev-kit/system-overview`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/mcp`. | Xây MCP runtime, tool registry, transport, and confirmation flow. |
+| Sync / Replication client | Implemented | Phase 3B transport/pull/apply, Phase 3C local mutation flow và **Git-style conflict resolve** đã có. `internal/auth` dùng Authorization Code + PKCE S256 qua system browser + loopback callback, refresh-token rotation trong OS keychain và access token chỉ in-memory. `syncclient.ConnectWithTokenSource` lấy token mới trước request; `SyncConnect` pin Gateway `https://api.synx.io.vn`. Enrollment token gửi trên sync session handshake. Deployed matrix G1–G4 pass qua `cmd/synce2e/` trên Compose stack. Evidence: `internal/auth/{service,keyring_store}.go`, `internal/syncclient/{service,connect,syncnow}.go`, `internal/bridge/sync.go`, `cmd/synce2e/`; tests `internal/auth/service_test.go`, `internal/bridge/sync_test.go`, `go test ./cmd/synce2e/ -count=1 -timeout 15m`. | JetBrains 3-pane merge UI vẫn deferred UX polish, không phải blocker Phase 3. |
+| Sync SaaS backend + auth gateway | Implemented | Companion checkout `/Users/syuro/Workspace/PERSONAL/dev-kit/dev-kit-backend` (branch `main`): Spring Boot `session/push/pull`, PostgreSQL Liquibase schema, account/device registration + revoke guard, atomic arbitration/audit. `gateway/` validate Keycloak JWT, strip identity/proxy headers, ký JWT nội bộ ≤45s, publish JWKS, và `GET /v1/desktop/config`. Deployed matrix G1–G4 pass qua desktop `cmd/synce2e/`. | Phase B follow-up: device management UI, operational revocation flows, key-rotation runbook, retention/backup. |
+| MCP | Implemented | `internal/mcp` (socket host + tools), `cmd/devkit-mcp` (stdio proxy + install), `internal/interaction` (selection/confirmation; headless fail-fast); install `claude-code`/`codex` × `global`/`project`; env-wins over `allow_always`. | Resources / Streamable HTTP deferred. Not production-verified vs real Claude Code in CI — desktop smoke recommended. |
 | External plugins | Design only | Centralized architecture sources: `/dev-kit/plugins`, `/dev-kit/repo-structure`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/plugins`. | Build plugin SDK, loader, isolation, permissioning, and lifecycle. |
 | Marketplace | Design only | Centralized architecture sources: `/dev-kit/plugins`, `/dev-kit/core-foundation`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/marketplace`. | Signing, integrity checks, rollback, and controlled distribution model. |
 | Vault item repository | Implemented | Unified store thay 3 store riêng: `internal/vaultitem/*` với bảng `vault_items`; notes/database/ssh là thin adapter; cross-type search qua `VaultSearch`. Xem dòng "Vault item store" ở trên. | App hiện greenfield, chưa có legacy data nên migration `m6` không cần backfill. Chỉ thêm migration/backfill trước khi hỗ trợ upgrade từ bản đã có dữ liệu; vẫn cần migration/re-encrypt khi đổi envelope hoặc rotate `key_version`, và index khi search lớn. |
-| Environments (env tag registry) | Partial | Registry + policy: `internal/environments/{environments,memory,sqlrepository}.go`; migration `env_tags` (m12) + builtin seed dev/stg/prod: `internal/storage/sqlite.go`; bridge: `internal/bridge/environments.go` (`EnvListTags`/`EnvCreateTag`/`EnvUpdateTag`/`EnvDeleteTag`); grants `builtin.environments`/`env:read`,`env:write` trong `internal/app/container.go`; SSH/Database bắt buộc `env` hợp lệ khi tạo profile qua `EnvLookup` interface riêng (`internal/ssh/ssh.go`, `internal/database/database.go`) — không import `internal/environments` (accept interfaces, return structs); layering pin ở `internal/arch/arch_test.go`. Tests: `internal/environments/*_test.go`, `internal/bridge/environments_test.go`, cộng test env-validation trong `internal/ssh`/`internal/database`. Frontend: module `settings` (`frontend/src/modules/settings/{SettingsView,manifest}.tsx`) list/create/toggle-`requiresConfirmation`/delete tag qua đúng 4 bridge method trên, cộng dropdown read-only trong form tạo SSH/Database profile (`frontend/src/bridge/environments.ts`, `SSHView.tsx`, `DatabaseView.tsx`). | MCP tool surface (`env.listTags`) và toàn bộ cơ chế đọc `RequiresConfirmation` để hỏi quyền vẫn design only — không có runtime nào đọc field này (chưa có MCP). Không có "tag in use by profile" guard khi xóa tag tùy chỉnh (deliberate cut, xem comment `ponytail:` ở `internal/environments/environments.go`). Kafka module chưa tồn tại nên chưa dùng registry. |
 
 ## Verified snapshot
 
-- Checked on: 2026-08-10
-- DevKit checkout branch: `feat/phase-3-sync-closure` (worktree
-  `dev-kit-app/.superpowers/.worktrees/phase-3-sync-closure`)
-- DevKit checkout commit: `7708b99` (matrix reset fix + G1–G4 evidence)
-- DevKit checkout status: desktop OIDC integration, enrollment handshake,
-  `cmd/synce2e` deployed matrix G1–G4 green trên Compose stack; Phase 3 closure
-  đạt `Implemented`.
+- Checked on: 2026-08-11
+- DevKit checkout branch: `main`
+- DevKit checkout commit: `f3de839`
+- DevKit checkout status: Phase 3 sync closure `Implemented` (PKCE auth,
+  cloudconfig, enrollment, conflict resolve, deployed matrix G1–G4 evidence);
+  MCP runtime + install `Implemented` (`internal/mcp`, `cmd/devkit-mcp`,
+  `internal/interaction`; env-wins over `allow_always`); Kafka UI path
+  `Implemented`. Resources / Streamable HTTP deferred.
 - Verification commands run (representative):
-  - `git rev-parse HEAD` → `7708b99`
-  - `set -a; . .superpowers/sdd/deployed-e2e.env; set +a`
-  - `go test ./cmd/synce2e/ -count=1 -timeout 15m` → PASS (G1–G4)
-  - `go test ./internal/arch/ ./internal/sync ./internal/syncclient ./cmd/mocksyncserver/ -count=1`
-  - `go vet -tags server ./...`
+  - `go test ./cmd/synce2e/ -count=1 -timeout 15m` → PASS (G1–G4, prior evidence)
+  - `go test ./internal/mcp/... ./internal/interaction/ ./internal/ssh/ ./internal/database/ ./internal/kafka/ ./internal/bridge/ ./internal/environments/ ./internal/arch/ ./internal/app/ -count=1`
+  - `go vet -tags server ./internal/mcp/... ./internal/interaction/ ./cmd/devkit-mcp/`
   - `cd frontend && bun run build`
 
-Phase 2 và Phase 3 đều đạt `Implemented`. Phase 3 closure dựa trên deployed
-matrix G1–G4 (`cmd/synce2e/`) trên Compose stack thật, không chỉ mock smoke.
+Phase 2, Phase 3 sync, Environments, Kafka, và MCP runtime đều `Implemented`.
+JetBrains 3-pane merge UI vẫn deferred UX polish.
 
 ## Companion backend snapshot
 
-- Checked on: 2026-08-10
+- Checked on: 2026-08-11
 - Backend checkout: `/Users/syuro/Workspace/PERSONAL/dev-kit/dev-kit-backend`,
-  branch `main`, verified commit `cca601f` (matrix runbook).
-- Gateway milestone có Gradle subproject
-  `gateway/`, Keycloak realm import, API/Gateway Docker images và private sync
-  network trong Compose.
-- Verification đã chạy:
+  branch `main`, commit `c6045f8`.
+- Gateway milestone có Gradle subproject `gateway/`, Keycloak realm import,
+  API/Gateway Docker images, desktop remote config (`GET /v1/desktop/config`),
+  và private sync network trong Compose.
+- Verification đã chạy (prior + ongoing):
   - `./gradlew clean check bootJar :gateway:bootJar`;
-  - `docker compose config --quiet`;
-  - build thành công cả `devkit-api` và `devkit-gateway` images;
-  - live health/discovery/JWKS smoke pass; unauthenticated sync trả `401`;
-  - desktop Keycloak login, Gateway session, one encrypted push và pull/apply
-    trên deployment thật đều pass.
-  - Keycloak client `devkit-desktop` là public client, standard flow bật,
-    direct grant tắt, PKCE `S256`, audience mapper là `devkit-sync-gateway`.
+  - live health/discovery/JWKS smoke; unauthenticated sync trả `401`;
+  - desktop Keycloak login, Gateway session, encrypted push/pull trên deployment
+    thật; Keycloak client `devkit-desktop` public + PKCE `S256`, audience
+    `devkit-sync-gateway`.
 
 ## Current limitations
 
 - SQLite storage is application-layer encrypted via vault envelopes and file
   permissions, not full-disk database encryption.
 - Note titles stay plaintext local metadata for now.
-- SSH covers profiles, exact host-key trust, test connection, command execution,
-  and loopback-only local/remote TCP forwarding. Forward sessions are runtime-only
-  and are stopped when the profile is deleted or the app shuts down.
-- MCP runtime is still design-only in this checkout.
-- Env tag registry backend is Implemented (`internal/environments`, migration
-  `env_tags`, bridge methods), SSH/Database already require a valid `env` on
-  profile creation, and a Settings UI now covers full tag CRUD
-  (`frontend/src/modules/settings`), but nothing yet reads
-  `RequiresConfirmation` — the MCP confirmation gate this registry exists for
-  is still design only.
+- SSH covers profiles (required `env` tag), exact host-key trust, test connection,
+  command execution, and loopback-only local/remote TCP forwarding. Forward
+  sessions are runtime-only and stop on profile delete / app shutdown. MCP sticky
+  active profile + env confirmation gate are Implemented.
+- Database Postgres profiles cũng bắt buộc `env`; multi-engine vẫn design. MCP
+  active profile + confirmation Implemented.
+- Kafka profiles bắt buộc `env`; UI/bridge path Implemented (profiles, connect,
+  topics, peek, consumer groups, publish). MCP tools + cluster-selection popup +
+  env confirmation Implemented (headless fail-fast).
+- Environments Settings quản lý tag; `DeleteTag` scan gồm `kafka-profile`;
+  `RequiresConfirmation` fail-closed feeds MCP confirmation (env wins over
+  `allow_always`).
+- MCP: Implemented runtime (socket host, stdio proxy, tools, install for
+  `claude-code`/`codex` × `global`/`project`). Resources / Streamable HTTP
+  deferred. Not production-verified against a real Claude Code session in CI.
 - External plugin runtime is still design-only in this checkout.
 - Sync client hiện có server-authoritative account session, runtime-only bearer,
   HTTPS transport (HTTP chỉ cho loopback), encrypted push/pull, transactional
@@ -111,8 +113,9 @@ matrix G1–G4 (`cmd/synce2e/`) trên Compose stack thật, không chỉ mock sm
   compatibility warning, unavailable-module và empty states ở mức tối thiểu.
   `capabilities` chỉ là declaration metadata, grants vẫn do capability
   gateway/policy quản lý.
-- External plugin runtime, dynamic loading, marketplace và MCP runtime vẫn ngoài
-  scope của Phase 2; sync được triển khai riêng trong Phase 3.
+- External plugin runtime, dynamic loading, và marketplace vẫn ngoài scope của
+  Phase 2; sync được triển khai riêng trong Phase 3. MCP runtime + install đã
+  Implemented (Resources / Streamable HTTP deferred).
 - Vault-item repository is now implemented: một bảng `vault_items` + `internal/vaultitem`
   store, notes/database/ssh là thin adapter, cross-type search qua `VaultSearch`.
   Cross-type search hiện là substring trên metadata JSON và chưa có index trên cột `type`.

@@ -19,7 +19,7 @@ Phần lớn contract public hiện tại đi theo chuỗi capability-gated buil
 
 `frontend/src/bridge/*` → `internal/bridge/AppService.*` →
 `AppService.call(...)` → `internal/capabilities/Gateway.Call(...)` →
-`internal/{vaultitem,notes,database,ssh,tools,syncclient,syncconflict,…}` hoặc `internal/commands/Registry.Execute(...)` →
+`internal/{vaultitem,notes,database,ssh,kafka,tools,syncclient,syncconflict,…}` hoặc `internal/commands/Registry.Execute(...)` →
 `Repository` / `internal/storage` / `internal/syncstore` / endpoint bên ngoài.
 
 Hai ngoại lệ hiện có cần đọc cùng boundary này:
@@ -34,7 +34,7 @@ Hai ngoại lệ hiện có cần đọc cùng boundary này:
 Boundary này được thể hiện ở:
 
 - `frontend/src/bridge/client.ts`
-- `frontend/src/bridge/{notes,database,ssh,vault,commands}.ts`
+- `frontend/src/bridge/{notes,database,ssh,kafka,vault,commands}.ts`
 - `internal/bridge/app_service.go`
 - `internal/bridge/gateway.go`
 - `internal/capabilities/gateway.go`
@@ -68,7 +68,7 @@ hoặc permission grant trong manifest. Contract hiện tại gồm:
 Backend `internal/modules.Registry` validate manifest trước khi mutate state,
 reject duplicate module/command/view/capability, và trả list deterministic với
 snapshot caller-owned. Built-in descriptors hiện được đăng ký từ
-`internal/app/app.go` cho `tools`, `notes`, `database`, `ssh` và `sync`.
+`internal/app/app.go` cho `tools`, `notes`, `database`, `ssh`, `kafka` và `sync`.
 
 `apiVersion` là compatibility field của contract; type giữ tên
 `ModuleManifest`. Khi permission được thực thi, grants vẫn phải được cấp
@@ -169,10 +169,11 @@ Conflict resolve contract (client):
 | Database | `DBListProfiles`, `DBCreateProfile`, `DBDeleteProfile`, `DBTestConnection`, `DBQuery` | `builtin.database` / `db:query` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/database.go` | `db.listProfiles`, `db.query` — CreateProfile/DeleteProfile để v2 |
 | SSH | `SSHListProfiles`, `SSHCreateProfile`, `SSHDeleteProfile`, `SSHObserveHostKey`, `SSHTrustHostKey`, `SSHTestConnection`, `SSHRunCommand` | `builtin.ssh` / `ssh:connect` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/ssh.go` | `ssh.listProfiles`, `ssh.testConnection`, `ssh.runCommand` — CreateProfile/DeleteProfile/ObserveHostKey/TrustHostKey **không expose** |
 | SSH forwarding | `SSHStartForward`, `SSHListForwards`, `SSHStopForward` | `builtin.ssh` / `ssh:forward` / `profile:<id>`, `forward:list`, `forward:<id>` | `internal/bridge/ssh.go`, `internal/ssh/forwarding.go` | — (non-goal, không expose qua MCP) |
+| Kafka | `KafkaListProfiles`, `KafkaCreateProfile`, `KafkaDeleteProfile`, `KafkaTestConnection`, `KafkaConnect`, `KafkaDisconnect`, `KafkaConnectionStatus`, `KafkaListTopics`, `KafkaDescribeTopic`, `KafkaPeekMessages`, `KafkaListConsumerGroups`, `KafkaPublishMessage` | `builtin.kafka` / `kafka:connect` hoặc `kafka:produce` / `profile:list`, `profile:new`, `profile:<id>`, `connection` | `internal/bridge/kafka.go`, `internal/kafka` | `kafka.listProfiles`, `kafka.connectionStatus`, `kafka.listTopics`, `kafka.describeTopic`, `kafka.peekMessages`, `kafka.listConsumerGroups`, `kafka.publishMessage` — **design only**; CreateProfile/DeleteProfile/Connect/Disconnect **không expose** |
 | Tools | `ExecuteCommand` | `builtin.tools` / `tools:hash` / `command:<id>` | `internal/bridge/app_service.go`, `internal/commands/registry.go` | `tools.executeCommand` |
 | Search | `VaultSearch` | `builtin.search` / `vault:search` / `item:search` | `internal/bridge/search.go` | `vault.search` |
 | Sync | `AuthStatus`, `AuthLogin`, `AuthLogout`, `SyncStatus`, `SyncConnect`, `SyncNow`, `SyncDisconnect`, `SyncConflicts`, `SyncConflictDetail`, `SyncResolveConflict` | `builtin.sync` / `sync:manage` / `sync:status`, `sync:login`, `sync:logout`, `sync:connect`, `sync:run`, `sync:disconnect`, `sync:conflicts`, `sync:resolve` | `internal/bridge/{sync,syncresolve}.go`, `internal/auth`, `internal/syncclient`, `internal/syncconflict` | `sync.status`, `sync.conflicts` — auth/connect/now/disconnect/resolve để v2 |
-| Environments | `EnvListTags`, `EnvCreateTag`, `EnvUpdateTag`, `EnvDeleteTag` | `builtin.environments` / `env:read` hoặc `env:write` / `tag:list`, `tag:new`, `tag:<id>` | `internal/bridge/environments.go`, `internal/environments` | `env.listTags` (design, xem [Environments](/dev-kit/environments)) — Create/Update/Delete không expose qua MCP |
+| Environments | `EnvListTags`, `EnvCreateTag`, `EnvUpdateTag`, `EnvDeleteTag` | `builtin.environments` / `env:read` hoặc `env:write` / `tag:list`, `tag:new`, `tag:<id>` | `internal/bridge/environments.go`, `internal/environments` | `env.listTags` — Create/Update/Delete **không expose** qua MCP |
 | Modules | `ListModules` | no capability gate; registry read-through only | `internal/bridge/app_service.go`, `internal/modules/registry.go` | — (không cần, registry metadata thuần) |
 
 Hai quy tắc bridge quan trọng:
@@ -181,7 +182,7 @@ Hai quy tắc bridge quan trọng:
   `commandID()` trong `internal/bridge/gateway.go`; ID không hợp lệ bị hạ về
   giá trị `"invalid"` thay vì đưa raw input vào audit/policy path.
 - Typed adapter ở frontend map DTO snake_case sang shape UI riêng
-  (`frontend/src/bridge/{notes,database,ssh,vault,commands}.ts`), vì vậy UI
+  (`frontend/src/bridge/{notes,database,ssh,kafka,vault,commands}.ts`), vì vậy UI
   contract ổn định là adapter function, không phải generated binding thô.
 
 ## Capability contract
@@ -201,6 +202,7 @@ Built-in subjects đang được container cấp sẵn trong
 - `builtin.notes`
 - `builtin.database`
 - `builtin.ssh`
+- `builtin.kafka`
 - `builtin.vault`
 - `builtin.search`
 - `builtin.sync`
@@ -214,6 +216,8 @@ Capability names public hiện tại:
 - `db:query`
 - `ssh:connect`
 - `ssh:forward`
+- `kafka:connect`
+- `kafka:produce`
 - `vault:manage`
 - `vault:search`
 - `sync:manage`
@@ -312,7 +316,7 @@ Persistence runtime hiện chia làm ba lớp:
 
 Boundary ổn định:
 
-- Notes/Database/SSH service chỉ phụ thuộc một local `Store` interface (được
+- Notes/Database/SSH/Kafka service chỉ phụ thuộc một local `Store` interface (được
   `*vaultitem.Store` thỏa mãn); không còn repository riêng mỗi module.
 - `vaultitem.Record` là shape at-rest chung: `id`, `type`, `metadata` (plaintext
   JSON), `payload` (envelope mã hóa, nil nếu type không có secret), `created_at`,
@@ -334,11 +338,17 @@ plaintext và `payload` mã hóa của `vault_items`):
 - Notes (`type = "note"`): `Body` được mã hóa trong payload, `Title` là plaintext
   metadata (`internal/notes/notes.go`).
 - Database profiles (`type = "db-profile"`): chỉ `Password` mã hóa; `Host`, `Port`,
-  `Database`, `Username`, `SSLMode`, `Env` là metadata không nhạy cảm
-  (`internal/database/database.go`).
+  `Database`, `Username`, `SSLMode`, `env` là metadata không nhạy cảm
+  (`internal/database/database.go`). `env` bắt buộc lúc create và phải tồn tại
+  trong [Environments](/dev-kit/environments) registry.
 - SSH profiles (`type = "ssh-profile"`): chỉ `Secret` mã hóa; `Host`, `Port`,
-  `Username`, `AuthMethod`, `HostKeyFingerprint`, `Env` là metadata không nhạy
-  cảm (`internal/ssh/ssh.go`).
+  `Username`, `AuthMethod`, `HostKeyFingerprint`, `env` là metadata không nhạy cảm
+  (`internal/ssh/ssh.go`). Cùng rule validate `env` như Database.
+- Kafka profiles (`type = "kafka-profile"`): SASL password hoặc SSL client key
+  mã hóa trong payload; `name`, `bootstrap_servers`, `security_protocol`,
+  `sasl_mechanism`, `username`, `env` là metadata không nhạy cảm
+  (`internal/kafka/kafka.go`). `env` bắt buộc lúc create và phải tồn tại trong
+  [Environments](/dev-kit/environments) registry.
 - Vault keyring vẫn được lưu như một row riêng qua `internal/vault/sqlkeyringstore.go`.
 
 Storage file boundary:
@@ -378,6 +388,7 @@ Binding hiện đang được service dùng:
 - Notes: `record_type = "note"`, `key_id = "note-body"`
 - Database profile: `record_type = "db-profile"`, `key_id = "db-password"`
 - SSH profile: `record_type = "ssh-profile"`, `key_id = "ssh-secret"`
+- Kafka profile: `record_type = "kafka-profile"`, `key_id = "kafka-secret"`
 
 `record_type` giờ chính là `vault_items.type`, và `record_id` là item id; AAD
 được `vaultitem.Store` ghép trong cả seal (`Create`) lẫn open (`OpenPayload`) nên
@@ -389,6 +400,7 @@ trong) từ:
 - `internal/notes/notes.go`
 - `internal/database/database.go`
 - `internal/ssh/ssh.go`
+- `internal/kafka/kafka.go`
 
 Điều này có nghĩa:
 

@@ -29,19 +29,21 @@ flowchart LR
 |---|---|
 | Record `type` | `ssh-profile` |
 | Payload `key_id` | `ssh-secret` |
-| Metadata (plaintext) | `name`, `host`, `port`, `username`, `auth_method`, `host_key_fingerprint`, `env` |
+| Metadata (plaintext) | `name`, `host`, `port`, `username`, `auth_method`, `host_key_fingerprint`, **`env`** |
 | Payload (encrypted) | password **hoặc** private-key PEM (`auth_method` = `password` \| `key`) |
 
-`env` là bắt buộc: `SSHCreateProfile` reject nếu thiếu hoặc tên tag không tồn tại trong registry [Environments](/dev-kit/environments) (qua `EnvLookup.Exists(name)`, `internal/ssh/ssh.go`).
-
+- **`env` (Implemented):** tên tag trong [Environments](/dev-kit/environments).
+  `SSHCreateProfile` reject nếu thiếu hoặc tag không tồn tại
+  (`EnvLookup.Exists`). Không copy `requiresConfirmation` vào profile.
 - Passphrase của encrypted PEM **không** persist — chỉ truyền per-operation từ UI
   rồi zeroize sau parse.
 - Forward sessions **không** phải vault item (in-memory runtime only).
 
 ## UI & runtime flows (`SSHView`)
 
-1. **Profile CRUD** — create (name/host/port/username/auth/secret) → list →
-   select → delete. Delete profile cũng dừng mọi forward gắn profile đó.
+1. **Profile CRUD** — create (name/host/port/username/auth/secret/**env**) →
+   list → select → delete. Dropdown env load từ `EnvListTags`. Delete profile
+   cũng dừng mọi forward gắn profile đó.
 2. **Host-key TOFU** — `ObserveHostKey` dừng handshake trước auth và trả
    SHA-256 fingerprint; user approve → `TrustHostKey` ghi fingerprint vào
    metadata. Dial với pin rỗng **luôn reject**; pin sai reject (exact match).
@@ -67,23 +69,22 @@ flowchart LR
 | `SSHStartForward` | `ssh:forward` | `profile:<id>` |
 | `SSHListForwards` | `ssh:forward` | `forward:list` |
 | `SSHStopForward` | `ssh:forward` | `forward:<id>` |
-| `SSHSetActiveProfile` (design) | `ssh:connect` | `profile:<id>` |
-| `SSHActiveProfile` (design) | `ssh:connect` | `profile:active` |
+| `SSHSetActiveProfile` | `ssh:connect` | `profile:<id>` |
+| `SSHActiveProfile` | `ssh:connect` | `profile:active` |
 
 Subject luôn `builtin.ssh`. Profile ID là 24 lowercase hex (opaque qua
 `recordID()`). Grants thật ở `internal/app/container.go`; manifest chỉ
 declaration metadata (`ssh:connect`, `ssh:forward`).
 
-`SSHSetActiveProfile`/`SSHActiveProfile` là 2 method mới cho phần "active
-profile cho agent" — xem [MCP tool surface](#mcp-tool-surface-design) bên
-dưới. UI hiện tại (`SSHRunCommand` nhận `profileId` tường minh mỗi lần gọi)
-**không đổi gì** — 2 method này chỉ phục vụ agent qua MCP.
+`SSHSetActiveProfile`/`SSHActiveProfile` phục vụ active profile cho agent
+(MCP). UI hiện tại (`SSHRunCommand` nhận `profileId` tường minh mỗi lần gọi)
+**không đổi** — chọn active profile vẫn human-only (không expose qua MCP).
 
-Packages: `internal/ssh/{ssh,hostkeys,forwarding}.go`,
-`internal/bridge/ssh.go`, `frontend/src/modules/ssh/{SSHView,manifest}.ts`,
+Packages: `internal/ssh/{ssh,hostkeys,forwarding,active}.go`,
+`internal/bridge/{ssh,ssh_active}.go`, `frontend/src/modules/ssh/{SSHView,manifest}.ts`,
 `frontend/src/bridge/ssh.ts`.
 
-## MCP tool surface (design)
+## MCP tool surface
 
 Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 
@@ -94,17 +95,15 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 | `ssh.activeProfile` | `read` | `builtin.ssh` / `ssh:connect` / `profile:active` | Trả `{profileId?}` — agent chỉ đọc, không tự đổi |
 | `ssh.runCommand` | `execute` (`destructiveHint`) | `builtin.ssh` / `ssh:connect` / `profile:active` | Không nhận `profileId` — chạy trên **active profile cho agent**. Rủi ro cao nhất trong toàn bộ MCP tool surface hiện có. Hỏi quyền theo policy env tag (xem dưới) |
 
-**"Hỏi quyền theo policy env tag"**: field bắt buộc `env` trên
-metadata `ssh-profile` đã **Implemented** (xem Vaultitem contract ở trên).
-Phần còn design: `ssh.runCommand` qua MCP tra `requiresConfirmation` của tag
-đó trước khi chạy — chưa có vì chưa có MCP runtime để đọc field này. Khi có,
-thiết kế là: nếu bật, phải xác nhận tương tác mỗi lần gọi, không có
-`allow_always`; `env=prod` luôn bật (khóa cứng, đã đúng ở tầng
-`internal/environments.Service`); `dev`/`stg` mặc định tắt nhưng bật lên
-được — đáng cân nhắc bật sẵn cho SSH vì đây là tool rủi ro cao nhất trong
-toàn bộ MCP tool surface hiện có, dù không bắt buộc như `prod`. Chi tiết cơ
-chế: [MCP / Agent § `env` bắt buộc](/dev-kit/mcp-agent). `ssh.listProfiles`/
-`ssh.testConnection`/`ssh.activeProfile` không bị luật này.
+**"Hỏi quyền theo policy env tag" (MCP — Implemented):** field `env` trên
+`ssh-profile` **đã Implemented** (create-time validate). `ssh.runCommand` qua
+MCP tra `requiresConfirmation` của tag trước khi chạy — nếu bật, xác nhận mỗi
+lần gọi (**env thắng** `allow_always`); khi env không bắt confirmation thì có
+thể Allow always (cache theo tool). `env=prod` luôn bật (locked); `dev`/`stg`
+mặc định tắt nhưng bật được. Unresolvable env name → fail closed (`true`).
+Chi tiết: [MCP / Agent](/dev-kit/mcp-agent), [Environments](/dev-kit/environments).
+`ssh.listProfiles` / `ssh.testConnection` / `ssh.activeProfile` không bị luật
+này.
 
 **Không expose qua MCP ở v1**:
 
