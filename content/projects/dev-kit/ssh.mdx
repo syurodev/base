@@ -99,7 +99,8 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 **"Hỏi quyền theo policy env tag" (MCP — design):** field `env` trên
 `ssh-profile` **đã Implemented** (create-time validate). Khi có MCP runtime,
 `ssh.runCommand` sẽ tra `requiresConfirmation` của tag đó trước khi chạy —
-nếu bật, xác nhận tương tác mỗi lần gọi, không có `allow_always`. `env=prod`
+nếu bật, xác nhận tương tác mỗi lần gọi — **env thắng** `allow_always`; khi env không
+bắt confirmation thì có thể Allow always (cache theo tool). `env=prod`
 luôn bật (locked); `dev`/`stg` mặc định tắt nhưng bật được. Unresolvable env
 name → fail closed (`true`). Chi tiết:
 [MCP / Agent](/dev-kit/mcp-agent), [Environments](/dev-kit/environments).

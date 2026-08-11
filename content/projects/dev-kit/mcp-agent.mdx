@@ -15,14 +15,16 @@ Trang này là design cho MCP server runtime. Chưa có `internal/mcp` trong che
 
 ```mermaid
 flowchart LR
-  AGENT[AI Agent - Claude Code/Codex/Agent Hub session] -->|stdio, JSON-RPC| MCPSRV["internal/mcp - go-sdk mcp.Server"]
-  MCPSRV -->|AppService.call - cùng path với Bridge| GW[Capability Gateway]
-  GW --> NOTES[internal/notes]
-  GW --> VAULT[internal/vault - chỉ vault.status]
-  GW --> SSH[internal/ssh]
-  GW --> DB[internal/database]
-  GW --> TOOLS[internal/tools]
-  GW --> SEARCH[VaultSearch]
+  AGENT[AI Agent - Claude Code/Codex] -->|stdio JSON-RPC| PROXY[cmd/devkit-mcp]
+  PROXY -->|unix socket| MCPSRV["internal/mcp tools"]
+  MCPSRV -->|AppService.Call origin=mcp| GW[Capability Gateway]
+  GW --> NOTES[notes]
+  GW --> VAULT[vault status / search]
+  GW --> SSH[ssh]
+  GW --> DB[database]
+  GW --> KAFKA[kafka]
+  GW --> TOOLS[tools]
+  INSTALL[Settings / CLI install] -.->|writes config global or project| AGENT
 ```
 
 MCP không tạo choke point mới. `internal/mcp` chỉ là 1 transport adapter khác gọi thẳng `AppService.call(...)` — **cùng path với Bridge hiện có**, không có đường tắt riêng cho agent (đúng invariant #1 của `docs/architecture/devkit-architecture.md`, và đúng NFR-3 đã áp cho Agent Hub).
@@ -58,6 +60,8 @@ Hiện tại chỉ UI (qua Bridge) gọi được các module đã Implemented (
 | FR-4 | Mỗi `CallRequest` từ MCP gắn `Metadata["origin"] = "mcp"` để audit phân biệt được request từ agent so với UI, không cần subject riêng. |
 | FR-5 | Annotation của mỗi tool (`readOnlyHint`, `destructiveHint`) phải khớp `effect` (`read`/`execute`) đã dùng nhất quán ở Code Graph và Agent Hub. |
 | FR-6 | Vault locked → tool nào cần decrypt trả đúng `vault_locked` (tái dùng `internal/apperrors` hiện có), không trả kết quả rỗng ngầm định. |
+| FR-7 | User cài được MCP server `devkit` vào **một agent chỉ định** với đúng **2 scope**: `global` (mọi project của user) hoặc `project` (một thư mục project) — DevKit ghi config đúng format của agent đó, idempotent, không xoá server MCP khác. |
+| FR-8 | Dialog xác nhận MCP hỗ trợ `allow` / `allow_always` / `deny` khi env **không** yêu cầu confirmation; khi `requiresConfirmation(env) = true`, **env luôn thắng** (xem mục confirmation bên dưới). |
 
 ### Non-functional requirements
 
@@ -67,6 +71,7 @@ Hiện tại chỉ UI (qua Bridge) gọi được các module đã Implemented (
 | NFR-2 | Không cần OAuth 2.1 — theo đúng spec (`stdio SHOULD NOT` theo authorization spec, lấy credential từ môi trường process). Trust boundary là process-level, cùng mức UI hiện đang có, không phát minh auth mới. |
 | NFR-3 | Không trả raw secret (SSH secret, DB password, recovery key) qua bất kỳ tool nào, kể cả `read` — giữ đúng redaction rule hiện có (`internal/audit/redact.go`). |
 | NFR-4 | Một số action **không bao giờ** thành MCP tool ở v1, bất kể grant: `SetupVault`, `UnlockVault`, `UnlockVaultWithRecovery`, `LockVault` — xem "Hard exclusions" bên dưới. |
+| NFR-5 | Auto-install chỉ ghi file config local trên máy user — không gọi mạng, không sửa grant/capability. |
 
 ### Out of scope (v1)
 
@@ -74,6 +79,7 @@ Hiện tại chỉ UI (qua Bridge) gọi được các module đã Implemented (
 - Primitive **Resources** và **Prompts** — v1 chỉ có Tools; Resources (đọc note/codegraph output qua URI) để sau nếu cần.
 - SSH forwarding tools (`ssh.startForward`/`stopForward`) — mở tunnel network do agent khởi tạo là blast-radius lớn, giữ nguyên non-goal đã ghi ở [SSH](/dev-kit/ssh#non-goals-mvp).
 - Sync mutation tools (`sync.connect`/`syncNow`/`resolveConflict`) — sync client vẫn `Partial`, và để agent tự trigger sync/resolve conflict là rủi ro dữ liệu chưa cần thiết ở v1.
+- Cài MCP hàng loạt cho mọi agent cùng lúc; sync config lên cloud; quản lý MCP server không phải `devkit`.
 
 ### Acceptance criteria
 
@@ -81,6 +87,9 @@ Hiện tại chỉ UI (qua Bridge) gọi được các module đã Implemented (
 - Agent gọi `notes.get` khi vault đang locked → nhận lỗi `vault_locked` structured, không phải note rỗng hoặc treo.
 - Agent gọi `ssh.runCommand` → audit log ghi được `origin: "mcp"` cùng `SubjectID`/`Capability`/`Scope` giống hệt khi UI gọi `SSHRunCommand`.
 - Thêm 1 tool mới cho module đã có (ví dụ `db.listProfiles`) chỉ cần đăng ký trong `internal/mcp`, không phải sửa `internal/capabilities/gateway.go`.
+- User chọn agent + scope `global` → file config global của agent có entry `devkit` trỏ stdio proxy; scope `project` + path → entry nằm ở config project của agent đó.
+- Gọi install lần hai với cùng agent/scope → không nhân đôi entry, không xoá server khác.
+- Trên env `prod` (hoặc tag `requiresConfirmation=true`), sau khi user từng bấm Allow always cho tool trên `dev`, call gated vẫn **bắt buộc** hỏi lại Allow/Deny (không honor `allow_always`).
 
 ## Vì sao quyết định này khác với ACP (Agent Hub)
 
@@ -129,19 +138,80 @@ Kafka UI, Database, SSH đều có ít nhất 1 MCP tool thao tác trên "1 targ
 
 Mọi profile của Kafka/Database/SSH (module dùng "active target selection") có 1 field **bắt buộc** — `env` — khai báo khi tạo profile, không có giá trị rỗng/bỏ qua được. Giá trị của `env` là tên 1 tag lấy từ registry dùng chung [Environments](/dev-kit/environments) (mặc định có `dev`/`stg`/`prod`, tạo thêm tag tùy chỉnh được). Field này tách biệt với metadata mô tả kết nối (host, port...) — mục đích duy nhất là gắn nhãn rủi ro cho từng target.
 
-Luật gắn với `env`: **mọi MCP call (`origin = "mcp"`) thao tác trên active target phải tra `requiresConfirmation` của tag đó — nếu `true`, call phải qua xác nhận tương tác trước khi chạy (kể cả tool `read`), không có `allow_always`.** Đây không phải luật cứng cho mọi tag — `requiresConfirmation` là policy cấu hình được **per-tag**, quản lý ở [Environments](/dev-kit/environments):
+Luật gắn với `env`: **mọi MCP call (`origin = "mcp"`) thao tác trên active target phải
+tra `requiresConfirmation` của tag đó.** Policy per-tag nằm ở
+[Environments](/dev-kit/environments):
 
-- `prod` mặc định `requiresConfirmation = true` và **khóa cứng, không tắt được** — dù cấu hình gì, `prod` luôn hỏi quyền.
-- `dev`/`stg` mặc định `requiresConfirmation = false` — user bật lên nếu muốn, tắt lại được.
-- Tag tùy chỉnh tự chọn giá trị khi tạo, sửa được tự do (không khóa như `prod`).
+- `prod` mặc định `requiresConfirmation = true` và **khóa cứng, không tắt được**.
+- `dev`/`stg` mặc định `requiresConfirmation = false` — user bật lên nếu muốn.
+- Tag tùy chỉnh tự chọn khi tạo, sửa được (không khóa như `prod`).
+- Tên env không resolve được → **fail closed** (`requiresConfirmation = true`).
 
-Vì `env` bắt buộc trên mọi profile (không có giá trị rỗng), tag lookup luôn có kết quả — không có nhánh "target chưa gắn nhãn thì thôi" như ban đầu, chỉ có nhánh "tag đó có yêu cầu xác nhận hay không".
+### Confirmation dialog — `allow_always` có, nhưng env chặn luôn thắng
 
-- Cơ chế tái dùng đúng plumbing đã có cho "chưa có active target" (event → UI hiện dialog → block call, có timeout → resume) — chỉ khác nội dung dialog: xác nhận cho phép **call cụ thể này** chạy trên target đã chọn, không phải chọn target. Dialog phải hiện rõ `env` (vd nhãn màu: 🔴 prod / 🟡 stg / 🟢 dev) để người xác nhận thấy ngay mức rủi ro trước khi bấm Allow.
-- **Không có `allow_always`** khi `requiresConfirmation = true` — khác hẳn model đã quan sát ở `session/request_permission` của ACP (có `allow_once`/`allow_always`). Ở đây cố tình chỉ có Allow/Deny cho từng lần gọi — nếu cho `allow_always`, cluster "quên đang chọn cluster nào" sẽ quay lại đúng vấn đề mà cơ chế này sinh ra để chặn.
-- Phạm vi áp dụng: chỉ nhóm tool đã đổi sang "active target" (`kafka.listTopics/describeTopic/peekMessages/listConsumerGroups/publishMessage`, `db.query`, `ssh.runCommand`). **Không** áp cho `listProfiles`/`testConnection`/`connectionStatus`/`activeProfile` — các tool này chỉ đọc metadata hoặc test kết nối tạm thời, không chạm dữ liệu/hệ thống thật qua active target.
-- Call từ UI (`origin` khác `"mcp"`) không bị luật này — người dùng tự bấm trong KafkaView/DatabaseView/SSHView đã là xác nhận tường minh rồi, không cần hỏi lại.
-- Đổi `requiresConfirmation` của 1 tag (trừ `prod`) là hành động con người, không expose qua MCP — xem [Environments § MCP tool surface](/dev-kit/environments).
+Dialog xác nhận cho gated tool hỗ trợ ba lựa chọn khi env **không** block:
+
+| Choice | Nghĩa |
+|---|---|
+| `allow` | Cho phép **một lần** call này |
+| `allow_always` | Cho phép call này và **nhớ theo tool** trong process DevKit (tới khi restart) — chỉ khi `requiresConfirmation(env) = false` |
+| `deny` | Từ chối → `permission_denied` |
+
+**Env luôn thắng:** nếu `requiresConfirmation(env) = true` (gồm `prod` và fail-closed):
+
+1. **Bỏ qua** mọi `allow_always` đã nhớ trước đó (kể cả user từng Allow always khi đang ở `dev`).
+2. Dialog **không** hiện nút Allow always — chỉ Allow / Deny.
+3. Mỗi call gated vẫn phải xác nhận lại.
+
+Lý do: `allow_always` tiện trên `dev`/`stg`, nhưng không được phép “dính” khi active target chuyển sang môi trường rủi ro cao. Không có `allow_always` xuyên env.
+
+- Phạm vi áp dụng gate: tool active-target
+  (`kafka.listTopics/describeTopic/peekMessages/listConsumerGroups/publishMessage`,
+  `db.query`, `ssh.runCommand`). **Không** áp cho
+  `listProfiles` / `testConnection` / `connectionStatus` / `activeProfile`.
+- Call từ UI (`origin` ≠ `"mcp"`) không bị luật này.
+- Đổi `requiresConfirmation` của tag (trừ `prod`) là human-only — xem
+  [Environments](/dev-kit/environments).
+
+### Auto-install MCP vào agent (`global` | `project`)
+
+DevKit cung cấp thao tác **cài / gỡ** entry MCP server tên cố định `devkit` vào
+**một agent chỉ định**, với đúng **hai scope** product:
+
+| Scope DevKit | Nghĩa | Claude Code | Codex |
+|---|---|---|---|
+| `global` | User — mọi project | `~/.claude.json` → top-level `mcpServers.devkit` | `~/.codex/config.toml` → `[mcp_servers.devkit]` |
+| `project` | Một thư mục project | `<project>/.mcp.json` → `mcpServers.devkit` | `<project>/.codex/config.toml` → `[mcp_servers.devkit]` |
+
+**Agent v1 được hỗ trợ (chỉ định từng cái, không “cài hết”):**
+
+| Agent ID | Ghi chú |
+|---|---|
+| `claude-code` | JSON merge idempotent; không đụng `~/.claude/settings.json` (file đó **không** load MCP) |
+| `codex` | TOML merge idempotent; project scope chỉ có hiệu lực khi Codex trust project |
+
+Entry ghi ra luôn là **stdio** trỏ tới binary/proxy DevKit (`devkit-mcp` /
+đường dẫn tuyệt đối do DevKit resolve lúc cài) — không HTTP.
+
+Yêu cầu hành vi:
+
+- Idempotent: cài lại cùng agent+scope chỉ cập nhật entry `devkit`, giữ nguyên MCP server khác.
+- `project` bắt buộc có `projectPath` (thư mục tồn tại); `global` bỏ qua path.
+- Uninstall chỉ xoá key `devkit`, không đụng server khác.
+- Human-only (Settings UI + CLI `task mcp:install` / bridge) — **không** expose
+  install/uninstall qua MCP tool (tránh agent tự cài thêm quyền).
+- Sau khi cài: user vẫn phải **chạy DevKit desktop** (vault unlock + socket host)
+  thì agent mới gọi tool được; install chỉ ghi config.
+
+```text
+UI/CLI → McpInstall(agent, scope, projectPath?)
+       → internal/mcp/install writer (claude-code | codex)
+       → file config trên máy
+Agent spawn → cmd/devkit-mcp (stdio) → unix socket → DevKit GUI tools
+```
+
+Open question đã chốt cho Cursor IDE: **v1 chưa** auto-install Cursor
+(`.cursor/mcp.json`) — thêm agent ID sau khi Claude Code + Codex ổn định.
 
 ### Hard exclusion — nguyên tắc chung
 
@@ -163,13 +233,15 @@ Nhóm thứ hai — tạo profile kèm secret, SSH forwarding, sync mutation —
 - Chỉ Tools; Resources/Prompts để sau.
 - Chỉ stdio; không remote/HTTP, không OAuth.
 - Danh sách tool cố định theo bảng trên — module mới (SSH forwarding, Sync mutation, vault lifecycle) cần thiết kế riêng, không tự động "mở hết" theo effect.
-- Chưa có UI để user tự review/tắt từng tool cho agent — v1 dựa hoàn toàn vào grant tĩnh trong `internal/app/container.go`, giống cách Bridge đang làm.
+- Per-tool enable/disable Settings UI cho agent vẫn để sau — v1 dựa grant tĩnh trong `internal/app/container.go`, cộng auto-install config theo agent/scope.
+- Auto-install v1: Claude Code + Codex; Cursor IDE để phase sau.
 
 ## Open questions
 
-- Có cần UI riêng cho user xem/tắt tool nào agent được gọi (khác với việc chỉ dựa vào container grant tĩnh) không, hay để version sau?
-- `db.query` nên tách `read`/`write` dựa trên parse SQL (SELECT vs không) để giảm `destructiveHint` tràn lan, hay chấp nhận coi mọi query là execute cho đơn giản?
-- Khi Code Graph và Agent Hub tự implement MCP tool riêng của chúng (`codegraph.*`, `agenthub.*`), có nên dùng chung `internal/mcp` server này hay mỗi module tự đăng ký vào cùng 1 `mcp.Server` instance? (Khuyến nghị: dùng chung 1 instance, mỗi module chỉ đóng góp tool definition — tránh N process MCP server chạy song song không cần thiết.)
+- Có cần UI riêng cho user xem/tắt **từng** tool agent được gọi (ngoài grant tĩnh) không, hay để version sau?
+- `db.query` nên tách `read`/`write` dựa trên parse SQL (SELECT vs không) để giảm `destructiveHint` tràn lan, hay chấp nhận coi mọi query là execute cho đơn giản? (**Khuyến nghị plan hiện tại:** mọi query = execute + destructive.)
+- Khi Code Graph và Agent Hub tự implement MCP tool riêng, dùng chung 1 `mcp.Server` instance (khuyến nghị) hay process riêng?
+- Có thêm agent ID `cursor` (`.cursor/mcp.json` project + user mcp) ngay sau Claude Code/Codex không?
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 

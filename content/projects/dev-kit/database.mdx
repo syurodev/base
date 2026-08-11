@@ -218,7 +218,8 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 **"Hỏi quyền theo policy env tag" (MCP — design):** field `env` trên
 `db-profile` **đã Implemented** (create-time validate + UI dropdown). Khi có
 MCP runtime, `db.query` sẽ tra `requiresConfirmation` của tag trước khi chạy
-— nếu bật, xác nhận mỗi lần gọi, không `allow_always`. `env=prod` luôn bật
+— nếu bật, xác nhận mỗi lần gọi (**env thắng** `allow_always`); khi env không bắt
+confirmation có thể Allow always. `env=prod` luôn bật
 (locked). Unresolvable env → fail closed. Chi tiết:
 [MCP / Agent](/dev-kit/mcp-agent), [Environments](/dev-kit/environments).
 `db.listProfiles` / `db.testConnection` / `db.activeProfile` không bị luật

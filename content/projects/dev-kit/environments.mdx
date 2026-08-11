@@ -121,7 +121,9 @@ Khi MCP gate có: service tra `requiresConfirmation` **lúc gọi**; đổi flag
 - `prod` luôn `requiresConfirmation = true` ở seed + locked — không tắt được
   qua UI/bridge.
 - Đổi flag tag không-locked đi qua `AppService.call` + gateway (có audit).
-- Prompt `allow_always` (khi MCP có) — xem MCP docs; không thuộc registry này.
+- Prompt confirmation MCP: có `allow_always` khi tag **không** `requiresConfirmation`;
+  khi tag bật (gồm `prod`) **env luôn thắng** — xem [MCP / Agent](/dev-kit/mcp-agent).
+  Policy flag vẫn thuộc registry này; dialog/cache thuộc MCP runtime.
 
 ## Non-goals (v1)
 
