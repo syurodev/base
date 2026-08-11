@@ -74,9 +74,12 @@ trang kiểm chứng.
    G3 two-device conflict convergence, G4 refresh-expiry và device revoke qua
    `cmd/synce2e/` trên Compose stack (`7708b99`). Chi tiết:
    [`/dev-kit/saas-backend`](/dev-kit/saas-backend).
-8. **Tiếp theo**: BE Phase B device revoke (design approved — list/revoke API,
-   Redis denylist TTL 60s, Gateway enforce, bridge tối thiểu; UI device
-   management và JetBrains 3-pane merge để sau design UI). Spec:
+8. ✅ **BE Phase B device revoke đã xong**: list/revoke API, last-ACTIVE `409`,
+   Redis denylist TTL 60s, Gateway enforce, bridge tối thiểu (backend `2060f39`,
+   app `02afaaa`). G4 rewritten to two-device HTTP revoke; re-run
+   `go test ./cmd/synce2e/ -run TestG4RevokedDeviceRejected` against Compose
+   when verifying deployed matrix. Spec:
    `docs/superpowers/specs/2026-08-11-be-phase-b-device-revoke-design.md`.
-   Sau đó: Phase 4 external plugin runtime, MCP Resources/Streamable HTTP, hoặc
-   UI design pass — tùy product priority.
+9. **Tiếp theo**: Phase 4 external plugin runtime, MCP Resources/Streamable HTTP,
+   device management UI polish / JetBrains 3-pane merge, hoặc UI design pass —
+   tùy product priority.

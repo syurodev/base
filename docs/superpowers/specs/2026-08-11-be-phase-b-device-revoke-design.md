@@ -1,7 +1,7 @@
 # BE Phase B — Device Revoke Design
 
 **Date:** 2026-08-11  
-**Status:** Approved design (not yet implemented)  
+**Status:** Implemented (`feat/phase-b-device-revoke`: backend `2060f39`, app `02afaaa`)  
 **Scope:** Self-service device list + revoke API, Redis edge denylist (TTL 60s),
 Gateway early reject, desktop bridge/syncclient tối thiểu, cập nhật G4.  
 **Repos liệu:**
@@ -176,3 +176,14 @@ Repos: `dev-kit-app`
 2. Redis denylist TTL 60s; Gateway enforce; Redis down fail-open.
 3. Desktop bridge/syncclient tối thiểu; G4 uses API.
 4. Docs above updated to match this design.
+
+## Implementation evidence (2026-08-11)
+
+| Area | Command | Result |
+|---|---|---|
+| Backend IT | `./gradlew :test --tests com.synx.devkit.e2e.SyncApiIT` | PASS |
+| Gateway denylist | `./gradlew :gateway:test` | PASS |
+| Desktop unit/bridge | `go test ./internal/sync ./internal/bridge ./internal/app ./internal/arch` | PASS |
+| Deployed G4 | `go test ./cmd/synce2e/ -run TestG4RevokedDeviceRejected` | API path updated; **not re-run this session** — re-run against Compose when verifying |
+
+Commits: `dev-kit-backend` `2060f39`, `dev-kit-app` `02afaaa` on `feat/phase-b-device-revoke`.

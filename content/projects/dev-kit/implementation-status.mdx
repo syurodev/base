@@ -33,7 +33,7 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 | Capability Gateway | Implemented | `internal/capabilities/gateway.go`, `internal/permissions/policy.go`, `internal/audit/events.go`, `internal/bridge/gateway.go`; tests: `internal/capabilities/gateway_test.go`, `internal/bridge/gateway_test.go`; grants gồm `builtin.search`/`vault:search`/`item:search` cho cross-type search. | Cần mở rộng policy khi external callers / plugin surface xuất hiện. |
 | ModuleManifest / Internal Extension API | Implemented | `internal/modules/registry.go` và `internal/app/app.go` định nghĩa/đăng ký manifest; `internal/bridge/app_service.go` expose public metadata (DTO co-located theo handler file); frontend manifests, parity validation và minimal functional UX ở `frontend/src/modules/{registry.ts,*/manifest.ts}` và `frontend/src/workbench/{Workbench.tsx,ActivityBar.tsx,CommandPalette.tsx}`; tests: `internal/modules/registry_test.go`, `internal/bridge/app_service_test.go`. | External plugin runtime chưa nằm trong scope. |
 | Sync / Replication client | Implemented | Phase 3B transport/pull/apply, Phase 3C local mutation flow và **Git-style conflict resolve** đã có. `internal/auth` dùng Authorization Code + PKCE S256 qua system browser + loopback callback, refresh-token rotation trong OS keychain và access token chỉ in-memory. `syncclient.ConnectWithTokenSource` lấy token mới trước request; `SyncConnect` pin Gateway `https://api.synx.io.vn`. Enrollment token gửi trên sync session handshake. Deployed matrix G1–G4 pass qua `cmd/synce2e/` trên Compose stack. Evidence: `internal/auth/{service,keyring_store}.go`, `internal/syncclient/{service,connect,syncnow}.go`, `internal/bridge/sync.go`, `cmd/synce2e/`; tests `internal/auth/service_test.go`, `internal/bridge/sync_test.go`, `go test ./cmd/synce2e/ -count=1 -timeout 15m`. | JetBrains 3-pane merge UI vẫn deferred UX polish, không phải blocker Phase 3. |
-| Sync SaaS backend + auth gateway | Implemented | Companion checkout `/Users/syuro/Workspace/PERSONAL/dev-kit/dev-kit-backend` (branch `main`): Spring Boot `session/push/pull`, PostgreSQL Liquibase schema, account/device registration + revoke guard, atomic arbitration/audit. `gateway/` validate Keycloak JWT, strip identity/proxy headers, ký JWT nội bộ ≤45s, publish JWKS, và `GET /v1/desktop/config`. Deployed matrix G1–G4 pass qua desktop `cmd/synce2e/`. | **BE Phase B device revoke — Design only**: list/revoke API, last-ACTIVE `409`, Redis denylist TTL 60s, Gateway early reject, bridge tối thiểu. UI device management, key-rotation runbook, retention/backup vẫn later. Spec: `docs/superpowers/specs/2026-08-11-be-phase-b-device-revoke-design.md`. |
+| Sync SaaS backend + auth gateway | Implemented | Companion checkout `/Users/syuro/Workspace/PERSONAL/dev-kit/dev-kit-backend` (branch `feat/phase-b-device-revoke`, `2060f39`): Spring Boot `session/push/pull`, PostgreSQL Liquibase schema, account/device registration + revoke guard, atomic arbitration/audit. `gateway/` validate Keycloak JWT, strip identity/proxy headers, ký JWT nội bộ ≤45s, publish JWKS, `GET /v1/desktop/config`, Redis denylist early reject (fail-open). **BE Phase B**: `GET/POST /v1/sync/devices` list+revoke, last-ACTIVE `409`, Redis `sync:revoked-device:{sub}:{deviceId}` TTL 60s. Desktop bridge tối thiểu (`02afaaa`). Evidence: `./gradlew :test --tests com.synx.devkit.e2e.SyncApiIT`, `./gradlew :gateway:test`, desktop `go test ./internal/sync ./internal/bridge ./internal/app ./internal/arch`. G4 rewritten to API revoke; re-run `go test ./cmd/synce2e/ -run TestG4RevokedDeviceRejected` against Compose when verifying deployed matrix. | UI device management, key-rotation runbook, retention/backup vẫn later. Spec: `docs/superpowers/specs/2026-08-11-be-phase-b-device-revoke-design.md`. |
 | MCP | Implemented | `internal/mcp` (socket host + tools), `cmd/devkit-mcp` (stdio proxy + install), `internal/interaction` (selection/confirmation; headless fail-fast); install `claude-code`/`codex` × `global`/`project`; env-wins over `allow_always`. | Resources / Streamable HTTP deferred. Not production-verified vs real Claude Code in CI — desktop smoke recommended. |
 | External plugins | Design only | Centralized architecture sources: `/dev-kit/plugins`, `/dev-kit/repo-structure`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/plugins`. | Build plugin SDK, loader, isolation, permissioning, and lifecycle. |
 | Marketplace | Design only | Centralized architecture sources: `/dev-kit/plugins`, `/dev-kit/core-foundation`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/marketplace`. | Signing, integrity checks, rollback, and controlled distribution model. |
@@ -62,16 +62,18 @@ JetBrains 3-pane merge UI vẫn deferred UX polish.
 
 - Checked on: 2026-08-11
 - Backend checkout: `/Users/syuro/Workspace/PERSONAL/dev-kit/dev-kit-backend`,
-  branch `main`, commit `c6045f8`.
+  branch `feat/phase-b-device-revoke`, commit `2060f39`.
 - Gateway milestone có Gradle subproject `gateway/`, Keycloak realm import,
   API/Gateway Docker images, desktop remote config (`GET /v1/desktop/config`),
-  và private sync network trong Compose.
-- Verification đã chạy (prior + ongoing):
-  - `./gradlew clean check bootJar :gateway:bootJar`;
-  - live health/discovery/JWKS smoke; unauthenticated sync trả `401`;
-  - desktop Keycloak login, Gateway session, encrypted push/pull trên deployment
-    thật; Keycloak client `devkit-desktop` public + PKCE `S256`, audience
-    `devkit-sync-gateway`.
+  Redis denylist filter (fail-open), và private sync network trong Compose.
+- BE Phase B device revoke: list/revoke API, enrollment cleanup, audit,
+  Redis denylist TTL 60s; desktop bridge tối thiểu (`dev-kit-app` `02afaaa`).
+- Verification đã chạy (this session + prior):
+  - `./gradlew :test --tests com.synx.devkit.e2e.SyncApiIT` → PASS;
+  - `./gradlew :gateway:test` → PASS (denylist filter);
+  - desktop `go test ./internal/sync ./internal/bridge ./internal/app ./internal/arch` → PASS;
+  - G4 API path updated; deployed matrix `TestG4RevokedDeviceRejected` not re-run
+    this session — re-run against Compose when verifying.
 
 ## Current limitations
 
