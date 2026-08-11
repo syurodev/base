@@ -74,6 +74,9 @@ trang kiểm chứng.
    G3 two-device conflict convergence, G4 refresh-expiry và device revoke qua
    `cmd/synce2e/` trên Compose stack (`7708b99`). Chi tiết:
    [`/dev-kit/saas-backend`](/dev-kit/saas-backend).
-8. **Tiếp theo**: BE Phase B (device management UI, operational revocation),
-   JetBrains 3-pane merge UI polish, Phase 4 external plugin runtime, hoặc MCP
-   design implementation — tùy product priority.
+8. **Tiếp theo**: BE Phase B device revoke (design approved — list/revoke API,
+   Redis denylist TTL 60s, Gateway enforce, bridge tối thiểu; UI device
+   management và JetBrains 3-pane merge để sau design UI). Spec:
+   `docs/superpowers/specs/2026-08-11-be-phase-b-device-revoke-design.md`.
+   Sau đó: Phase 4 external plugin runtime, MCP Resources/Streamable HTTP, hoặc
+   UI design pass — tùy product priority.
