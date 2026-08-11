@@ -9,8 +9,11 @@ MCP là transport để AI agent (Claude Code, Codex, hoặc 1 session trong [Ag
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout type="warn" title="Design only">
-Trang này là design cho MCP server runtime. Chưa có `internal/mcp` trong checkout hiện tại — `implementation-status.mdx` đánh dấu MCP là `Design only`. Phần lớn nội dung dưới đây đã được xác thực qua đọc trực tiếp MCP specification (bản `2026-07-28`, final ~10 ngày trước thời điểm viết) và README của Go SDK chính thức — không phải suy đoán từ bản cũ.
+<Callout type="info" title="Implemented — runtime + install; Resources/HTTP deferred">
+Runtime đã có: `internal/mcp` (Unix socket host + tools), `cmd/devkit-mcp` (stdio proxy),
+`internal/interaction` (selection/confirmation), install CLI/Settings cho `claude-code` /
+`codex` (`global`|`project`). Resources, Prompts, và Streamable HTTP vẫn deferred.
+Chưa claim production-tested end-to-end với Claude Code thật trong CI — verify trên desktop.
 </Callout>
 
 ```mermaid
