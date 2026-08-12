@@ -9,14 +9,15 @@ Agent Hub là module built-in tương lai giúp DevKit trở thành nơi tập t
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout type="warn" title="Design only — next Phase 4 (trước plugins)">
+<Callout type="warn" title="Design only — Phase 4 postponed pending sandbox">
 Trang này là design cho một module chưa có runtime trong DevKit checkout hiện tại.
-Không có `internal/agenthub` hay `internal/acp` tại thời điểm viết. Theo
-[Roadmap](/dev-kit/roadmap), **Agent Hub là ưu tiên tiếp theo (Phase 4)**;
-external plugins / marketplace dời xuống Phase 5–6. Một phần thiết kế đã được
-xác thực bằng thực nghiệm thật (chạy `@agentclientprotocol/claude-agent-acp` qua
-ACP, bắt log JSON-RPC thật) — các chỗ đó được đánh dấu rõ, phần còn lại vẫn là
-suy luận từ spec. Trạng thái implementation thật nằm ở
+Không có `internal/agenthub` hay `internal/acp` tại thời điểm viết. **Implementation
+plan đã viết nhưng đang hoãn**: spawn agent CLI mà không có OS sandbox là quá nguy
+hiểm (Gateway/permission UI không chặn bash/fs nội bộ của agent). Ưu tiên engineering
+tiếp theo là research/spike sandbox (bubblewrap / Seatbelt / Landlock, tham chiếu
+`sandbox-runtime`, `nono`, `ai-jail`, …) trước khi resume Agent Hub. External plugins
+/ marketplace vẫn Phase 5–6. Một phần thiết kế ACP đã được xác thực bằng thực nghiệm
+thật — các chỗ đó được đánh dấu rõ. Trạng thái implementation thật nằm ở
 [Implementation status](/dev-kit/implementation-status).
 </Callout>
 
