@@ -5,19 +5,19 @@ description: OS-primitive isolation (bubblewrap / Seatbelt) for spawning vendor 
 
 # Agent sandbox
 
-`internal/sandbox` là package **leaf** chạy subprocess dưới isolation OS-level
-trước khi Agent Hub (Phase 4) được phép spawn Claude Code / Codex / … Trên Linux
-dùng **bubblewrap**; trên macOS dùng **Seatbelt** (`sandbox-exec`). Landlock là
-helper best-effort trên Linux, chưa gắn vào đường `Start` mặc định.
+`internal/sandbox` chạy subprocess dưới isolation OS-level để Agent Hub có thể
+spawn Claude Code / Codex / … mà không để agent CLI đụng full home directory.
+Linux dùng **bubblewrap**; macOS dùng **Seatbelt** (`sandbox-exec`).
 
 import { Callout } from 'fumadocs-ui/components/callout';
+import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Callout type="info" title="Implemented — prerequisite for Agent Hub">
-Package đã merge vào desktop `main` (xem
-[Implementation status](/dev-kit/implementation-status)). Agent Hub vẫn
-**Design / postponed** cho tới khi adapter vendor gọi
-`sandbox.DefaultRunner().Start(...)` và fail-closed khi thiếu backend.
-Quyết định stack: [ADR-009](/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes).
+Package đã merge vào desktop `main` — xem
+[Implementation status](/dev-kit/implementation-status). Agent Hub vẫn
+**Design / postponed** cho tới khi vendor adapter gọi
+`sandbox.DefaultRunner().Start(...)` và fail-closed khi thiếu backend. Stack:
+[ADR-009](/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes).
 </Callout>
 
 ```mermaid
@@ -32,30 +32,23 @@ flowchart LR
   SB --> Proc
 ```
 
-## Vì sao cần
-
-Capability Gateway + dialog permission chỉ mediate hành động đi qua DevKit /
-ACP client methods. Agent CLI vẫn có bash/fs **trong process của nó** — cùng
-user với DevKit. Không có OS jail thì một lệnh `rm` / đọc `~/.ssh` vẫn thành
-công sau khi user (hoặc agent-native tool) cho phép.
-
-Sandbox **không thay** consent Gateway/UI; hai lớp bổ sung nhau.
-
-Claude Code (`/sandbox`) và Codex (Landlock/bwrap nội bộ) có sandbox first-party
-nhưng không đủ cho Hub multi-vendor và spawn ACP — DevKit cần một `Runner` chung.
+Capability Gateway và dialog permission chỉ mediate hành động đi qua DevKit /
+ACP. Agent CLI vẫn có bash/fs trong process của nó — cùng user với DevKit — nên
+cần OS jail riêng. Sandbox **không thay** consent Gateway/UI; hai lớp bổ sung
+nhau. Claude Code (`/sandbox`) và Codex có sandbox first-party nhưng không đủ
+cho Hub multi-vendor.
 
 ## Principles
 
 - Fail closed: thiếu `bwrap` / platform không hỗ trợ → `ErrUnavailable` /
-  `ErrUnsupportedPlatform`; Hub vendor thật không được fallback unsandboxed im lặng.
-- Allowlist: `WorkDir` (và path khai báo) mới được ghi; mặc định private home.
+  `ErrUnsupportedPlatform`.
+- Allowlist: chỉ `WorkDir` (và path khai báo) được ghi; private home mặc định.
 - Default deny: luôn phủ `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.config/gcloud` trên
   **host HOME** (và policy `HOME` nếu khác).
-- Leaf package: `internal/sandbox` không import bất kỳ `devkit/internal/*` nào
-  (ép bởi `go test ./internal/arch`).
+- Leaf package: không import `devkit/internal/*` (ép bởi `go test ./internal/arch`).
 - Không nhúng `@anthropic-ai/sandbox-runtime` (TypeScript) vào core Go.
 
-## API bề mặt
+## Surface API
 
 ```go
 r := sandbox.DefaultRunner()
@@ -64,78 +57,70 @@ if err := r.Available(ctx); err != nil {
 }
 proc, err := r.Start(ctx, sandbox.Policy{
     WorkDir: "/abs/path/to/project",
-    Network: sandbox.NetworkNone, // or NetworkHost; unknown → ErrInvalidPolicy
-    Env: map[string]string{
-        "PATH": "/usr/bin:/bin",
-        // HOME forced when private home (default)
-    },
+    Network: sandbox.NetworkNone, // or NetworkHost
+    Env:     map[string]string{"PATH": "/usr/bin:/bin"},
 }, sandbox.Cmd{Path: "/usr/bin/agent", Args: []string{"--acp"}})
 ```
 
-| Type / func | Vai trò |
+| Type / func | Role |
 |---|---|
 | `Policy` | WorkDir (abs), RO/RW binds, DenyReadPaths, Env, Network, PrivateHome |
-| `Cmd` | Path + Args; optional Dir dưới WorkDir |
+| `Cmd` | Path + Args; optional Dir under WorkDir |
 | `Runner.Start` | Validate → defaults → Backend.Start |
 | `DefaultRunner` | Linux → bwrap; Darwin → Seatbelt; else unavailable |
-| `Proc` | Wait / Kill / PID / Output (buffers) |
-| `LandlockAvailable` / `RestrictSelf` | Linux helper; không gọi tự động từ bwrap Start (v1) |
+| `Proc` | Wait / Kill / PID / Output |
+| `LandlockAvailable` / `RestrictSelf` | Linux helper; not wired into bwrap Start (v1) |
 
-### Defaults quan trọng
+### Defaults
 
 | Field | Default |
 |---|---|
-| `Network` empty | `none` (`--unshare-net` / seatbelt deny outbound) |
-| `PrivateHome` nil | `true` — tmpfs trên home path, force `HOME` + `TMPDIR=/tmp` |
-| Sensitive denies | luôn thêm; tắt chỉ với `DangerousAllowSensitive` (test) |
+| Empty `Network` | `none` |
+| `PrivateHome` nil | `true` — tmpfs on home, force `HOME` + `TMPDIR=/tmp` |
+| Sensitive denies | Always on; off only with `DangerousAllowSensitive` (tests) |
 
-### Lỗi
+### Errors
 
-| Sentinel | Khi |
+| Sentinel | When |
 |---|---|
-| `ErrInvalidPolicy` | WorkDir không abs, network lạ, bind/symlink vào vùng deny |
-| `ErrUnavailable` | Backend nil / `bwrap` không có trên PATH |
-| `ErrUnsupportedPlatform` | Không phải linux/darwin |
-| `ErrLandlockSkipped` | Landlock không áp được (best-effort) |
+| `ErrInvalidPolicy` | Non-abs WorkDir, unknown network, bind/symlink into deny |
+| `ErrUnavailable` | Nil backend / `bwrap` not on PATH |
+| `ErrUnsupportedPlatform` | Not linux/darwin |
+| `ErrLandlockSkipped` | Landlock could not apply (best-effort) |
 
 ## Linux (bubblewrap)
 
-Yêu cầu host: `apt install bubblewrap` (hoặc tương đương).
-
-Mount recipe (rút gọn):
+Host: `apt install bubblewrap` (or equivalent).
 
 1. `--unshare-user --unshare-pid --unshare-ipc --die-with-parent`
-2. `--unshare-net` khi `NetworkNone`
-3. RO bind `/usr`, `/bin`, `/lib`, `/lib64`, `/etc` (bỏ path thiếu)
+2. `--unshare-net` when `NetworkNone`
+3. RO bind `/usr`, `/bin`, `/lib`, `/lib64`, `/etc` (skip missing)
 4. `--bind WorkDir WorkDir` (+ RO/RW extras)
-5. Deny: `--tmpfs` thư mục nhạy cảm / null-bind file
-6. Private home: `--tmpfs $HOME` rồi **re-bind WorkDir** nếu WorkDir nằm dưới home
-7. `--clearenv` + env allowlist; `--chdir` → exec
+5. Deny: `--tmpfs` on sensitive dirs / null-bind files
+6. Private home: `--tmpfs $HOME`, then **re-bind WorkDir** if it sits under home
+7. `--clearenv` + allowlisted env; `--chdir` → exec
 
-Bind path được `EvalSymlinks`; nếu resolve vào deny → `ErrInvalidPolicy`.
+Bind paths are `EvalSymlinks`'d; resolve into a deny path → `ErrInvalidPolicy`.
 
 ## macOS (Seatbelt)
 
-Profile SBPL sinh bởi `buildSeatbeltProfile` (unit-test được trên Linux CI).
-Runtime: `sandbox-exec -f <profile> -- <cmd>…` (`//go:build darwin`).
+`buildSeatbeltProfile` emits SBPL (unit-tested on Linux CI). Runtime:
+`sandbox-exec -f <profile> -- <cmd>…` (`//go:build darwin`). Read surface is
+wider than bwrap (dyld/system needs); network and sensitive paths still denied
+per policy. Integration tests run on Darwin only.
 
-Seatbelt read surface rộng hơn bwrap (cần dyld/system); vẫn deny network khi
-`NetworkNone` và deny các path nhạy cảm theo policy. Integration test chỉ chạy
-trên Darwin.
-
-## Ops / test
+## Ops / tests
 
 ```bash
-# Unit + integration (skip bwrap tests nếu thiếu binary)
 go test ./internal/sandbox/ ./internal/arch/ -count=1
 
-# Smoke có ý nghĩa trên máy có bwrap:
-go test ./internal/sandbox/ -run 'TestSmokeAgentShapedProcess|TestBwrapCanWriteWorkDirUnderHome' -v
+go test ./internal/sandbox/ \
+  -run 'TestSmokeAgentShapedProcess|TestBwrapCanWriteWorkDirUnderHome' -v
 ```
 
 | Host package | Platform |
 |---|---|
-| `bubblewrap` | Linux (bắt buộc cho DefaultRunner) |
+| `bubblewrap` | Linux (required for `DefaultRunner`) |
 | `sandbox-exec` | macOS (system) |
 | Landlock LSM | Linux best-effort; EPERM/ENOSYS → skip |
 
@@ -144,14 +129,15 @@ go test ./internal/sandbox/ -run 'TestSmokeAgentShapedProcess|TestBwrapCanWriteW
 - Domain-allowlist HTTP/SOCKS egress proxy
 - Windows backend
 - Firejail / gVisor / Firecracker / Docker-as-default
-- Auto-install `bwrap` cho end user
-- Wire vào Agent Hub UI (Phase 4 resume)
+- Auto-install `bwrap` for end users
+- Wire into Agent Hub UI (Phase 4 resume)
 
-## Liên kết
+Landlock helper exists but is **not** attached to `BwrapBackend.Start` in v1.
 
-- [ADR-009](/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes)
-- [Agent Hub](/dev-kit/agent-hub) (consumer tương lai)
-- [MCP / Agent](/dev-kit/mcp-agent) (lớp consent khác — Gateway)
-- [Security model](/dev-kit/security)
-- Desktop research/plan (force-added): `docs/superpowers/research/2026-08-12-agent-sandbox-oss.md`,
-  `docs/superpowers/plans/2026-08-12-agent-sandbox.md`
+<Cards>
+  <Card title="ADR-009" href="/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes" description="Locked stack: bwrap + Landlock / Seatbelt" />
+  <Card title="Agent Hub" href="/dev-kit/agent-hub" description="Future consumer — vendor spawn must use DefaultRunner" />
+  <Card title="MCP / Agent" href="/dev-kit/mcp-agent" description="Gateway consent layer — complementary, not a substitute" />
+  <Card title="Security model" href="/dev-kit/security" description="Threat model and security gates" />
+  <Card title="Implementation status" href="/dev-kit/implementation-status" description="Checkout vocabulary: Implemented / Design only" />
+</Cards>
