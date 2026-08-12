@@ -13,10 +13,11 @@ import { Callout } from 'fumadocs-ui/components/callout';
 Trang này là design cho một module chưa có runtime trong DevKit checkout hiện tại.
 Không có `internal/agenthub` hay `internal/acp` tại thời điểm viết. **Implementation
 plan đã viết nhưng đang hoãn**: spawn agent CLI mà không có OS sandbox là quá nguy
-hiểm (Gateway/permission UI không chặn bash/fs nội bộ của agent). Ưu tiên engineering
-tiếp theo là research/spike sandbox (bubblewrap / Seatbelt / Landlock, tham chiếu
-`sandbox-runtime`, `nono`, `ai-jail`, …) trước khi resume Agent Hub. External plugins
-/ marketplace vẫn Phase 5–6. Một phần thiết kế ACP đã được xác thực bằng thực nghiệm
+hiểm (Gateway/permission UI không chặn bash/fs nội bộ của agent). Stack sandbox đã
+**chốt** ([ADR-009](/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes)):
+Linux bubblewrap (+ Landlock best-effort), macOS Seatbelt — package
+`internal/sandbox` phải Implemented trước khi resume Hub. External plugins /
+marketplace vẫn Phase 5–6. Một phần thiết kế ACP đã được xác thực bằng thực nghiệm
 thật — các chỗ đó được đánh dấu rõ. Trạng thái implementation thật nằm ở
 [Implementation status](/dev-kit/implementation-status).
 </Callout>

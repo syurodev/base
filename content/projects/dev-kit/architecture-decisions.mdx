@@ -293,6 +293,45 @@ local-first.
 
 ---
 
+## ADR-009: OS-primitive sandbox for Agent Hub vendor processes
+
+**Status:** Accepted (2026-08-12) — package not Implemented yet
+
+**Decision:** Trước khi ship Agent Hub vendor spawn (Claude/…), DevKit dùng
+sandbox **OS primitives** qua package leaf `internal/sandbox`:
+
+- Linux: **bubblewrap** (bắt buộc) + **Landlock** best-effort
+- macOS: **Seatbelt** qua `sandbox-exec`
+- Policy allowlist (cwd RW, deny mặc định `~/.ssh` / `~/.aws` / …), env scrubbed
+- Network v1: `none` | `host` (domain-allowlist proxy = v1.1)
+- Windows: ngoài scope v1
+
+Không dùng Firejail / gVisor / Firecracker làm path v1; không nhúng
+`@anthropic-ai/sandbox-runtime` (TypeScript) vào core Go — chỉ tham khảo
+policy. Gateway/permission UI **vẫn bắt buộc**; sandbox không thay consent.
+
+**Context:** Agent CLI có bash/fs ngoài mediation ACP/Gateway. Research /
+plan nằm trên desktop repo (`docs/superpowers/research/2026-08-12-agent-sandbox-oss.md`,
+`docs/superpowers/plans/2026-08-12-agent-sandbox.md`). Claude Code/Codex có
+sandbox first-party nhưng không đủ cho Hub multi-vendor và spawn ACP.
+
+**Alternatives considered:**
+
+- **Chỉ dựa `/sandbox` của Claude / sandbox Codex** — không cover multi-vendor
+  và không đảm bảo ACP spawn đi qua jail.
+- **Podman/Docker mỗi tab** — isolation mạnh hơn nhưng UX/toolchain nặng.
+- **microVM** — mạnh nhất, không phù hợp multi-tab local v1.
+- **Firejail** — setuid/attack surface; rejected.
+
+**Consequences:**
+
+- Positive: một `Runner` dùng lại cho mọi vendor; fail-closed khi thiếu `bwrap`.
+- Negative: phụ thuộc package host (`bubblewrap`); macOS dựa API `sandbox-exec`
+  deprecated nhưng vẫn là thực tế ngành.
+- Neutral: Agent Hub plan tiếp tục postponed đến khi `internal/sandbox` xanh.
+
+---
+
 ## Verified snapshot
 
 - Checked on: 2026-07-24

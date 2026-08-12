@@ -106,9 +106,9 @@ trang kiểm chứng.
 9. ✅ **MCP runtime + install đã xong**: socket host, stdio proxy, tool allowlist,
    interaction gate (env wins over `allow_always`), install `claude-code`/`codex`
    × `global`/`project`. Chi tiết: [`/dev-kit/mcp-agent`](/dev-kit/mcp-agent).
-10. **Tiếp theo (ưu tiên)**: **Sandbox research/spike cho Agent Hub** — chọn
-    OS isolation (khuyến nghị: Linux `bwrap`(+Landlock), macOS Seatbelt; tham
-    chiếu `sandbox-runtime` / `nono` / `ai-jail`) trước khi resume implement
-    Phase 4. Plan Hub đã hoãn: [`/dev-kit/agent-hub`](/dev-kit/agent-hub).
-    External plugins / marketplace vẫn Phase 5–6. Song song có thể polish MCP
-    Resources/HTTP, device UI, hoặc JetBrains 3-pane merge.
+10. **Tiếp theo (ưu tiên)**: **Implement `internal/sandbox`** theo stack đã
+    chốt ([ADR-009](/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes)):
+    Linux `bwrap`(+Landlock), macOS Seatbelt. Plan desktop
+    `docs/superpowers/plans/2026-08-12-agent-sandbox.md`. Sau khi sandbox xanh
+    mới resume Phase 4 Agent Hub ([`/dev-kit/agent-hub`](/dev-kit/agent-hub)).
+    External plugins / marketplace vẫn Phase 5–6.
