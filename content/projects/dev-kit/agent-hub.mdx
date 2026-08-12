@@ -182,7 +182,9 @@ sequenceDiagram
 - **ACP transport (Go, tự implement)** — line-delimited JSON-RPC 2.0 qua stdio, quản lý lifecycle subprocess (spawn, `session/cancel`, SIGTERM→SIGKILL timeout). Không phụ thuộc package community bên ngoài — lý do: đây là core dependency chạm tới execute-permission, rủi ro bus-factor của 1 package chưa ai official-support không chấp nhận được cho phần này.
 - **ACP core types (protocol v1)** — struct Go cho request/response/notification theo schema v1 chính thức (`initialize`, `session/new`, `session/load`, `session/prompt`, `session/cancel`, `session/update`, `session/request_permission`, `fs/*`, `terminal/*`, content block, tool call, plan, session mode). Mọi field `_meta` trên các struct này khai báo kiểu `json.RawMessage` — **core không bao giờ parse cứng nội dung `_meta`**.
 - **Vendor adapter registry** — `map[AgentType]VendorAdapter`. Mỗi adapter chịu trách nhiệm:
-  1. Biết cách spawn agent tương ứng (binary path hoặc `npx <package>`, biến môi trường auth cần thiết).
+  1. Biết cách spawn agent tương ứng qua `sandbox.DefaultRunner().StartPiped`
+     (binary path hoặc `npx <package>`, biến môi trường auth cần thiết) — **không**
+     dùng unsandboxed `exec` / `acp.StartProcess` cho vendor thật.
   2. Normalize `_meta` thành model chung DevKit dùng nội bộ (`NormalizedUsage{cost, rateLimit}`, `NormalizedToolResult{stdout, stderr, ...}`) — ví dụ vendor Claude đã quan sát thật: `_meta.claudeCode.toolResponse`, `_meta._claude/rateLimit`, `_meta._claude/origin`, `_meta.permission.changes`. Codex/Gemini gần như chắc chắn có shape khác — mỗi vendor tự viết adapter riêng, core không đụng tới.
   3. Khai báo custom extension method vendor hỗ trợ (ví dụ Claude có `_session/steering`, `_session/goal` — không phải core spec) để UI biết bật/tắt tính năng theo từng tab.
 - **AgentHubService (Go)** — orchestrate session lifecycle, gọi Capability Gateway cho **mọi** `session/request_permission` (không có nhánh auto-approve nào trong service này), quản lý depth/cycle guard cho `invokeAgent`, ghi SQLite (session, turn, usage/cost đã normalize, và raw `_meta` blob để audit/debug không mất dữ liệu).
