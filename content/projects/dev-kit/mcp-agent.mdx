@@ -124,7 +124,7 @@ Ba primitive từng có — **Roots, Sampling, Logging** — đã bị deprecate
 | Kafka UI (design) | [Kafka UI § MCP tool surface](/dev-kit/kafka#mcp-tool-surface-design) — read + `kafka.publishMessage` (execute, capability riêng `kafka:produce`) |
 | Search, Sync | [Technical contracts § Bridge contract](/dev-kit/technical-contracts#bridge-contract) — cột "MCP tool (design)" |
 | Code Graph | [Code Graph § MCP tool surface](/dev-kit/codegraph#mcp-tool-surface) |
-| Agent Hub | [Agent Hub § MCP tool surface](/dev-kit/agent-hub#mcp-tool-surface) |
+| Agent Hub | [Agent Hub § MCP tool surface](/dev-kit/agent-hub#mcp-tool-surface) — `agenthub.listAgents/createAgentSession/invokeAgent/getSessionStatus/cancelAgent` (Partial; mock + Claude) |
 
 ### Active target selection — pattern chung cho tool cần 1 target sống
 
@@ -243,14 +243,14 @@ Nhóm thứ hai — tạo profile kèm secret, SSH forwarding, sync mutation —
 
 - Có cần UI riêng cho user xem/tắt **từng** tool agent được gọi (ngoài grant tĩnh) không, hay để version sau?
 - `db.query` nên tách `read`/`write` dựa trên parse SQL (SELECT vs không) để giảm `destructiveHint` tràn lan, hay chấp nhận coi mọi query là execute cho đơn giản? (**Khuyến nghị plan hiện tại:** mọi query = execute + destructive.)
-- Khi Code Graph và Agent Hub tự implement MCP tool riêng, dùng chung 1 `mcp.Server` instance (khuyến nghị) hay process riêng?
+- Khi Code Graph tự implement MCP tool riêng, dùng chung 1 `mcp.Server` instance (khuyến nghị) hay process riêng? (`agenthub.*` đã đăng ký trên cùng server với built-in tools.)
 - Có thêm agent ID `cursor` (`.cursor/mcp.json` project + user mcp) ngay sau Claude Code/Codex không?
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
   <Card title="Code Graph (Java)" href="/dev-kit/codegraph" description="Module đầu tiên định nghĩa MCP tool surface riêng" />
-  <Card title="Agent Hub" href="/dev-kit/agent-hub" description="invokeAgent cũng là 1 MCP tool theo cùng convention" />
+  <Card title="Agent Hub" href="/dev-kit/agent-hub" description="Partial — agenthub.* MCP tools (mock + Claude); Codex/Gemini Design" />
   <Card title="Plugins" href="/dev-kit/plugins" />
   <Card title="Security model" href="/dev-kit/security" />
   <Card title="Technical contracts" href="/dev-kit/technical-contracts" description="Capability/scope contract mà MCP tool tái dùng nguyên" />

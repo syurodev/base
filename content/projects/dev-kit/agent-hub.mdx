@@ -5,18 +5,22 @@ description: Trung tâm chạy nhiều agent CLI (Claude Code, Codex, Gemini...)
 
 # Agent Hub (Multi-Agent Sessions)
 
-Agent Hub là module built-in tương lai giúp DevKit trở thành nơi tập trung chạy nhiều AI coding agent (Claude Code, Codex, Gemini CLI, ...) song song, mỗi agent một "tab" độc lập, quản lý qua Capability Gateway như mọi module khác. Trên nền đó, module mở thêm khả năng **agent-gọi-agent**: chọn 1 agent làm "master", cấp cho nó 1 tool để tự gọi sang agent khác lấy kết quả — không cần con người điều phối thủ công.
+Agent Hub là module built-in giúp DevKit tập trung chạy nhiều AI coding agent
+(Claude Code, Codex, Gemini CLI, …) song song, mỗi agent một "tab" độc lập,
+quản lý qua Capability Gateway như mọi module khác. Trên nền đó, module mở thêm
+khả năng **agent-gọi-agent**: chọn 1 agent làm "master", cấp cho nó 1 tool để
+tự gọi sang agent khác lấy kết quả — không cần con người điều phối thủ công.
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout type="warn" title="Design only — Phase 4 postponed; sandbox Implemented">
-Trang này là design cho module chưa có runtime `internal/agenthub` / `internal/acp`.
-**Sandbox OS đã Implemented** — xem [/dev-kit/sandbox](/dev-kit/sandbox) và
-[ADR-009](/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes)
-(`internal/sandbox` trên desktop `main`, PR #22). Hub vẫn hoãn cho tới khi
-adapter vendor spawn qua `sandbox.DefaultRunner().Start(...)` (fail-closed nếu
-thiếu backend). External plugins / marketplace vẫn Phase 5–6. Trạng thái:
-[Implementation status](/dev-kit/implementation-status).
+<Callout type="info" title="Partial — v1 surface shipped (mock + Claude)">
+Runtime đã có trên desktop branch Agent Hub: `internal/acp`, `internal/agenthub`
+(mock + Claude adapters), bridge/UI multi-tab, MCP tools `agenthub.*`, và vendor
+spawn qua `sandbox.DefaultRunner().StartPiped(...)` (fail-closed nếu thiếu
+backend). **Codex / Gemini adapters vẫn Design.** Chưa claim production-verified
+end-to-end với Claude Code thật trong CI — smoke trên desktop. Sandbox API:
+[/dev-kit/sandbox](/dev-kit/sandbox) (`Start` = capture helpers; `StartPiped` =
+ACP stdio). Trạng thái: [Implementation status](/dev-kit/implementation-status).
 </Callout>
 
 ```mermaid
@@ -30,8 +34,9 @@ flowchart TD
   XPORT --> P2["Agent process: Codex"]
   XPORT --> PN["Agent process: ..."]
   SVC --> REG["Vendor adapter registry - map agentType to Adapter"]
-  REG --> A1[Claude adapter]
-  REG --> A2[Codex adapter - chưa viết]
+  REG --> A1[Claude adapter - StartPiped]
+  REG --> A2[Mock adapter - tests]
+  REG --> A3[Codex / Gemini - Design]
   SVC --> DB[(SQLite: session/turn/audit + raw _meta blob)]
 ```
 
@@ -239,9 +244,11 @@ TurnRecord {
 ### Known ceiling (v1)
 
 - Chỉ target ACP protocol version 1; agent nào chỉ hỗ trợ v2 chưa dùng được.
-- Chỉ có adapter cho Claude ở thời điểm viết (do đã có trace thật để dựa vào); Codex/Gemini cần viết thêm theo cùng interface `VendorAdapter` khi có nhu cầu — không phải rework core.
+- Adapter shipped: **mock** (tests) + **Claude** (spawn qua `sandbox.StartPiped`).
+  Codex/Gemini vẫn Design — thêm theo cùng `VendorAdapter`, không rework core.
 - Router tự động chọn agent theo intent chưa có — v1 chỉ gọi tường minh theo `sessionId`.
 - Chưa có multi-client đồng bộ xem 1 session (kiểu AHP) — ngoài scope v1.
+- Claude adapter chưa được claim production-verified trong CI với Claude Code thật.
 
 ## Open questions
 

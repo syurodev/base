@@ -12,11 +12,12 @@ Linux dùng **bubblewrap**; macOS dùng **Seatbelt** (`sandbox-exec`).
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
-<Callout type="info" title="Implemented — prerequisite for Agent Hub">
-Package đã merge vào desktop `main` — xem
-[Implementation status](/dev-kit/implementation-status). Agent Hub vẫn
-**Design / postponed** cho tới khi vendor adapter gọi
-`sandbox.DefaultRunner().Start(...)` và fail-closed khi thiếu backend. Stack:
+<Callout type="info" title="Implemented — Start + StartPiped">
+Package đã merge vào desktop `main` (PR #22); **`StartPiped`** thêm trên Agent
+Hub branch cho ACP interactive stdio. Agent Hub Claude adapter gọi
+`sandbox.DefaultRunner().StartPiped(...)` và fail-closed khi thiếu backend —
+xem [Agent Hub](/dev-kit/agent-hub) (Partial) và
+[Implementation status](/dev-kit/implementation-status). Stack:
 [ADR-009](/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes).
 </Callout>
 
@@ -24,11 +25,15 @@ Package đã merge vào desktop `main` — xem
 flowchart LR
   Hub["Agent Hub / caller"] --> Runner["sandbox.DefaultRunner"]
   Runner --> Pol["Policy validate + defaults"]
-  Pol --> BE{GOOS}
+  Pol --> Mode{API}
+  Mode -->|StartPiped| Piped["ACP / interactive stdio"]
+  Mode -->|Start| Cap["Capture helpers / wait"]
+  Piped --> BE{GOOS}
+  Cap --> BE
   BE -->|linux| BW[bubblewrap]
   BE -->|darwin| SB[Seatbelt sandbox-exec]
   BE -->|other| Err[ErrUnsupportedPlatform]
-  BW --> Proc[Proc Wait/Kill/Output]
+  BW --> Proc[Proc Wait/Kill/Output/pipes]
   SB --> Proc
 ```
 
@@ -55,21 +60,32 @@ r := sandbox.DefaultRunner()
 if err := r.Available(ctx); err != nil {
     // bwrap missing / unsupported OS
 }
+
+// Capture-and-wait (stdout/stderr buffered) — helpers / one-shot commands.
 proc, err := r.Start(ctx, sandbox.Policy{
     WorkDir: "/abs/path/to/project",
     Network: sandbox.NetworkNone, // or NetworkHost
     Env:     map[string]string{"PATH": "/usr/bin:/bin"},
+}, sandbox.Cmd{Path: "/usr/bin/tool", Args: []string{"--once"}})
+
+// Interactive ACP / vendor agent stdio — prefer StartPiped.
+piped, err := r.StartPiped(ctx, sandbox.Policy{
+    WorkDir: "/abs/path/to/project",
+    Network: sandbox.NetworkHost, // agent may need net for model API
+    Env:     map[string]string{"PATH": "/usr/bin:/bin"},
 }, sandbox.Cmd{Path: "/usr/bin/agent", Args: []string{"--acp"}})
+// piped.StdinWriter() / piped.StdoutReader() for line-delimited JSON-RPC
 ```
 
 | Type / func | Role |
 |---|---|
 | `Policy` | WorkDir (abs), RO/RW binds, DenyReadPaths, Env, Network, PrivateHome |
 | `Cmd` | Path + Args; optional Dir under WorkDir |
-| `Runner.Start` | Validate → defaults → Backend.Start |
+| `Runner.Start` | Validate → defaults → Backend.Start — **capture helpers** |
+| `Runner.StartPiped` | Same policy path → Backend.StartPiped — **ACP / interactive stdio** |
 | `DefaultRunner` | Linux → bwrap; Darwin → Seatbelt; else unavailable |
-| `Proc` | Wait / Kill / PID / Output |
-| `LandlockAvailable` / `RestrictSelf` | Linux helper; not wired into bwrap Start (v1) |
+| `Proc` | Wait / Kill / PID / Output; StdinWriter / StdoutReader after StartPiped |
+| `LandlockAvailable` / `RestrictSelf` | Linux helper; not wired into bwrap Start/StartPiped (v1) |
 
 ### Defaults
 
@@ -115,7 +131,7 @@ per policy. Integration tests run on Darwin only.
 go test ./internal/sandbox/ ./internal/arch/ -count=1
 
 go test ./internal/sandbox/ \
-  -run 'TestSmokeAgentShapedProcess|TestBwrapCanWriteWorkDirUnderHome' -v
+  -run 'TestSmokeAgentShapedProcess|TestBwrapCanWriteWorkDirUnderHome|TestStartPiped' -v
 ```
 
 | Host package | Platform |
@@ -130,14 +146,15 @@ go test ./internal/sandbox/ \
 - Windows backend
 - Firejail / gVisor / Firecracker / Docker-as-default
 - Auto-install `bwrap` for end users
-- Wire into Agent Hub UI (Phase 4 resume)
 
-Landlock helper exists but is **not** attached to `BwrapBackend.Start` in v1.
+Landlock helper exists but is **not** attached to `BwrapBackend.Start` /
+`StartPiped` in v1. Agent Hub Claude path already uses `StartPiped`; Codex/Gemini
+adapters still Design.
 
 <Cards>
   <Card title="ADR-009" href="/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes" description="Locked stack: bwrap + Landlock / Seatbelt" />
-  <Card title="Agent Hub" href="/dev-kit/agent-hub" description="Future consumer — vendor spawn must use DefaultRunner" />
+  <Card title="Agent Hub" href="/dev-kit/agent-hub" description="Partial consumer — Claude vendor spawn uses StartPiped" />
   <Card title="MCP / Agent" href="/dev-kit/mcp-agent" description="Gateway consent layer — complementary, not a substitute" />
   <Card title="Security model" href="/dev-kit/security" description="Threat model and security gates" />
-  <Card title="Implementation status" href="/dev-kit/implementation-status" description="Checkout vocabulary: Implemented / Design only" />
+  <Card title="Implementation status" href="/dev-kit/implementation-status" description="Checkout vocabulary: Implemented / Partial / Design only" />
 </Cards>
