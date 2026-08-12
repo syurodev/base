@@ -9,19 +9,14 @@ Agent Hub là module built-in tương lai giúp DevKit trở thành nơi tập t
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout type="warn" title="Design only — Phase 4 postponed pending sandbox merge">
-Trang này là design cho một module chưa có runtime trong DevKit checkout hiện tại.
-Không có `internal/agenthub` hay `internal/acp` tại thời điểm viết. **Implementation
-plan đã viết nhưng đang hoãn**: spawn agent CLI mà không có OS sandbox là quá nguy
-hiểm (Gateway/permission UI không chặn bash/fs nội bộ của agent). Stack sandbox đã
-**chốt** ([ADR-009](/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes)):
-Linux bubblewrap (+ Landlock best-effort), macOS Seatbelt — package
-`internal/sandbox` **Implemented trên desktop branch `cursor/agent-sandbox-a5ea`**
-(bwrap + Landlock helper + Seatbelt); merge + verification trước khi resume Hub.
-Claude adapter `Open()` phải spawn qua `sandbox.DefaultRunner().Start(…)`. External
-plugins / marketplace vẫn Phase 5–6. Một phần thiết kế ACP đã được xác thực bằng
-thực nghiệm thật — các chỗ đó được đánh dấu rõ. Trạng thái implementation thật
-nằm ở [Implementation status](/dev-kit/implementation-status).
+<Callout type="warn" title="Design only — Phase 4 postponed; sandbox Implemented">
+Trang này là design cho module chưa có runtime `internal/agenthub` / `internal/acp`.
+**Sandbox OS đã Implemented** — xem [/dev-kit/sandbox](/dev-kit/sandbox) và
+[ADR-009](/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes)
+(`internal/sandbox` trên desktop `main`, PR #22). Hub vẫn hoãn cho tới khi
+adapter vendor spawn qua `sandbox.DefaultRunner().Start(...)` (fail-closed nếu
+thiếu backend). External plugins / marketplace vẫn Phase 5–6. Trạng thái:
+[Implementation status](/dev-kit/implementation-status).
 </Callout>
 
 ```mermaid
