@@ -25,13 +25,13 @@ không mở JetBrains 3-pane merge UI.
 Đã có runtime:
 
 - Desktop Phase 3B/3C: transport, outbox, local mutation, pull/apply, Git-style
-  conflict resolve (ours/theirs/merge notes), PKCE + refresh rotation.
+conflict resolve (ours/theirs/merge notes), PKCE + refresh rotation.
 - Backend Phase A + Gateway MVC: `session` / `push` / `pull`, arbitration,
-  device enroll/revoke guard, audit, Compose private network.
+device enroll/revoke guard, audit, Compose private network.
 - Evidence: mock two-device E2E (`dev-kit-app/cmd/mocksyncserver/`), Go↔Java
-  contract E2E opt-in (`internal/sync/backend_contract_e2e_test.go`), backend
-  `SyncApiIT` (kể cả revoke qua SQL), smoke deploy 2026-08-10
-  (login → session → one push → pull/apply).
+contract E2E opt-in (`internal/sync/backend_contract_e2e_test.go`), backend
+`SyncApiIT` (kể cả revoke qua SQL), smoke deploy 2026-08-10
+(login → session → one push → pull/apply).
 
 Còn thiếu theo doc (saas-backend “Kiểm thử hoãn…”, roadmap #7):
 
@@ -45,36 +45,40 @@ Còn thiếu theo doc (saas-backend “Kiểm thử hoãn…”, roadmap #7):
 **Approach: Opt-in Go matrix against local Compose stack.**
 
 - Harness mô phỏng **hai device** đầy đủ (mỗi device: SQLite + `syncclient` +
-  vault DEK chung), nói chuyện HTTP thật với Gateway loopback
-  (`http://127.0.0.1:8082`), không dùng `cmd/mocksyncserver`.
+vault DEK chung), nói chuyện HTTP thật với Gateway loopback
+(`http://127.0.0.1:8082`), không dùng `cmd/mocksyncserver`.
 - Tái sử dụng pattern device factory từ `cmd/mocksyncserver/e2e_test.go` và
-  auth/token pattern từ `internal/sync/backend_contract_e2e_test.go`.
+auth/token pattern từ `internal/sync/backend_contract_e2e_test.go`.
 - Suite **opt-in** qua biến môi trường (skip mặc định trong `go test ./…`),
-  chạy khi Compose + token fixture sẵn sàng.
+chạy khi Compose + token fixture sẵn sàng.
 - Smoke production Keycloak browser đã có giữ nguyên làm evidence phụ; **không**
-  bắt buộc mở rộng production matrix trong closure này.
+bắt buộc mở rộng production matrix trong closure này.
 - Chỉ sửa production code khi matrix lộ bug thật (client hoặc backend).
 
 ### Alternatives considered
 
-| Option | Quyết định |
-|---|---|
-| Manual checklist + shell smoke | Reject — không đủ để claim `Implemented`. |
-| Hybrid Compose + mở rộng production PKCE matrix | Defer — browser PKCE khó CI; Compose cover correctness. |
-| JetBrains 3-pane UI trong cùng phase | Out of scope (roadmap: làm sau). |
-| BE Phase B (revoke API/UI, retention, multi-region) | Out of scope. |
+
+| Option                                              | Quyết định                                              |
+| --------------------------------------------------- | ------------------------------------------------------- |
+| Manual checklist + shell smoke                      | Reject — không đủ để claim `Implemented`.               |
+| Hybrid Compose + mở rộng production PKCE matrix     | Defer — browser PKCE khó CI; Compose cover correctness. |
+| JetBrains 3-pane UI trong cùng phase                | Out of scope (roadmap: làm sau).                        |
+| BE Phase B (revoke API/UI, retention, multi-region) | Out of scope.                                           |
+
 
 ## Success criteria
 
 Phase 3 được đánh `Implemented` chỉ khi **tất cả** gate sau pass trên Compose:
 
-| # | Gate | Pass khi |
-|---|---|---|
-| G1 | Multi-entity / multi-record | Device A tạo/sửa nhiều record thuộc `note`, `database`, `ssh`; push; device B pull/apply đủ; cursor account tiến; thứ tự per-entity bảo toàn (không rollback version). |
-| G2 | Retry / backoff | Khi push/pull gặp `408`/`429`/`5xx` hoặc connection drop giữa chừng: outbox vào retry (`MarkRetry` / `FailureNetwork`), lần sau thành công; **không** tạo bản trùng trên replication log (idempotency key). |
-| G3 | Conflict convergence | Hai device diverge cùng note trên BE; server trả conflict; client capture theirs; resolve ours **và** theirs (và merge notes nếu đã có trên mock) đều hội tụ hai phía sau SyncNow. |
-| G4 | Auth refresh + revoke | (a) Access/session hết hạn → client refresh hoặc clear đúng contract; request sau không dùng bearer chết. (b) Device bị revoke (`UPDATE devices SET status='revoked'`, pattern `SyncApiIT`) → session/push/pull map `401`/`403` → `ErrAuthentication` / clear session, không apply thêm data. |
-| G5 | Docs | Cập nhật `implementation-status`, `roadmap`, `saas-backend` (và security-controls nếu cần) với evidence lệnh/commit; Sync client + SaaS backend không còn “remaining: multi-device matrix…” như blocker Phase 3. |
+
+| #   | Gate                        | Pass khi                                                                                                                                                                                                                                                                                      |
+| --- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1  | Multi-entity / multi-record | Device A tạo/sửa nhiều record thuộc `note`, `database`, `ssh`; push; device B pull/apply đủ; cursor account tiến; thứ tự per-entity bảo toàn (không rollback version).                                                                                                                        |
+| G2  | Retry / backoff             | Khi push/pull gặp `408`/`429`/`5xx` hoặc connection drop giữa chừng: outbox vào retry (`MarkRetry` / `FailureNetwork`), lần sau thành công; **không** tạo bản trùng trên replication log (idempotency key).                                                                                   |
+| G3  | Conflict convergence        | Hai device diverge cùng note trên BE; server trả conflict; client capture theirs; resolve ours **và** theirs (và merge notes nếu đã có trên mock) đều hội tụ hai phía sau SyncNow.                                                                                                            |
+| G4  | Auth refresh + revoke       | (a) Access/session hết hạn → client refresh hoặc clear đúng contract; request sau không dùng bearer chết. (b) Device bị revoke (`UPDATE devices SET status='revoked'`, pattern `SyncApiIT`) → session/push/pull map `401`/`403` → `ErrAuthentication` / clear session, không apply thêm data. |
+| G5  | Docs                        | Cập nhật `implementation-status`, `roadmap`, `saas-backend` (và security-controls nếu cần) với evidence lệnh/commit; Sync client + SaaS backend không còn “remaining: multi-device matrix…” như blocker Phase 3.                                                                              |
+
 
 ## Architecture
 
@@ -95,8 +99,8 @@ thấp, `syncclient`/`syncstore`/`syncconflict` là orchestration/persistence.
 Two-device E2E hiện đã sống ở `cmd/mocksyncserver/` (`go test ./cmd/mocksyncserver/`).
 Contract transport opt-in đã có ở `internal/sync/backend_contract_e2e_test.go`.
 
-1. **Deployed matrix suite (desktop)** — **`cmd/synce2e/`** (`package main`)  
-   Song song `cmd/mocksyncserver/`: full 2-device stacks (`syncclient` +
+1. **Deployed matrix suite (desktop)** — `**cmd/synce2e/`** (`package main`)
+  Song song `cmd/mocksyncserver/`: full 2-device stacks (`syncclient` +
    `syncstore` + `vaultitem` + SQLite), HTTP thật tới Gateway, **không** import
    mock server. Opt-in qua env; chạy `go test ./cmd/synce2e/`.  
    **Không** đặt `internal/sync/deployedmatrix/` — nested dưới protocol package,
@@ -104,27 +108,24 @@ Contract transport opt-in đã có ở `internal/sync/backend_contract_e2e_test.
    thấp) trái `internal/arch`.  
    **Không** nhét matrix vào `internal/sync` cùng file contract E2E — contract
    chỉ kiểm transport; matrix cần composition giống mock E2E → thuộc `cmd/`.
-
-2. **Compose stack (backend)** — không đổi layout hexagonal  
-   Dùng Compose + Gateway `127.0.0.1:8082` như README BE. Env:
+2. **Compose stack (backend)** — không đổi layout hexagonal
+  Dùng Compose + Gateway `127.0.0.1:8082` như README BE. Env:
    `DEVKIT_DEPLOYED_E2E_URL`, `DEVKIT_DEPLOYED_E2E_TOKEN` (hoặc tương đương),
    optional DSN/psql cho revoke fixture.
-
-3. **Fault injector (G2)** — test-only, **không** capability BE mới  
-   Proxy/`httptest` wrapper trong `cmd/synce2e/` (hoặc Compose profile toxiproxy
+3. **Fault injector (G2)** — test-only, **không** capability BE mới
+  Proxy/`httptest` wrapper trong `cmd/synce2e/` (hoặc Compose profile toxiproxy
    ngoài tree production). Không thêm package dưới `com.synx.devkit.*` production
    chỉ để fault; README BE cấm nhồi logic vào `shared`/`bootstrap` vì tiện test.
-
-4. **Revoke fixture (G4)** — giữ pattern IT hiện có  
-   `SyncApiIT` đã `UPDATE devices SET status = 'revoked'`. Helper nếu cần: chỉ
+4. **Revoke fixture (G4)** — giữ pattern IT hiện có
+  `SyncApiIT` đã `UPDATE devices SET status = 'revoked'`. Helper nếu cần: chỉ
    `src/test/java/com/synx/devkit/e2e/` (cùng chỗ E2E BE), không public revoke API,
    không capability `identity` mới cho Phase 3 closure.
 
 ### Auth in CI / local matrix
 
 - Dùng **gateway-compatible signed identity** hoặc Keycloak token lấy bằng
-  client-credentials / password grant **chỉ trong realm test local**, không
-  mở lại direct grant trên production realm.
+client-credentials / password grant **chỉ trong realm test local**, không
+mở lại direct grant trên production realm.
 - Browser PKCE không bắt buộc trong suite này (đã có smoke 2026-08-10).
 
 ## Error / mapping rules (không đổi contract)
@@ -140,23 +141,25 @@ cho khớp contract; không âm thầm đổi protocol version `1`.
 
 ## Testing strategy
 
-| Layer | Vai trò trong closure |
-|---|---|
-| Unit / existing mock E2E | Giữ regression; không thay thế G1–G4. |
+
+| Layer                                 | Vai trò trong closure                            |
+| ------------------------------------- | ------------------------------------------------ |
+| Unit / existing mock E2E              | Giữ regression; không thay thế G1–G4.            |
 | Backend `SyncApiIT` + Go contract E2E | Baseline; matrix mở rộng full `syncclient` path. |
-| **Deployed matrix (mới)** | Evidence chính cho G1–G4. |
-| Production smoke | Evidence phụ đã có; không gate thêm. |
+| **Deployed matrix (mới)**             | Evidence chính cho G1–G4.                        |
+| Production smoke                      | Evidence phụ đã có; không gate thêm.             |
+
 
 Mỗi gate là một (hoặc vài) test độc lập, fail message chỉ rõ gate nào.
 
 ## Documentation updates (after green)
 
 - `content/projects/dev-kit/implementation-status.mdx` — Sync client + SaaS
-  backend → `Implemented` (hoặc giữ Partial chỉ nếu còn limitation ngoài G1–G4;
-  theo Done when roadmap thì đủ G1–G4 là Implemented).
+backend → `Implemented` (hoặc giữ Partial chỉ nếu còn limitation ngoài G1–G4;
+theo Done when roadmap thì đủ G1–G4 là Implemented).
 - `content/projects/dev-kit/roadmap.mdx` — Phase 3 Implemented; tick #7.
 - `content/projects/dev-kit/saas-backend.mdx` — bỏ “ma trận chưa hoàn tất”;
-  ghi lệnh chạy matrix.
+ghi lệnh chạy matrix.
 - Optional: `security-controls.mdx` remaining rows cho refresh/revoke matrix.
 
 ## Out of scope
@@ -166,17 +169,19 @@ Mỗi gate là một (hoặc vài) test độc lập, fail message chỉ rõ gat
 - Distributed rate limit, Redis, multi-region, retention/backup.
 - MCP / plugins / marketplace.
 - Đổi envelope version, plaintext title encryption, production Keycloak policy
-  redesign.
+redesign.
 
 ## Risks and mitigations
 
-| Risk | Mitigation |
-|---|---|
-| Compose flaky / slow | Timeout rõ; health wait; opt-in only. |
-| No revoke API | SQL fixture documented; same as backend IT. |
-| Retry behavior incomplete under real HTTP | Matrix fails → fix `httptransport`/`runner` minimally. |
+
+| Risk                                                         | Mitigation                                                            |
+| ------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Compose flaky / slow                                         | Timeout rõ; health wait; opt-in only.                                 |
+| No revoke API                                                | SQL fixture documented; same as backend IT.                           |
+| Retry behavior incomplete under real HTTP                    | Matrix fails → fix `httptransport`/`runner` minimally.                |
 | Checkout path drift (`~/Workspace/dev-kit` vs `dev-kit-app`) | Plan ghi path PERSONAL monorepo; sync docs paths khi cập nhật status. |
-| Sai chỗ đặt suite (nested `internal/sync/...`) | Chốt `cmd/synce2e/` theo README app + pattern `cmd/mocksyncserver`. |
+| Sai chỗ đặt suite (nested `internal/sync/...`)               | Chốt `cmd/synce2e/` theo README app + pattern `cmd/mocksyncserver`.   |
+
 
 ## Self-review checklist
 
