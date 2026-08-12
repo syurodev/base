@@ -295,7 +295,7 @@ local-first.
 
 ## ADR-009: OS-primitive sandbox for Agent Hub vendor processes
 
-**Status:** Accepted (2026-08-12) — package not Implemented yet
+**Status:** Accepted (2026-08-12) — package on feature branch `cursor/agent-sandbox-a5ea` (pending merge)
 
 **Decision:** Trước khi ship Agent Hub vendor spawn (Claude/…), DevKit dùng
 sandbox **OS primitives** qua package leaf `internal/sandbox`:
@@ -328,7 +328,7 @@ sandbox first-party nhưng không đủ cho Hub multi-vendor và spawn ACP.
 - Positive: một `Runner` dùng lại cho mọi vendor; fail-closed khi thiếu `bwrap`.
 - Negative: phụ thuộc package host (`bubblewrap`); macOS dựa API `sandbox-exec`
   deprecated nhưng vẫn là thực tế ngành.
-- Neutral: Agent Hub plan tiếp tục postponed đến khi `internal/sandbox` xanh.
+- Neutral: Agent Hub plan tiếp tục postponed đến khi `internal/sandbox` merge xanh trên `main`.
 
 ---
 
