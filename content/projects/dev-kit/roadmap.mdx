@@ -49,13 +49,35 @@ trang kiểm chứng.
 - Dependencies: Local data model ổn định từ Phase 1, envelope/versioning rules từ Phase 0, và contract boundaries từ Phase 2.
 - Out of scope: Team vault, realtime collaboration và server-side plaintext search.
 
-## Phase 4–5 — Plugins and marketplace
+## Phase 4 — Agent Hub (multi-agent sessions)
 
 - Status: Design only
+- Goal: Built-in orchestration để chạy nhiều AI coding agent CLI (Claude Code,
+  Codex, Gemini, …) song song trong Workbench — mỗi agent một tab — qua **ACP
+  tự implement** (DevKit = ACP Client). Trên nền đó mở agent-gọi-agent
+  (`agenthub.invokeAgent`) qua Capability Gateway + MCP tool surface đã có.
+- Evidence: [`/dev-kit/agent-hub`](/dev-kit/agent-hub) (design; một phần đã xác
+  thực bằng thực nghiệm ACP JSON-RPC). Checkout chưa có `internal/agenthub` /
+  `internal/acp`. MCP Server runtime (`internal/mcp`) đã Implemented và là
+  dependency cho tool surface `agenthub.*`.
+- Done when: Spawn/cancel session qua gateway; UI multi-tab tối thiểu; depth
+  limit + busy guard; MCP tools `listAgents` / `createAgentSession` /
+  `invokeAgent` / `getSessionStatus` / `cancelAgent` khớp design; audit
+  `origin=mcp|ui`; không bypass Capability Gateway.
+- Dependencies: Phase 0–2 gateway/manifest; Phase 3 không bắt buộc cho v1
+  local-only hub; **MCP runtime Implemented** (để agent trong tab gọi tool
+  DevKit và để expose `agenthub.*`).
+- Out of scope (v1): External plugin loading; marketplace; tự host LLM;
+  Streamable HTTP MCP; Code Graph runtime (Agent Hub tiêu thụ khi module đó
+  ship, không block Hub v1).
+
+## Phase 5–6 — Plugins and marketplace
+
+- Status: Design only (**sau** Phase 4 Agent Hub)
 - Goal: Mở rộng từ internal modules sang external plugins có isolation, rồi mới tới phân phối qua marketplace có kiểm soát.
 - Evidence: `/dev-kit/plugins`, `/dev-kit/implementation-status`, `docs/architecture/devkit-architecture.md`, `docs/architecture/core-foundation.md`; checkout hiện chưa có `internal/plugins` hoặc `internal/marketplace`.
-- Done when: Phase 4 có plugin runtime với lifecycle/permission/isolation rõ; Phase 5 chỉ mở khi manifest validation, signing, integrity checks, rollback, audit, và sandbox strategy đều đã thành security gate bắt buộc.
-- Dependencies: Phase 2 manifest/versioning contract, Capability Gateway policy mở rộng, và security gates trong `/dev-kit/security`.
+- Done when: Phase 5 có plugin runtime với lifecycle/permission/isolation rõ; Phase 6 chỉ mở khi manifest validation, signing, integrity checks, rollback, audit, và sandbox strategy đều đã thành security gate bắt buộc.
+- Dependencies: Phase 2 manifest/versioning contract, Capability Gateway policy mở rộng, security gates trong `/dev-kit/security`, và **Phase 4 Agent Hub** đã ổn định đủ để không tranh chấp roadmap với orchestration agent.
 - Out of scope: Remote third-party loading trước khi có isolation; marketplace như một hạng mục “MVP”.
 
 ## Next recommended work
@@ -80,6 +102,11 @@ trang kiểm chứng.
    `go test ./cmd/synce2e/ -run TestG4RevokedDeviceRejected` against Compose
    when verifying deployed matrix. Spec:
    `docs/superpowers/specs/2026-08-11-be-phase-b-device-revoke-design.md`.
-9. **Tiếp theo**: Phase 4 external plugin runtime, MCP Resources/Streamable HTTP,
-   device management UI polish / JetBrains 3-pane merge, hoặc UI design pass —
-   tùy product priority.
+9. ✅ **MCP runtime + install đã xong**: socket host, stdio proxy, tool allowlist,
+   interaction gate (env wins over `allow_always`), install `claude-code`/`codex`
+   × `global`/`project`. Chi tiết: [`/dev-kit/mcp-agent`](/dev-kit/mcp-agent).
+10. **Tiếp theo (ưu tiên)**: **Phase 4 Agent Hub** — implement theo
+    [`/dev-kit/agent-hub`](/dev-kit/agent-hub) (ACP client, multi-tab sessions,
+    `agenthub.*` MCP tools). External plugins / marketplace **dời xuống**
+    Phase 5–6. Song song có thể polish MCP Resources/HTTP, device UI, hoặc
+    JetBrains 3-pane merge — không thay thế ưu tiên Agent Hub.
