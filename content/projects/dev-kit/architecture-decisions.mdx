@@ -334,6 +334,50 @@ sandbox first-party nhưng không đủ cho Hub multi-vendor và spawn ACP.
 
 ---
 
+## ADR-010: Rich-text (Plate) note editor, not markdown-only
+
+**Status:** Accepted (2026-08-14) — **Implemented**
+(`frontend/src/modules/notes/plate/`, `NoteEditor.tsx`)
+
+**Decision:** Note body vẫn lưu là `string` markdown đã encrypt (envelope
+không đổi), nhưng UI edit bằng **Plate** — rich-text block editor với slash
+menu (heading, quote, code block, mermaid…), floating toolbar, và
+markdown-input-rule (`# `, `- `, `` ``` ``…) auto-convert giống Notion. Body
+serialize/deserialize qua `editor.api.markdown` mỗi lần autosave/load, không
+đổi format lưu trữ hay AAD.
+
+**Context:** Open question ban đầu (xem lịch sử
+[Open questions](/dev-kit/open-questions)) là "markdown only hay rich text có
+code-focused extensions?". Trả lời qua 2 spec triển khai thực tế:
+`docs/superpowers/specs/2026-08-13-notes-module-design.md` (Plate + autosave +
+in-place edit, thay model create-only ban đầu) và
+`docs/superpowers/specs/2026-08-14-notes-folders-ui-design.md` (dashboard,
+folder, tag, slash menu restyle với `Kbd` hotkey thật).
+
+**Alternatives considered:**
+
+- **Plain `<textarea>` markdown-only** — đơn giản nhất, đúng với record shape
+  gốc, nhưng UX kém cho note dài/có code block, không có preview trực quan.
+- **Split-pane markdown + preview** — quen thuộc (kiểu VS Code) nhưng tốn
+  không gian pane, và vẫn cần một markdown parser riêng cho preview.
+- **Full WYSIWYG lưu HTML/JSON riêng** — cần đổi envelope/schema, mất khả năng
+  đọc note bằng tool markdown thuần bên ngoài app; loại vì đụng
+  "Body stays encrypted markdown string" invariant.
+
+**Consequences:**
+
+- Positive: UX ngang app note hiện đại (Notion-like) mà record shape ở rest
+  không đổi — sync/conflict-merge/AAD logic không cần biết gì về Plate.
+- Positive: markdown input rule + slash menu cùng tồn tại — gõ `# ` tự thành
+  H1, không bắt buộc dùng menu.
+- Negative: thêm dependency Plate + plugin set riêng cho notes; slash menu
+  chỉ cover block cơ bản (không H4/image-block/mermaid trong menu — mermaid
+  vẫn qua code block ` ```mermaid `), giữ scope hẹp có chủ đích.
+- Neutral: Không đổi gì ở backend/MCP — `notes.update`/`Update(id, title,
+  body)` vẫn nhận `body` là `string` markdown thuần, không biết tới Plate.
+
+---
+
 ## Verified snapshot
 
 - Checked on: 2026-07-24

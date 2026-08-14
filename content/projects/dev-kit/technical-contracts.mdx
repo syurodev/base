@@ -165,7 +165,7 @@ Conflict resolve contract (client):
 | Family | Public methods | Subject / capability / scope pattern | Evidence | MCP tool (design, xem [MCP / Agent](/dev-kit/mcp-agent)) |
 | --- | --- | --- | --- | --- |
 | Vault | `VaultStatus`, `SetupVault`, `UnlockVault`, `UnlockVaultWithRecovery`, `LockVault` | `builtin.vault` / `vault:manage` / `vault` | `internal/bridge/vault.go` | `vault.status` only — Setup/Unlock/Lock **không expose** qua MCP |
-| Notes | `NotesList`, `NotesSearch`, `NotesCreate`, `NotesGet`, `NotesDelete` | `builtin.notes` / `notes:read` hoặc `notes:write` / `note:list`, `note:search`, `note:new`, `note:<id>` | `internal/bridge/notes.go` | `notes.list`, `notes.search`, `notes.get`, `notes.create`, `notes.delete` |
+| Notes | `NotesList`, `NotesSearch`, `NotesCreate`, `NotesGet`, `NotesUpdate`, `NotesDelete`, `NotesSetOrganization`, `NotesFolderList`, `NotesFolderCreate`, `NotesFolderUpdate`, `NotesFolderDelete` | `builtin.notes` / `notes:read` hoặc `notes:write` / `note:list`, `note:search`, `note:new`, `note:<id>`, `note-folder:list`, `note-folder:new`, `note-folder:<id>` | `internal/bridge/notes.go` | `notes.list`, `notes.search`, `notes.get`, `notes.create`, `notes.update`, `notes.delete`, `notes.set_organization`, `notes.folder.list`, `notes.folder.create`, `notes.folder.update`, `notes.folder.delete` |
 | Database | `DBListProfiles`, `DBCreateProfile`, `DBDeleteProfile`, `DBTestConnection`, `DBQuery` | `builtin.database` / `db:query` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/database.go` | `db.listProfiles`, `db.query` — CreateProfile/DeleteProfile để v2 |
 | SSH | `SSHListProfiles`, `SSHCreateProfile`, `SSHDeleteProfile`, `SSHObserveHostKey`, `SSHTrustHostKey`, `SSHTestConnection`, `SSHRunCommand` | `builtin.ssh` / `ssh:connect` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/ssh.go` | `ssh.listProfiles`, `ssh.testConnection`, `ssh.runCommand` — CreateProfile/DeleteProfile/ObserveHostKey/TrustHostKey **không expose** |
 | SSH forwarding | `SSHStartForward`, `SSHListForwards`, `SSHStopForward` | `builtin.ssh` / `ssh:forward` / `profile:<id>`, `forward:list`, `forward:<id>` | `internal/bridge/ssh.go`, `internal/ssh/forwarding.go` | — (non-goal, không expose qua MCP) |
@@ -231,6 +231,9 @@ Scope families hiện tại:
 - `note:search`
 - `note:new`
 - `note:<record-id>`
+- `note-folder:list`
+- `note-folder:new`
+- `note-folder:<record-id>`
 - `profile:list`
 - `profile:new`
 - `profile:<record-id>`
