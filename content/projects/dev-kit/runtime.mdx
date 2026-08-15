@@ -5,7 +5,10 @@ description: Cách DevKit khởi động, kích hoạt module và chạy lệnh.
 
 # Runtime & process
 
-Runtime được thiết kế để khởi động nhanh: load shell + trạng thái vault + registry, rồi lazy-activate module còn lại khi cần (target).
+Runtime được thiết kế để khởi động nhanh: load shell + trạng thái vault + registry,
+rồi lazy-activate module/view còn lại khi cần. Frontend built-in manifests hiện
+đã dùng `lazyModuleView()` + Suspense/preload; render, lifecycle tab và dữ liệu
+lớn tuân theo [Frontend performance architecture](/dev-kit/frontend-performance).
 
 ```mermaid
 sequenceDiagram
@@ -38,14 +41,17 @@ sequenceDiagram
 
 | Item | Target |
 |---|---|
-| Cold start đến UI dùng được | Nhanh, chỉ load phần visible |
-| Activate module lần đầu | Lazy, không block toàn app |
-| Search local | Giữ mượt khi vault lớn dần |
+| Cold start đến UI dùng được | Chỉ shell/visible path; build budget chặn initial asset regression |
+| Activate module lần đầu | Lazy + fallback tức thời; không block toàn app |
+| Search local | Input phản hồi ngay, query cũ không overwrite query mới |
+| Collection/stream lớn | Bridge bounded + virtualization/batching theo module |
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout title="Lazy activation (target)">
-Thiết kế mục tiêu: không load toàn bộ plugin/module lúc startup. Chỉ shell, vault state, registry và view đang mở.
+<Callout type="info" title="Lazy activation implemented for built-in views">
+Frontend manifests giữ metadata eager nhưng load component theo nhu cầu. Đây chỉ
+là startup control; module mới vẫn phải đáp ứng render/lifecycle/data budgets ở
+[Frontend performance architecture](/dev-kit/frontend-performance).
 </Callout>
 
 Chi tiết runtime và evidence theo checkout hiện tại: [Implementation status](/dev-kit/implementation-status).

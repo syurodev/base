@@ -64,6 +64,10 @@ build/               Wails/platform build configuration
 - Đụng Extension API → kiểm tra capability + backward compatibility.
 - Đụng sync protocol/schema → có migration plan; conflict resolve phải giữ
   fail-closed (không auto-winner).
+- Đụng React module/shell, list/table/graph hoặc realtime stream → áp
+  [Frontend performance architecture](/dev-kit/frontend-performance): lazy
+  boundary, bounded bridge response, state/lifecycle ownership, fixture profile
+  và startup/render budget phù hợp.
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 

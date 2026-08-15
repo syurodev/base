@@ -148,6 +148,25 @@ sequenceDiagram
 
 Naming và effect đi theo đúng convention đã định nghĩa ở `docs/architecture/mcp-agent-integration.md` (`<module>.<action><Resource>`, mọi tool phải khai báo `Effect`).
 
+### Performance contract
+
+Code Graph là workload đặc biệt nặng dù UI v1 mới là list/tree/text: index Java
+thực tế có thể có hàng chục nghìn symbol và hàng trăm nghìn call edge. Người
+implement phải tuân theo
+[Frontend performance architecture → Code Graph](/dev-kit/frontend-performance#code-graph):
+
+- frontend không nhận hoặc giữ toàn bộ `index.json`;
+- list/search/flow/neighborhood API phải bounded, cursor-based và tách
+  summary/detail;
+- index progress phải throttle, cancel được và gắn project/index version để
+  job cũ không overwrite project mới;
+- list/tree phải virtualize và chỉ expand/query phần user đang xem;
+- graph canvas tương lai không render toàn project bằng DOM/SVG: dùng
+  Canvas/WebGL, viewport culling, level-of-detail và layout ở Go/Worker.
+
+Performance contract này là điều kiện thiết kế API v1, không chờ tới lúc thêm
+node-link visualization mới retrofit.
+
 ### Error handling
 
 - `java` không có trên PATH → lỗi `codegraph.jvmNotFound`, không crash.
@@ -169,6 +188,7 @@ Naming và effect đi theo đúng convention đã định nghĩa ở `docs/archi
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
+  <Card title="Frontend performance" href="/dev-kit/frontend-performance#code-graph" description="Bounded bridge API, virtual tree/list và graph renderer contract" />
   <Card title="MCP / Agent" href="/dev-kit/mcp-agent" description="Model chung cho mọi MCP tool, bao gồm codegraph" />
   <Card title="Plugins" href="/dev-kit/plugins" description="Pattern ModuleManifest mà codegraph sẽ theo" />
   <Card title="Technical contracts" href="/dev-kit/technical-contracts" description="Bridge/Capability Gateway boundary hiện có" />
