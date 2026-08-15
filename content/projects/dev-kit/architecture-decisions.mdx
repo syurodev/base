@@ -378,6 +378,180 @@ folder, tag, slash menu restyle với `Kbd` hotkey thật).
 
 ---
 
+## ADR-011: Shared title-bar actions and split panel for module side content
+
+**Status:** Accepted (2026-08-15) — **Implemented**
+(`frontend/src/stores/moduleActions.ts`, `frontend/src/components/ui/split-panel.tsx`,
+`frontend/src/workbench/Workbench.tsx`, `frontend/src/modules/notes/NoteEditor.tsx`)
+
+**Decision:** Thay vì mỗi module tự vẽ toolbar/side-panel riêng cho nhu cầu
+"một hành động phụ + một khối nội dung phụ đi kèm view chính", DevKit thêm hai
+primitive **dùng chung toàn app** ở tầng Workbench:
+
+1. `useModuleActionsStore` (Zustand, `frontend/src/stores/moduleActions.ts`) —
+   một `actions: ModuleAction[]` list; hook `useModuleAction(action | null)`
+   cho module đăng ký một icon-button vào **title bar chung** (cạnh
+   Search/Settings) trong lúc view của module đó đang mount, tự
+   register/unregister theo `id` khi mount/unmount hoặc khi `action` chuyển
+   `null`. `onClick` đọc qua `ref` nên effect chỉ re-run khi
+   `id`/`icon`/`label`/`isActive` đổi, không phải mỗi lần re-render component
+   gọi hook (tránh register/unregister-thrash khi user gõ liên tục).
+2. `SplitPanel` (`SplitPanelProvider` + `SplitPanelSlot` + `useSplitPanel()`,
+   `frontend/src/components/ui/split-panel.tsx`) — một side panel **content-
+   squeezing** (flex sibling co giãn width qua framer-motion, không phải
+   overlay đè lên nội dung) nằm trong khung nội dung chính của Workbench.
+   Module gọi `openPanel(content, { width, onClose })` / `closePanel()` để đẩy
+   bất kỳ `ReactNode` nào vào panel.
+
+`Workbench.tsx` wrap toàn bộ shell trong `SplitPanelProvider`, render
+`moduleActions` thành các nút title-bar trước nút Search, và đặt
+`SplitPanelSlot` làm flex sibling của khung nội dung module đang active.
+Consumer đầu tiên là Notes: `NoteEditor` chuyển hết folder/color/tag editing
+(trước đây là một hàng inline chật trong header editor) vào `NoteMetaPanel`,
+đẩy qua `useSplitPanel`, mở/đóng qua nút `PanelRight` đăng ký bằng
+`useModuleAction` — cho phép cột viết co lại còn `max-w-[720px]` căn giữa
+thay vì full-bleed.
+
+**Context:** Notes cần chuyển từ layout editor "mọi thứ trong 1 header row"
+(title + folder + color + tag chen nhau, soạn thảo tràn sát mép) sang layout
+kiểu tài liệu (Notion/Craft): cột viết căn giữa, metadata tách khỏi header.
+Thay vì xây side panel riêng cho Notes, quyết định làm **primitive dùng
+chung** ngay từ đầu vì pattern "toggle hành động phụ từ title bar + panel nội
+dung phụ ép cột chính lại" là nhu cầu chung cho các module khác trong tương
+lai (Database connection details, SSH profile settings, …), không riêng gì
+Notes. Tham khảo kiến trúc `SplitView`/`SplitPanelSlot` của dự án ngoài
+(CHIRO dashboard) nhưng bỏ mobile-drawer fallback và app-sidebar
+auto-collapse coordination — DevKit desktop-only, không có hai concern đó.
+
+**Alternatives considered:**
+
+- **Panel cục bộ trong `NoteEditor`** (không phải primitive dùng chung) —
+  nhanh nhất cho riêng Notes nhưng phải viết lại y hệt khi Database/SSH cần
+  side panel tương tự; không có chỗ chung để đăng ký title-bar action.
+- **`useEffectEvent`** (React 19, mới stable) cho callback `onClick` lưu
+  trong store thay vì ref-latest-callback pattern — loại vì hook này bắt buộc
+  gọi từ một Effect trong **cùng component** định nghĩa nó; không hợp use
+  case "component A đăng ký, component B (Workbench) gọi lại sau" — ref
+  pattern classic vẫn đúng contract hơn.
+- **Overlay/Sheet đè lên nội dung** thay vì content-squeezing panel — đơn
+  giản hơn về layout nhưng che mất phần cột viết đang gõ dở, không đúng
+  "xem cả hai cùng lúc" mà user muốn khi sửa metadata.
+
+**Consequences:**
+
+- Positive: Module khác (Database/SSH/Kafka/…) có thể tái dùng hai primitive
+  này ngay mà không phải build lại state/animation; `Workbench.tsx` chỉ có
+  một chỗ duy nhất biết vẽ title-bar actions + panel slot. Chi tiết API +
+  rules/gotchas: [/dev-kit/shell-primitives](/dev-kit/shell-primitives).
+- Positive: `moduleActions`/`SplitPanel` render rỗng/0-width khi không module
+  nào đăng ký — an toàn thêm vào app shell trước khi có consumer thứ hai.
+- Negative: Thêm hai file store/primitive dùng chung nghĩa là thay đổi hành
+  vi của chúng ảnh hưởng mọi module consumer cùng lúc — cần review kỹ hơn một
+  thay đổi cục bộ trong module.
+- Neutral: React 19 StrictMode double-invoke được xử lý bằng
+  register-by-id-idempotent (`registerAction` upsert theo `id`, không push
+  trùng) thay vì né StrictMode; không cần opt-out StrictMode cho vùng này.
+
+## ADR-012: Workbench tab strip in the native titlebar
+
+**Status:** Accepted (2026-08-15) — **Implemented** (Phase 1: module-level
+tabs; Phase 2: Notes per-note tabs with VS Code-style preview/pin and
+drag-to-reorder — `frontend/src/stores/workbenchTabs.ts`,
+`frontend/src/workbench/tabs/TabStrip.tsx`, `frontend/src/workbench/Workbench.tsx`,
+`frontend/src/modules/registry.ts`, `frontend/src/modules/notes/NotesView.tsx`,
+`frontend/src/modules/notes/NoteEditor.tsx`. Phase 3, Agent Hub per-session
+tabs + live status, still pending — see
+[Workbench tabs → Scope](/dev-kit/workbench-tabs#scope-module-tabs--notes-per-note-hôm-nay-agent-hub-sau).)
+
+**Decision:** Thay `activeModuleId` string đơn (1 module active tại 1 thời
+điểm) bằng model open/close/focus **tab**, hiển thị trong dải `<header>`
+30px (`h-[30px]`) — vùng giữa 3 nút đèn giao thông và cụm icon
+Search/Settings, cuộn ngang khi nhiều tab, giống tab bar VS Code. (Follow-up
+sau khi Phase 2 thêm drag-to-reorder: `Mac.InvisibleTitleBarHeight` trong
+`main.go` giờ cố ý để `0` thay vì dùng native inset — chi tiết mechanism +
+lý do: [Workbench tabs → Tab strip
+UI](/dev-kit/workbench-tabs#tab-strip-ui).)
+
+1. `useWorkbenchTabsStore` (Zustand, `frontend/src/stores/workbenchTabs.ts`) —
+   `openTabs: WorkbenchTab[]` phẳng + `activeTabId`. `openTab({moduleId,
+   viewId, title, params?})` là open-or-focus, dedupe theo `tabKey(moduleId,
+   viewId, params)` (params sort theo key rồi join) — thiết kế sẵn cho tab
+   theo-item (1 note = 1 tab) dù Phase 1 mọi module chỉ mở đúng 1 tab "home"
+   (`params` luôn rỗng). `status?: "idle"|"running"|"success"|"error"` +
+   `setTabStatus` cũng dựng sẵn cho live status, chưa module nào gọi.
+2. `TabStrip` (`frontend/src/workbench/tabs/TabStrip.tsx`) — UI cuộn ngang,
+   dùng framer-motion `layout`/`Reorder` (bundle `domMax`, khác
+   `domAnimation` mà `Dock.tsx` dùng) để tab khác trượt mượt khi mảng tab
+   thêm/bớt/kéo-sắp-xếp lại, cộng `AnimatePresence` cho tab đóng fade-out
+   thay vì biến mất tức thì. Icon mỗi tab đọc từ `ModuleManifest.icon` mặc
+   định (mỗi module tự đăng ký, không phải map tra cứu tách rời), tab có thể
+   override riêng. Phase 2 thêm drag-to-reorder + preview/pin tab lên trên
+   nền này — chi tiết hiện tại: [Workbench tabs → Tab strip
+   UI](/dev-kit/workbench-tabs#tab-strip-ui).
+3. `ModuleView.component` nới kiểu nhận thêm `params?: Record<string,
+   unknown>` (tương thích ngược — mọi view component 0-tham số hiện tại vẫn
+   gán được vào kiểu mới) để tab sau này truyền dữ liệu theo-item vào view.
+
+`Workbench.tsx` mount **mọi tab đang mở cùng lúc** trong DOM
+(`contents`/`hidden` theo `activeTabId`, không unmount khi đổi tab) để state
+dở dang trong 1 module (SQL đang gõ, note đang sửa) không mất khi user đổi
+sang tab khác rồi quay lại. `Dock` click và nút Settings title-bar cùng đi
+qua 1 hàm `focusModule(moduleId)` duy nhất (mở-hoặc-focus tab home).
+
+**Context:** Titlebar 50px vốn chỉ chứa 1 label module tĩnh + icon cố định
+(Search/Settings) — không gian trống lớn không dùng tới trong lúc user chỉ
+xem được 1 module tại 1 thời điểm. User muốn tận dụng đúng dải titlebar đó
+làm tab bar (giống VS Code), và về sau mở nhiều "item" cùng lúc xuyên module
+(1 tab note + 1 tab kết nối DB) với status cập nhật kể cả khi không đứng tab
+đó (vd 1 agent session đang chạy). Quyết định dựng sẵn primitive dedupe theo
+`params` + field `status` ngay từ Phase 1, dù chưa module nào tiêu thụ, để
+Phase 2 (Notes per-note tab) / Phase 3 (Agent Hub per-session tab + live
+status) không phải đổi lại shape của store.
+
+**Alternatives considered:**
+
+- **Per-item tabs cho Notes/Agent Hub ngay trong Phase 1** — loại vì mỗi
+  module cần refactor state nội bộ riêng (`NotesView`/`AgentHubView` đang tự
+  quản lý list↔detail switch, chưa gọi qua `openTab`); gộp chung vào 1 lượt
+  implementation sẽ làm plan quá lớn, review khó tách bạch lỗi thuộc layer
+  nào (infra tab strip hay module refactor). Tách thành 2 spec riêng sau khi
+  Phase 1 (infra + module-level tabs) đã ổn định.
+- **Animate reveal nút đóng bằng CSS `@starting-style` +
+  `transition-behavior: allow-discrete`** (animate qua ranh giới
+  `display:none`↔`flex`) thay vì đổi hẳn sang `w-0`→`w-4` width transition —
+  loại vì cần xác nhận support WebKit cụ thể trong runtime WKWebView của app
+  mà không live-test được; `w-0`→`w-4` là kỹ thuật CSS transition thuần, đã
+  biết chắc hoạt động ở mọi trình duyệt hiện đại và còn kích hoạt đúng
+  `layout` push trên các tab khác (xem [Workbench tabs → Rules /
+  gotchas](/dev-kit/workbench-tabs#rules--gotchas)).
+- **Map `moduleId → icon` tách rời** (1 file dùng chung cho cả `Dock` và
+  `TabStrip`) — cách làm đầu tiên, loại ngay sau khi thấy nó lệch khỏi
+  pattern self-registration mà `views`/`commands`/`capabilities` đã dùng;
+  đổi sang `ModuleManifest.icon` bắt buộc, mỗi module tự khai trong
+  `manifest.ts` của chính nó.
+
+**Consequences:**
+
+- Positive: Titlebar 50px trước đây gần như trống nay là bề mặt chức năng
+  chính — mở/đóng/chuyển module qua tab thay vì chỉ qua Dock. Chi tiết API +
+  rules/gotchas: [/dev-kit/workbench-tabs](/dev-kit/workbench-tabs).
+- Positive: Dedupe key + `status` field dựng sẵn từ Phase 1 nghĩa là Phase
+  2/3 (per-note tab, per-session tab + live status qua
+  `agenthub:sessionUpdate`) chỉ cần module tự gọi `openTab`/`setTabStatus`
+  đúng chỗ, không phải sửa lại `useWorkbenchTabsStore`.
+- Negative: `--wails-draggable` giờ phải khai báo tường minh trên mọi phần
+  tử click-được mới trong `<header>` (không có default) — quên set `no-drag`
+  cho 1 nút mới thêm sau này sẽ tạo vùng vừa không kéo được window vừa không
+  bấm được đúng cảm giác.
+- Negative (đã giải quyết 1 phần): Agent Hub per-session tab + live status
+  vẫn chưa implement — `AgentHubView` tự quản `activeSessionId` nội bộ, chưa
+  gọi `openTab`/`setTabStatus`. Notes per-note tab (phần còn lại của use case
+  gốc "1 tab note + 1 tab DB connection") đã implement ở Phase 2, cộng thêm
+  preview/pin tab và drag-to-reorder không nằm trong scope quyết định ban
+  đầu — chi tiết: [Workbench tabs](/dev-kit/workbench-tabs).
+
+---
+
 ## Verified snapshot
 
 - Checked on: 2026-07-24

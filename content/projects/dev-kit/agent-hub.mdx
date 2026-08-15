@@ -13,14 +13,16 @@ tự gọi sang agent khác lấy kết quả — không cần con người đi�
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout type="info" title="Partial — v1 surface shipped (mock + Claude)">
-Runtime đã có trên desktop branch Agent Hub: `internal/acp`, `internal/agenthub`
-(mock + Claude adapters), bridge/UI multi-tab, MCP tools `agenthub.*`, và vendor
-spawn qua `sandbox.DefaultRunner().StartPiped(...)` (fail-closed nếu thiếu
-backend). **Codex / Gemini adapters vẫn Design.** Chưa claim production-verified
-end-to-end với Claude Code thật trong CI — smoke trên desktop. Sandbox API:
-[/dev-kit/sandbox](/dev-kit/sandbox) (`Start` = capture helpers; `StartPiped` =
-ACP stdio). Trạng thái: [Implementation status](/dev-kit/implementation-status).
+<Callout type="info" title="Implemented — Phase 4 v1 closed (Claude-only)">
+Phase 4 đóng với runtime: `internal/acp`, `internal/agenthub` (mock + Claude),
+bridge/UI multi-tab, MCP `agenthub.*`, spawn qua
+`sandbox.DefaultRunner().StartPiped(...)` (fail-closed). **Codex / Gemini
+adapters vẫn Design** — thêm sau, không chặn đóng Phase 4. Chưa claim
+production-verified vs Claude Code thật trong CI — smoke desktop. **Next:**
+[Workbench UI (Phase 5)](/dev-kit/roadmap#phase-5--workbench-ui) theo
+`dev-kit-app/DESIGN.md` (UI đủ flex cho vendor/tab). Sandbox:
+[/dev-kit/sandbox](/dev-kit/sandbox). Status:
+[Implementation status](/dev-kit/implementation-status).
 </Callout>
 
 ```mermaid

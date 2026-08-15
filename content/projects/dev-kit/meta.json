@@ -12,6 +12,8 @@
     "data-sync",
     "saas-backend",
     "---Frontend architecture---",
+    "shell-primitives",
+    "workbench-tabs",
     "frontend-performance",
     "---Modules---",
     "vault",

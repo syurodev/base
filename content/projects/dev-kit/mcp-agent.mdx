@@ -81,7 +81,7 @@ Hiện tại chỉ UI (qua Bridge) gọi được các module đã Implemented (
 - Streamable HTTP transport / remote agent.
 - Primitive **Resources** và **Prompts** — v1 chỉ có Tools; Resources (đọc note/codegraph output qua URI) để sau nếu cần.
 - SSH forwarding tools (`ssh.startForward`/`stopForward`) — mở tunnel network do agent khởi tạo là blast-radius lớn, giữ nguyên non-goal đã ghi ở [SSH](/dev-kit/ssh#non-goals-mvp).
-- Sync mutation tools (`sync.connect`/`syncNow`/`resolveConflict`) — sync client vẫn `Partial`, và để agent tự trigger sync/resolve conflict là rủi ro dữ liệu chưa cần thiết ở v1.
+- Sync mutation tools (`sync.connect`/`syncNow`/`resolveConflict`) — sync client đã `Implemented`, nhưng để agent tự trigger sync/resolve conflict là rủi ro dữ liệu chưa cần thiết ở MCP v1.
 - Cài MCP hàng loạt cho mọi agent cùng lúc; sync config lên cloud; quản lý MCP server không phải `devkit`.
 
 ### Acceptance criteria
@@ -124,7 +124,7 @@ Ba primitive từng có — **Roots, Sampling, Logging** — đã bị deprecate
 | Kafka UI (design) | [Kafka UI § MCP tool surface](/dev-kit/kafka#mcp-tool-surface-design) — read + `kafka.publishMessage` (execute, capability riêng `kafka:produce`) |
 | Search, Sync | [Technical contracts § Bridge contract](/dev-kit/technical-contracts#bridge-contract) — cột "MCP tool (design)" |
 | Code Graph | [Code Graph § MCP tool surface](/dev-kit/codegraph#mcp-tool-surface) |
-| Agent Hub | [Agent Hub § MCP tool surface](/dev-kit/agent-hub#mcp-tool-surface) — `agenthub.listAgents/createAgentSession/invokeAgent/getSessionStatus/cancelAgent` (Partial; mock + Claude) |
+| Agent Hub | [Agent Hub § MCP tool surface](/dev-kit/agent-hub#mcp-tool-surface) — `agenthub.listAgents/createAgentSession/invokeAgent/getSessionStatus/cancelAgent` (Implemented Claude-only; Codex/Gemini Design) |
 
 ### Active target selection — pattern chung cho tool cần 1 target sống
 
@@ -250,7 +250,7 @@ import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
   <Card title="Code Graph (Java)" href="/dev-kit/codegraph" description="Module đầu tiên định nghĩa MCP tool surface riêng" />
-  <Card title="Agent Hub" href="/dev-kit/agent-hub" description="Partial — agenthub.* MCP tools (mock + Claude); Codex/Gemini Design" />
+  <Card title="Agent Hub" href="/dev-kit/agent-hub" description="Implemented (Claude-only) — agenthub.* MCP; Codex/Gemini Design" />
   <Card title="Plugins" href="/dev-kit/plugins" />
   <Card title="Security model" href="/dev-kit/security" />
   <Card title="Technical contracts" href="/dev-kit/technical-contracts" description="Capability/scope contract mà MCP tool tái dùng nguyên" />

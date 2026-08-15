@@ -164,11 +164,18 @@ tô màu `effective_color` qua `color-mix()` trên token `--note-folder-*` có s
 note không có effective color. Preview + tag chip (dot + label) + thời gian
 tương đối nằm trong panel đó.
 
-Trong editor: folder picker (`Select`), tag input (Enter/comma, tag kế thừa
-hiển thị read-only riêng), và color picker (`Popover` + `ColorPicker` dùng
-chung với dialog tạo/sửa folder, có thêm nút "Inherit from folder"). Đổi
-folder/tag/color gọi `setNoteOrganization` ngay, không đợi debounce
-autosave 1.5s của title/body.
+Editor (`NoteEditor`) là cột viết căn giữa, giới hạn `max-w-[720px]`, title
+lớn (`text-3xl font-bold`) đứng riêng phía trên body — không còn hàng
+metadata chen trong header editor. Folder picker (`Select`), color picker
+(`ColorPicker`, có nút "Inherit from folder"), và tag input (Enter/comma, tag
+kế thừa hiển thị read-only riêng) chuyển hết vào `NoteMetaPanel`, một panel
+cục bộ của Notes được đẩy vào **shared split panel** của toàn app (xem
+[Shell primitives](/dev-kit/shell-primitives)),
+mở/đóng qua nút `PanelRight` đăng ký vào title bar chung — không phải nút
+local trong header editor. Đổi folder/tag/color vẫn gọi `setNoteOrganization`
+ngay, không đợi debounce autosave 1.5s của title/body; đổi note (`key={noteId}`
+ở `NotesView`) tự đóng panel và unregister nút title-bar do component cũ
+unmount hoàn toàn.
 
 Manifest: `frontend/src/modules/notes/manifest.ts` khai báo
 `notes:read` / `notes:write` (declaration metadata); grant thật nằm ở
@@ -208,6 +215,7 @@ UI MVP: Git markers trong `ResolvePanel` (3-pane JetBrains vẫn là target).
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
+  <Card title="Shell primitives" href="/dev-kit/shell-primitives" description="moduleActions + SplitPanel — primitive dùng chung mà editor này là consumer đầu tiên" />
   <Card title="Vault" href="/dev-kit/vault" description="Keyring/DEK + vaultitem substrate" />
   <Card title="SSH" href="/dev-kit/ssh" description="Cùng thin-adapter pattern trên vaultitem" />
   <Card title="Data & sync" href="/dev-kit/data-sync" description="Conflict merge cho notes" />

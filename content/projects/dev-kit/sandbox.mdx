@@ -16,7 +16,7 @@ import { Cards, Card } from 'fumadocs-ui/components/card';
 Package đã merge vào desktop `main` (PR #22); **`StartPiped`** thêm trên Agent
 Hub branch cho ACP interactive stdio. Agent Hub Claude adapter gọi
 `sandbox.DefaultRunner().StartPiped(...)` và fail-closed khi thiếu backend —
-xem [Agent Hub](/dev-kit/agent-hub) (Partial) và
+xem [Agent Hub](/dev-kit/agent-hub) (Implemented — Claude-only) và
 [Implementation status](/dev-kit/implementation-status). Stack:
 [ADR-009](/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes).
 </Callout>
@@ -153,7 +153,7 @@ adapters still Design.
 
 <Cards>
   <Card title="ADR-009" href="/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes" description="Locked stack: bwrap + Landlock / Seatbelt" />
-  <Card title="Agent Hub" href="/dev-kit/agent-hub" description="Partial consumer — Claude vendor spawn uses StartPiped" />
+  <Card title="Agent Hub" href="/dev-kit/agent-hub" description="Implemented (Claude-only) — vendor spawn uses StartPiped" />
   <Card title="MCP / Agent" href="/dev-kit/mcp-agent" description="Gateway consent layer — complementary, not a substitute" />
   <Card title="Security model" href="/dev-kit/security" description="Threat model and security gates" />
   <Card title="Implementation status" href="/dev-kit/implementation-status" description="Checkout vocabulary: Implemented / Partial / Design only" />

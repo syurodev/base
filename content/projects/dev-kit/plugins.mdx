@@ -5,7 +5,7 @@ description: Nền tảng mở rộng qua Extension API và capability.
 
 # Plugins
 
-Plugin surface target: chỉ nói chuyện với Extension API khi external plugin runtime ship. Hiện tại DevKit đã chuẩn hoá built-in modules qua `ModuleManifest` và internal registry — xem [ADR-002](/dev-kit/architecture-decisions#adr-002-internal-modules-before-external-plugins). Phase 2 đã `Implemented`; **external plugin runtime là Phase 5–6** trên [Roadmap](/dev-kit/roadmap) — **sau** [Agent Hub (Phase 4)](/dev-kit/agent-hub).
+Plugin surface target: chỉ nói chuyện với Extension API khi external plugin runtime ship. Hiện tại DevKit đã chuẩn hoá built-in modules qua `ModuleManifest` và internal registry — xem [ADR-002](/dev-kit/architecture-decisions#adr-002-internal-modules-before-external-plugins). Phase 2 đã `Implemented`; **external plugins là Phase 6**, **marketplace là Phase 7** trên [Roadmap](/dev-kit/roadmap) — **sau** [Agent Hub (Phase 4)](/dev-kit/agent-hub) và [Workbench UI (Phase 5)](/dev-kit/roadmap#phase-5--workbench-ui).
 
 `ModuleManifest` hiện dùng các fields `id`, `title`, `version`, `apiVersion`,
 `commands`, `views`, `capabilities`. Backend registry validate manifest, bảo vệ

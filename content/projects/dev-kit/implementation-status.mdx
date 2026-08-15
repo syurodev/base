@@ -23,7 +23,7 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 |---|---|---|---|
 | Crypto envelope | Implemented | `internal/crypto/envelope.go`, `internal/crypto/aead.go`; tests: `internal/crypto/envelope_test.go`, `internal/crypto/aead_test.go`; V2-only `SealV2`/`OpenWithAD` with canonical AAD and explicit V1 rejection. | Future envelope changes require an explicit versioned migration decision; no V1 migration tool is in scope. |
 | Vault | Implemented | `internal/vault/service.go`, `internal/vault/keyringstore.go`, `internal/vault/sqlkeyringstore.go`; tests: `internal/vault/service_test.go`, `internal/vault/keyringstore_test.go`, `internal/vault/sqlkeyringstore_test.go`; UI: `frontend/src/workbench/VaultGate.tsx`. | Hoàn thiện UX và policy cho recovery / strength hints nếu cần. |
-| Notes | Implemented | `internal/notes/{notes,folders,tags}.go` (thin adapter trên `vaultitem.Store`, `note` + `note-folder` record type, live tag/color inheritance); tests: `internal/notes/{notes,folders,tags}_test.go`; UI: `frontend/src/modules/notes/{NotesView,NotesDashboard,NoteEditor,NoteCard,ColorPicker}.tsx` (dashboard → Plate editor, in-place edit via autosave, one-level folders, freeform tags, 9-màu per-note color). | Title vẫn là metadata plaintext; cần encrypt title nếu titles ever sync. Folder one-level only; note color giới hạn palette 9 màu dùng chung với folder. |
+| Notes | Implemented | `internal/notes/{notes,folders,tags}.go` (thin adapter trên `vaultitem.Store`, `note` + `note-folder` record type, live tag/color inheritance); tests: `internal/notes/{notes,folders,tags}_test.go`; UI: `frontend/src/modules/notes/{NotesView,NotesDashboard,NoteEditor,NoteCard,ColorPicker}.tsx` (dashboard → Plate editor, in-place edit via autosave, one-level folders, freeform tags, 9-màu per-note color). Editor layout: cột viết căn giữa `max-w-[720px]`, metadata (folder/color/tag) chuyển vào `NoteMetaPanel` trong shared split panel (ADR-011), toggle qua nút title-bar thay vì header cục bộ. | Title vẫn là metadata plaintext; cần encrypt title nếu titles ever sync. Folder one-level only; note color giới hạn palette 9 màu dùng chung với folder. |
 | Tools | Implemented | `internal/tools/hash.go`, `internal/commands/registry.go`; test: `internal/tools/hash_test.go`; UI: `frontend/src/modules/tools/ToolsView.tsx`. | Mở rộng thêm tools khi product cần. |
 | SSH | Implemented | `internal/ssh/{ssh,hostkeys,forwarding,active}.go`; create bắt buộc `env` hợp lệ (`EnvLookup`); bridge `internal/bridge/ssh.go` + active profile; UI `frontend/src/modules/ssh/SSHView.tsx` (dropdown env). | Forward runtime-only, loopback-only. |
 | Database | Implemented | `internal/database/{database,pool,active}.go`; create bắt buộc `env` hợp lệ; bridge `internal/bridge/database.go` + active profile; UI `frontend/src/modules/database/DatabaseView.tsx` (dropdown env). Postgres/`pgx` only. | Multi-engine MySQL/MariaDB vẫn design. |
@@ -31,14 +31,14 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 | Environments | Implemented | `internal/environments/{environments,memory,sqlrepository}.go`; migration m12 `env_tags` seed `dev`/`stg`/`prod`; `RequiresConfirmation` fail-closed; bridge `Env*`; UI Settings; `DeleteTag` chặn tag-in-use qua `ProfileEnvUsage` (`internal/app/envusage.go` quét ssh/db/kafka profiles). | — |
 | Vault item store | Implemented | `internal/vaultitem/vaultitem.go`, `internal/vaultitem/memory.go`, `internal/vaultitem/sqlrepository.go`, `internal/vaultitem/store.go`; tests: `internal/vaultitem/memory_test.go`, `internal/vaultitem/sqlrepository_test.go`, `internal/vaultitem/store_test.go`; bridge search: `internal/bridge/search.go`, `internal/bridge/search_test.go`. | Search hiện là substring trên metadata JSON; chưa có index trên cột `type`. |
 | Capability Gateway | Implemented | `internal/capabilities/gateway.go`, `internal/permissions/policy.go`, `internal/audit/events.go`, `internal/bridge/gateway.go`; tests: `internal/capabilities/gateway_test.go`, `internal/bridge/gateway_test.go`; grants gồm `builtin.search`/`vault:search`/`item:search` cho cross-type search. | Cần mở rộng policy khi external callers / plugin surface xuất hiện. |
-| ModuleManifest / Internal Extension API | Implemented | `internal/modules/registry.go` và `internal/app/app.go` định nghĩa/đăng ký manifest; `internal/bridge/app_service.go` expose public metadata (DTO co-located theo handler file); frontend manifests, parity validation và minimal functional UX ở `frontend/src/modules/{registry.ts,*/manifest.ts}` và `frontend/src/workbench/{Workbench.tsx,ActivityBar.tsx,CommandPalette.tsx}`; tests: `internal/modules/registry_test.go`, `internal/bridge/app_service_test.go`. | External plugin runtime chưa nằm trong scope. |
-| Sync / Replication client | Implemented | Phase 3B transport/pull/apply, Phase 3C local mutation flow và **Git-style conflict resolve** đã có. `internal/auth` dùng Authorization Code + PKCE S256 qua system browser + loopback callback, refresh-token rotation trong OS keychain và access token chỉ in-memory. `syncclient.ConnectWithTokenSource` lấy token mới trước request; `SyncConnect` pin Gateway `https://api.synx.io.vn`. Enrollment token gửi trên sync session handshake. Deployed matrix G1–G4 pass qua `cmd/synce2e/` trên Compose stack. Evidence: `internal/auth/{service,keyring_store}.go`, `internal/syncclient/{service,connect,syncnow}.go`, `internal/bridge/sync.go`, `cmd/synce2e/`; tests `internal/auth/service_test.go`, `internal/bridge/sync_test.go`, `go test ./cmd/synce2e/ -count=1 -timeout 15m`. | JetBrains 3-pane merge UI vẫn deferred UX polish, không phải blocker Phase 3. |
+| ModuleManifest / Internal Extension API | Implemented | `internal/modules/registry.go` và `internal/app/app.go` định nghĩa/đăng ký manifest; `internal/bridge/app_service.go` expose public metadata (DTO co-located theo handler file); frontend manifests, parity validation và minimal functional UX ở `frontend/src/modules/{registry.ts,*/manifest.ts}` và `frontend/src/workbench/{Workbench.tsx,CommandPalette.tsx}` + `frontend/src/workbench/dock/{Dock,DockItem}.tsx`. Shared cross-module UI primitives (ADR-011): `frontend/src/stores/moduleActions.ts` (title-bar action registry) + `frontend/src/components/ui/split-panel.tsx` (content-squeezing side panel), consumer đầu tiên là Notes editor. Tab strip (ADR-012, Phase 1 module-level tabs): `frontend/src/stores/workbenchTabs.ts` + `frontend/src/workbench/tabs/TabStrip.tsx`, mỗi module tự đăng ký icon qua `ModuleManifest.icon`. Tests: `internal/modules/registry_test.go`, `internal/bridge/app_service_test.go`. | External plugin runtime chưa nằm trong scope. Per-note / per-session tabs (Notes, Agent Hub) và live tab status qua `agenthub:sessionUpdate` chưa implement — xem [Workbench tabs → Scope](/dev-kit/workbench-tabs#scope-module-level-tabs-hôm-nay-per-item-tabs-sau). |
+| Sync / Replication client | Implemented | Phase 3B transport/pull/apply, Phase 3C local mutation flow và **Git-style conflict resolve** đã có. `internal/auth` dùng Authorization Code + PKCE S256 qua system browser + loopback callback, refresh-token rotation trong OS keychain và access token chỉ in-memory. `syncclient.ConnectWithTokenSource` lấy token mới trước request; `SyncConnect` pin Gateway `https://api.synx.io.vn`. Enrollment token gửi trên sync session handshake. Deployed matrix G1–G4 pass qua `cmd/synce2e/` trên Compose stack. Evidence: `internal/auth/{service,keyring_store}.go`, `internal/syncclient/{service,connect,syncnow}.go`, `internal/bridge/sync.go`, `cmd/synce2e/`; tests `internal/auth/service_test.go`, `internal/bridge/sync_test.go`, `go test ./cmd/synce2e/ -count=1 -timeout 15m`. | JetBrains 3-pane merge UI → Phase 5 Workbench UI. |
 | Sync SaaS backend + auth gateway | Implemented | Companion checkout `/Users/syuro/Workspace/PERSONAL/dev-kit/dev-kit-backend` (branch `feat/phase-b-device-revoke`, `2060f39`): Spring Boot `session/push/pull`, PostgreSQL Liquibase schema, account/device registration + revoke guard, atomic arbitration/audit. `gateway/` validate Keycloak JWT, strip identity/proxy headers, ký JWT nội bộ ≤45s, publish JWKS, `GET /v1/desktop/config`, Redis denylist early reject (fail-open). **BE Phase B**: `GET/POST /v1/sync/devices` list+revoke, last-ACTIVE `409`, Redis `sync:revoked-device:{sub}:{deviceId}` TTL 60s. Desktop bridge tối thiểu (`02afaaa`). Evidence: `./gradlew :test --tests com.synx.devkit.e2e.SyncApiIT`, `./gradlew :gateway:test`, desktop `go test ./internal/sync ./internal/bridge ./internal/app ./internal/arch`. G4 rewritten to API revoke; re-run `go test ./cmd/synce2e/ -run TestG4RevokedDeviceRejected` against Compose when verifying deployed matrix. | UI device management, key-rotation runbook, retention/backup vẫn later. Spec: `docs/superpowers/specs/2026-08-11-be-phase-b-device-revoke-design.md`. |
 | MCP | Implemented | `internal/mcp` (socket host + tools), `cmd/devkit-mcp` (stdio proxy + install), `internal/interaction` (selection/confirmation; headless fail-fast); install `claude-code`/`codex` × `global`/`project`; env-wins over `allow_always`. | Resources / Streamable HTTP deferred. Not production-verified vs real Claude Code in CI — desktop smoke recommended. |
-| Agent Hub | Partial | v1 surface: `internal/acp` (codec/conn/process), `internal/agenthub` (SQLite store, depth/cycle, permission fail-closed, mock + Claude adapters), bridge + ModuleManifest, frontend `frontend/src/modules/agenthub/`, MCP `agenthub.*` (`internal/mcp/tools_agenthub.go`). Claude spawn: `sandbox.DefaultRunner().StartPiped` (fail-closed). Design: [`/dev-kit/agent-hub`](/dev-kit/agent-hub). Tests: `go test ./internal/acp/ ./internal/agenthub/ ./internal/bridge/ ./internal/mcp/`. | Codex/Gemini `VendorAdapter`s (Design); production smoke vs real Claude Code in CI; UX polish. |
+| Agent Hub | Implemented | Phase 4 v1 **Claude-only closed**: `internal/acp`, `internal/agenthub` (mock + Claude), bridge + ModuleManifest, frontend `frontend/src/modules/agenthub/`, MCP `agenthub.*`, Claude spawn `sandbox.DefaultRunner().StartPiped` (fail-closed). Docs: [`/dev-kit/agent-hub`](/dev-kit/agent-hub). Tests: `go test ./internal/acp/ ./internal/agenthub/ ./internal/bridge/ ./internal/mcp/`. | Codex/Gemini `VendorAdapter`s deferred (post–Phase 5 UI ok); production CI smoke vs real Claude Code; UX polish → Phase 5. |
 | Agent sandbox (`internal/sandbox`) | Implemented | Leaf package: Linux `bwrap`, Landlock helper, macOS Seatbelt; fail-closed network/bind policy; arch zero in-module imports. **`Start`** = capture-and-wait; **`StartPiped`** = interactive ACP stdio (used by Claude adapter). Docs: [`/dev-kit/sandbox`](/dev-kit/sandbox). Tests: `go test ./internal/sandbox/ ./internal/arch/`. Merged desktop PR #22 + StartPiped on Agent Hub branch. | Domain egress proxy; Windows; optional Landlock-in-Start/StartPiped. |
-| External plugins | Design only | Centralized architecture sources: `/dev-kit/plugins`, `/dev-kit/repo-structure`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/plugins`. **Roadmap Phase 5** (sau Agent Hub). | Build plugin SDK, loader, isolation, permissioning, and lifecycle. |
-| Marketplace | Design only | Centralized architecture sources: `/dev-kit/plugins`, `/dev-kit/core-foundation`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/marketplace`. **Roadmap Phase 6**. | Signing, integrity checks, rollback, and controlled distribution model. |
+| External plugins | Design only | Centralized architecture sources: `/dev-kit/plugins`, `/dev-kit/repo-structure`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/plugins`. **Roadmap Phase 6** (sau Workbench UI). | Build plugin SDK, loader, isolation, permissioning, and lifecycle. |
+| Marketplace | Design only | Centralized architecture sources: `/dev-kit/plugins`, `/dev-kit/core-foundation`; reproducible absence check: `test ! -d /Users/syuro/Workspace/dev-kit/internal/marketplace`. **Roadmap Phase 7**. | Signing, integrity checks, rollback, and controlled distribution model. |
 | Vault item repository | Implemented | Unified store thay 3 store riêng: `internal/vaultitem/*` với bảng `vault_items`; notes/database/ssh là thin adapter; cross-type search qua `VaultSearch`. Xem dòng "Vault item store" ở trên. | App hiện greenfield, chưa có legacy data nên migration `m6` không cần backfill. Chỉ thêm migration/backfill trước khi hỗ trợ upgrade từ bản đã có dữ liệu; vẫn cần migration/re-encrypt khi đổi envelope hoặc rotate `key_version`, và index khi search lớn. |
 
 ## Verified snapshot
@@ -49,18 +49,17 @@ thể thay đổi theo commit; kiến thức kiến trúc ổn định nằm ở
 - DevKit checkout commit: `802aa53` (MCP `agenthub.*`; prior: Claude
   `StartPiped`, bridge/UI, acp package)
 - DevKit checkout status: Phase 3 sync + MCP + Kafka `Implemented` (prior
-  evidence). Agent Hub **Partial** (mock + Claude + MCP/UI; Codex/Gemini
-  Design). Sandbox **Implemented** including `StartPiped`.
+  evidence). Agent Hub **Implemented** (Claude-only v1; Codex/Gemini Design).
+  Sandbox **Implemented** including `StartPiped`.
 - Verification commands run (representative):
   - `go test ./internal/acp/ ./internal/agenthub/ ./internal/sandbox/ ./internal/arch/ ./internal/bridge/ ./internal/mcp/ -count=1`
   - `go test ./cmd/synce2e/ -count=1 -timeout 15m` → PASS (G1–G4, prior evidence)
   - `go vet -tags server ./internal/mcp/... ./internal/interaction/ ./cmd/devkit-mcp/`
   - `cd frontend && bun run build`
 
-Phase 2–3 sync, Environments, Kafka, MCP, và sandbox đều `Implemented`.
-Agent Hub v1 surface **Partial**; **next:** Codex/Gemini adapters + desktop
-Claude smoke. External plugins / marketplace vẫn Phase 5–6. JetBrains 3-pane
-merge UI vẫn deferred UX polish.
+Phase 2–4 (sync, Environments, Kafka, MCP, sandbox, Agent Hub Claude-only) đều
+`Implemented`. **Next:** Phase 5 Workbench UI (`dev-kit-app/DESIGN.md`, UI flex).
+Plugins → Phase 6; marketplace → Phase 7. JetBrains 3-pane merge UI thuộc Phase 5.
 
 ## Companion backend snapshot
 
@@ -99,11 +98,12 @@ merge UI vẫn deferred UX polish.
 - MCP: Implemented runtime (socket host, stdio proxy, tools, install for
   `claude-code`/`codex` × `global`/`project`). Resources / Streamable HTTP
   deferred. Not production-verified against a real Claude Code session in CI.
-- Agent Hub is **Partial**: ACP + service + mock/Claude + bridge/UI +
-  `agenthub.*` MCP tools. Codex/Gemini adapters still Design. Not claimed
-  production-verified against real Claude Code in CI.
-- External plugin runtime is still design-only in this checkout (**Phase 5–6**;
-  after Agent Hub).
+- Agent Hub is **Implemented** (Phase 4 Claude-only): ACP + service +
+  mock/Claude + bridge/UI + `agenthub.*` MCP tools. Codex/Gemini adapters still
+  Design (not required to close Phase 4). Not claimed production-verified against
+  real Claude Code in CI.
+- External plugin runtime is still design-only (**Phase 6**; marketplace
+  **Phase 7** — after Workbench UI Phase 5).
 - Sync client hiện có server-authoritative account session, runtime-only bearer,
   HTTPS transport (HTTP chỉ cho loopback), encrypted push/pull, transactional
   apply/cursor, replay journal, durable local mutation intents, capability-gated
@@ -114,7 +114,7 @@ merge UI vẫn deferred UX polish.
   durable arbitration. Desktop dùng PKCE loopback + rotating refresh token trong
   OS keychain; access token không persist và Gateway origin được pin. Deployed
   matrix G1–G4 pass qua `cmd/synce2e/` trên Compose stack (`7708b99`). JetBrains
-  3-pane merge UI vẫn deferred UX polish, không phải blocker Phase 3.
+  3-pane merge UI thuộc **Phase 5 Workbench UI**, không phải blocker Phase 3.
 - `ModuleManifest` hiện là contract cho built-in modules với các fields
   `id`, `title`, `version`, `apiVersion`, `commands`, `views`, `capabilities`.
   Backend registry có validation, duplicate protection, deterministic list và
