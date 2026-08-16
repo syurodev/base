@@ -16,6 +16,13 @@ cho model cũ "1 module active tại 1 thời điểm" (`activeModuleId` string
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
+<Callout type="warn" title="Design mới (title-bar.mdx) sẽ thay thế TabStrip">
+[Title bar](/dev-kit/title-bar) mô tả hướng Phase 5: bỏ multi-tab, chuyển
+module qua Dock, title bar chỉ còn 3 vùng icon+tooltip. Chưa có runtime — nội
+dung dưới đây (`TabStrip`, `Reorder`, `openTab`/`pinTab`/`preview`) vẫn đúng
+với checkout hiện tại cho tới khi migrate.
+</Callout>
+
 <Callout type="info" title="Implemented — module tabs + Notes per-note tabs (preview/pin)">
 `frontend/src/stores/workbenchTabs.ts` (Zustand store, giờ có thêm
 `preview`/`pinTab`/`reorderTab`) + `frontend/src/workbench/tabs/TabStrip.tsx`
