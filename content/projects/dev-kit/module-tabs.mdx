@@ -1,26 +1,29 @@
 ---
-title: Workbench tabs
-description: Tab strip nằm trong native titlebar macOS, thay activeModuleId đơn lẻ bằng model open/close tab đa module — do Workbench host, giống cách Shell primitives host moduleActions/SplitPanel.
+title: Module tabs
+description: Tab strip — cơ chế mở/đóng/focus nhiều tab, kéo-thả, preview/pin kiểu VS Code. Hôm nay 1 store toàn cục trong title bar; Phase 5 chuyển mỗi module tự quản tab riêng trong content area.
 ---
 
-# Workbench tabs
+# Module tabs
 
-`frontend/src/workbench/Workbench.tsx` là root shell (xem
-[Shell primitives](/dev-kit/shell-primitives) cho hai primitive dùng chung
-khác — moduleActions/SplitPanel). Trang này nói riêng về **tab strip**: cơ
-chế mở/đóng/focus nhiều tab cùng lúc, xuyên module, hiển thị trong dải
-`<header>` cao 30px (`h-[30px]`) ngay cạnh 3 nút đèn giao thông macOS — thay
-cho model cũ "1 module active tại 1 thời điểm" (`activeModuleId` string
-đơn).
+Cơ chế mở/đóng/focus nhiều tab cùng lúc: kéo-thả sắp xếp, preview tab kiểu VS
+Code (single-click, thay double-click mới ghim), nút đóng. Hôm nay
+(`frontend/src/workbench/Workbench.tsx`) đây là **1 tab strip toàn cục**,
+hiển thị trong dải `<header>` cao 30px ngay cạnh 3 nút đèn giao thông macOS,
+trộn tab của mọi module vào 1 mảng phẳng.
 
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
-<Callout type="warn" title="Design mới (title-bar.mdx) sẽ thay thế TabStrip">
-[Title bar](/dev-kit/title-bar) mô tả hướng Phase 5: bỏ multi-tab, chuyển
-module qua Dock, title bar chỉ còn 3 vùng icon+tooltip. Chưa có runtime — nội
-dung dưới đây (`TabStrip`, `Reorder`, `openTab`/`pinTab`/`preview`) vẫn đúng
-với checkout hiện tại cho tới khi migrate.
+<Callout type="warn" title="Design — Phase 5 chuyển sang per-module ownership">
+[Title bar](/dev-kit/title-bar) bỏ hẳn tab-strip khỏi title bar (chỉ còn 3
+vùng icon+tooltip: status / module quick action / app quick action). Tab
+**không biến mất** — chuyển xuống content area của module, mỗi module tự quản
+store tab riêng thay vì 1 `useWorkbenchTabsStore` toàn cục. Chi tiết ở mục
+[Design: per-module ownership](#design-per-module-ownership-phase-5) cuối
+trang. Chưa có runtime — toàn bộ nội dung bên dưới (`TabStrip`, `Reorder`,
+`openTab`/`pinTab`/`preview`) mô tả đúng checkout hiện tại cho tới khi
+migrate; cơ chế tương tác được **kế thừa nguyên trạng** sang model mới, chỉ
+đổi nơi render và nơi giữ state.
 </Callout>
 
 <Callout type="info" title="Implemented — module tabs + Notes per-note tabs (preview/pin)">
@@ -258,9 +261,44 @@ Về nhà (nút back trong `NoteEditor`) gọi lại
   `onReorder` bên trong callback `onReorder` của `Reorder.Group` (đó là
   update cục bộ, không phải commit) — chỉ gọi trong `handleDragEnd`.
 
+## Design: per-module ownership (Phase 5)
+
+<Callout type="warn" title="Chưa có runtime">
+Mục này mô tả hướng thiết kế mới, đi cùng [Title bar](/dev-kit/title-bar).
+Mọi API/behavior ở trên (`useWorkbenchTabsStore`, `openTab`, `TabStrip`) là
+checkout hiện tại — mục này là đích đến, chưa implement.
+</Callout>
+
+- **Opt-in theo module** — module nào có khái niệm "nhiều item mở cùng lúc"
+  mới dùng tab (Notes: 1 tab/note; Agent Hub: 1 tab/session; Database: 1
+  tab/table đang xem...). Module không cần tab (Settings, Vault) thì không có
+  tab strip nào cả.
+- **Mỗi module có store tab riêng** — thay `useWorkbenchTabsStore` toàn cục
+  bằng 1 store/module (không còn 1 mảng `openTabs` phẳng trộn mọi
+  `moduleId`). Store của module A không biết gì về tab của module B.
+- **Render trong content area của module**, không còn trong `<header>` 30px
+  — title bar chỉ còn 3 vùng icon+tooltip (xem
+  [Title bar](/dev-kit/title-bar)).
+- **State giữ nguyên khi rời module** — chuyển sang module khác qua Dock
+  không đóng/reset tab đang mở; quay lại module cũ, mọi tab (và nội dung dở
+  dang bên trong) vẫn còn nguyên. Cơ chế mount-song-song hiện đã áp dụng ở
+  cấp **tab** (xem mục Scope) — Phase 5 áp dụng thêm ở cấp **module**.
+- **Click icon Dock của 1 module → sticky theo tab active gần nhất** của
+  module đó. Module chưa có tab nào mở (lần đầu, hoặc đã đóng hết) → về view
+  "home" mặc định (VD Notes → Dashboard).
+- **Cơ chế tương tác giữ nguyên** — kéo-thả (`Reorder`), preview/pin kiểu VS
+  Code, nút đóng: xem mục Tab strip UI ở trên, chỉ đổi nơi render/giữ state,
+  không đổi hành vi.
+- **Non-goal của bản này: điều hướng chéo module.** VD kết quả Agent Hub
+  nhắc tới 1 note, click vào cần mở đúng note đó trong Notes. Hướng dự kiến
+  là dùng **split panel** ([Shell primitives](/dev-kit/shell-primitives))
+  thay vì chuyển hẳn Dock sang module khác — chi tiết thiết kế **chưa viết**,
+  nằm ở 1 tài liệu riêng sau này.
+
 <Cards>
-  <Card title="ADR-012" href="/dev-kit/architecture-decisions#adr-012-workbench-tab-strip-in-the-native-titlebar" description="Quyết định + alternatives (CSS-only push, per-item tabs ngay từ đầu)" />
-  <Card title="Shell primitives" href="/dev-kit/shell-primitives" description="Hai primitive dùng chung khác: moduleActions, SplitPanel" />
+  <Card title="Title bar" href="/dev-kit/title-bar" description="3 vùng icon+tooltip thay tab-strip trong title bar" />
+  <Card title="ADR-012" href="/dev-kit/architecture-decisions#adr-012-workbench-tab-strip-in-the-native-titlebar" description="Quyết định + alternatives gốc (CSS-only push, per-item tabs ngay từ đầu)" />
+  <Card title="Shell primitives" href="/dev-kit/shell-primitives" description="moduleActions, SplitPanel — hướng giải quyết điều hướng chéo module" />
   <Card title="Repo structure" href="/dev-kit/repo-structure" description="Layout frontend/ trong repo" />
   <Card title="Implementation status" href="/dev-kit/implementation-status" description="Evidence: ModuleManifest / Internal Extension API row" />
 </Cards>

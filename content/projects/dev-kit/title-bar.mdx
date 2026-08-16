@@ -16,14 +16,14 @@ flowchart LR
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout type="warn" title="Design only — supersedes ADR-012 tab-strip">
-Trang này mô tả hướng thiết kế mới cho Phase 5 Workbench UI, **thay thế hoàn
-toàn** mô hình multi-tab của [Workbench tabs](/dev-kit/workbench-tabs)
-(`TabStrip`, `Reorder.Group`, `openTab`/`pinTab`/`preview`). Model mới: **chỉ 1
-module active tại 1 thời điểm** — không còn nhiều tab mở song song trong title
-bar. Chuyển module qua [Dock](/dev-kit/shell-primitives), không qua tab
-click/drag-reorder nữa. Chưa có runtime — `frontend/src/workbench/Workbench.tsx`
-hiện tại vẫn chạy theo `workbench-tabs.mdx`.
+<Callout type="warn" title="Design only — supersedes ADR-012 tab-strip trong title bar">
+Trang này mô tả hướng thiết kế mới cho Phase 5 Workbench UI. Title bar không
+còn tab nào cả — **chỉ 1 module active tại 1 thời điểm**, chuyển module qua
+[Dock](/dev-kit/shell-primitives). Tab (`TabStrip`, `Reorder.Group`,
+`openTab`/`pinTab`/`preview`) **không biến mất** — chuyển xuống content area,
+mỗi module tự quản riêng, xem [Module tabs](/dev-kit/module-tabs). Chưa có
+runtime — `frontend/src/workbench/Workbench.tsx` hiện tại vẫn chạy theo mô tả
+ở `module-tabs.mdx`.
 </Callout>
 
 ## Vùng 1 — Status area (trái)
@@ -75,8 +75,9 @@ Cố định, không đổi theo module:
 
 ## Quan hệ với các trang khác
 
-- **Thay thế**: [Workbench tabs](/dev-kit/workbench-tabs) — toàn bộ phần
-  `TabStrip`/`Reorder`/multi-tab không còn áp dụng trong hướng thiết kế mới.
+- **Tab chuyển đi, không biến mất**: [Module tabs](/dev-kit/module-tabs) —
+  `TabStrip`/`Reorder`/multi-tab rời title bar, xuống content area, mỗi
+  module tự quản store riêng.
 - **Kế thừa nguyên trạng**: `moduleActions` registry
   ([ADR-011](/dev-kit/architecture-decisions#adr-011-shared-title-bar-actions-and-split-panel-for-module-side-content)) —
   không đổi field/behavior, chỉ xác nhận lại nó đã đúng icon+tooltip.
@@ -90,7 +91,7 @@ Cố định, không đổi theo module:
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
-  <Card title="Workbench tabs" href="/dev-kit/workbench-tabs" description="Model TabStrip cũ — bị supersede bởi trang này" />
+  <Card title="Module tabs" href="/dev-kit/module-tabs" description="Tab chuyển xuống content area, mỗi module tự quản riêng" />
   <Card title="Shell primitives" href="/dev-kit/shell-primitives" description="moduleActions registry + Dock" />
   <Card title="Roadmap" href="/dev-kit/roadmap" description="Phase 5 Workbench UI" />
 </Cards>
