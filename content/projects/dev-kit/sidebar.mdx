@@ -61,15 +61,27 @@ bấm) là **hai việc tách biệt** — xem mục Toggle bên dưới.
 Dùng lại `react-resizable-panels` (đã có trong `frontend/package.json`,
 cùng lib `SplitPanel` dùng) — không thêm dependency mới cho việc này.
 
+- **`MIN_SIDEBAR_WIDTH`–`MAX_SIDEBAR_WIDTH`: 240–480px**, default 320px.
+  Trần thấp hơn `SplitPanel` (320–720px) vì nội dung sidebar chủ yếu
+  nav/list/tree, không cần rộng bằng use case của `SplitPanel` (note
+  diff/merge).
+- **`MIN_CONTENT_WIDTH`: 480px** — sàn cứng cho content area ở giữa, áp dụng
+  bất kể Sidebar/SplitPanel đang ở width nào.
+
+**Clamp động khi cả hai cùng mở** — không phải 2 range tĩnh độc lập, trần
+thực tế của mỗi panel co theo panel còn lại và theo width cửa sổ thật:
+
+```
+maxSidebarWidth    = min(480, windowWidth - splitPanelWidth - 480)
+maxSplitPanelWidth = min(720, windowWidth - sidebarWidth    - 480)
+```
+
 <Callout type="info" title="Open question">
-**Giới hạn width khi cả Sidebar và SplitPanel cùng mở.** Theo 4 biến thể
-trong Figma, cả hai có thể mở đồng thời, ăn width từ 2 phía vào content area
-ở giữa. Clamp hiện tại của `SplitPanel` (320–720px,
-[Shell primitives](/dev-kit/shell-primitives)) được chốt **từ trước khi có
-Sidebar** — chưa tính trường hợp cộng dồn 2 panel. Cần 1 rule đảm bảo content
-area giữa luôn còn min-width hợp lý (constrain 1 hoặc cả 2 panel khi cộng
-dồn vượt ngưỡng) — **con số cụ thể chưa chốt (TBD)**, cần xác nhận lại range
-của `SplitPanel` cùng lúc với việc thêm Sidebar, không audit riêng lẻ.
+Số liệu trên giả định window min-width thực tế của DevKit ~1024px (chưa xác
+nhận được cấu hình cửa sổ thật trong `main.go`). Ở mốc đó, cả hai panel cùng
+mở ở min (240 + 320 = 560) vẫn còn 464px content — sát sàn 480px nhưng chạy
+được. **Cần xác nhận lại window min-width thật trước khi coi range này là
+chốt cuối cùng.**
 </Callout>
 
 ## Hiệu năng khi nội dung sidebar lớn

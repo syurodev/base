@@ -94,10 +94,11 @@ closePanel();
   content tại chỗ, không remount.
 - **Resize kéo-thả** — gutter trong suốt giữa 2 card có hit-area
   (`pointerdown` + global `pointermove`/`pointerup`), clamp `width` trong
-  khoảng `MIN_PANEL_WIDTH`–`MAX_PANEL_WIDTH` (320–720px, **chốt từ trước khi
-  có [Sidebar](/dev-kit/sidebar) — chưa tính trường hợp Sidebar bên trái
-  cũng resize cùng lúc, xem Sidebar § Resize để biết open question về việc
-  cộng dồn width**). Width sau khi kéo
+  khoảng `MIN_PANEL_WIDTH`–`MAX_PANEL_WIDTH` (320–720px khi
+  [Sidebar](/dev-kit/sidebar) đang đóng; khi cả hai cùng mở, trần thực tế co
+  động theo width [Sidebar](/dev-kit/sidebar#resize) đang chiếm + sàn
+  `MIN_CONTENT_WIDTH` 480px cho content area giữa — xem Sidebar § Resize).
+  Width sau khi kéo
   **giữ nguyên** dù `openPanel` bị gọi lại nhiều lần trong lúc panel đang mở
   (vd: NoteEditor re-push content mỗi lần sửa metadata) — chỉ đồng bộ lại
   theo `width` mặc định của `openPanel` khi panel chuyển từ đóng sang mở
