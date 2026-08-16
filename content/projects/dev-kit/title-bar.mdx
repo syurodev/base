@@ -34,15 +34,18 @@ runtime — `frontend/src/workbench/Workbench.tsx` hiện tại vẫn chạy the
 ## Sidebar toggle (cố định, ngoài 3 vùng)
 
 Nút icon riêng, vị trí cố định ngay sau traffic lights — **không thuộc**
-status area hay bất kỳ vùng nào trong 3 vùng bên dưới. **Luôn hiển thị**
-(không opt-in theo module, khác module quick action area): mọi module đều có
-sidebar, không có trường hợp module không cần sidebar nên ẩn nút.
+status area hay bất kỳ vùng nào trong 3 vùng bên dưới. **Luôn hiển thị trong
+phạm vi Workbench** (không opt-in theo module, khác module quick action
+area): mọi module đều có sidebar, không có trường hợp module không cần
+sidebar nên ẩn nút. Trước khi vault `unlocked` (chưa có Workbench, xem
+[Vault](/dev-kit/vault)) nút này không xuất hiện — chi tiết ở
+[Sidebar § Toggle](/dev-kit/sidebar).
 
 Bấm để đóng/mở 1 sidebar cố định bên trái content area (320px, xem App Shell
 trong Figma — 4 biến thể `Panel=Closed/Open × Sidebar=Closed/Open`). Nội dung
 sidebar đổi theo module đang active — cùng nguyên tắc "module tự đăng ký nội
-dung vào slot do shell host" như `moduleActions`/`SplitPanel`, nhưng **là 1
-primitive khác, chưa có tài liệu riêng** (xem mục Quan hệ bên dưới).
+dung vào slot do shell host" như `moduleActions`/`SplitPanel`, nhưng là 1
+primitive riêng — chi tiết đầy đủ ở [Sidebar](/dev-kit/sidebar).
 
 ## Vùng 1 — Status area (trái)
 
@@ -105,16 +108,14 @@ Cố định, không đổi theo module:
   riêng mô tả chi tiết Dock**; cần 1 trang/section riêng nếu Dock trở thành
   cơ chế điều hướng module duy nhất (thay vì chỉ song song với tab-strip như
   hiện tại).
-- **Sidebar content primitive — chưa có tài liệu.** App Shell trong Figma đã
-  có `_Slot / Sidebar Content` + 4 biến thể `Panel × Sidebar`, nhưng cơ chế
-  đăng ký nội dung (kiểu `useSidebarContent`, tương tự `moduleActions`/
-  `SplitPanel` ở [Shell primitives](/dev-kit/shell-primitives)) chưa được
-  viết thành spec. Cần 1 trang riêng trước khi implement.
+- **Sidebar content primitive**: [Sidebar](/dev-kit/sidebar) —
+  `useSidebarContent`, toggle global, resize, ràng buộc vault unlocked.
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
   <Card title="Module tabs" href="/dev-kit/module-tabs" description="Tab chuyển xuống content area, mỗi module tự quản riêng" />
+  <Card title="Sidebar" href="/dev-kit/sidebar" description="useSidebarContent — primitive thứ 3, nội dung theo module active" />
   <Card title="Shell primitives" href="/dev-kit/shell-primitives" description="moduleActions registry + Dock" />
   <Card title="Roadmap" href="/dev-kit/roadmap" description="Phase 5 Workbench UI" />
 </Cards>

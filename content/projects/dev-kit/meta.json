@@ -15,6 +15,7 @@
     "shell-primitives",
     "title-bar",
     "module-tabs",
+    "sidebar",
     "frontend-performance",
     "---Modules---",
     "vault",
