@@ -45,10 +45,9 @@ bấm) là **hai việc tách biệt** — xem mục Toggle bên dưới.
 
 - **1 flag toàn app** (không phải per-module) — đóng ở module này thì mọi
   module khác cũng đóng cho tới khi user tự mở lại.
-- **Cần nhớ qua lần khởi động lại app** — engine lưu local **chưa quyết
-  định** ở đây; nhiều chỗ khác trong app cũng sẽ cần persistence tương tự,
-  nên cơ chế lưu (localStorage / settings store / khác) để bàn ở 1 tài liệu
-  riêng, không thiết kế lẻ tẻ theo từng feature.
+- **Cần nhớ qua lần khởi động lại app** — qua
+  [UI state persistence](/dev-kit/ui-state) (bảng `ui_state` chung, ngoài
+  vault), không phải cơ chế lưu riêng của Sidebar.
 - **Chỉ hoạt động sau khi vault `unlocked`.** Trước đó `VaultGate` chặn toàn
   bộ Workbench ([Vault](/dev-kit/vault)) — chưa có module nào mount, sidebar
   không có ý nghĩa. Nút toggle **không xuất hiện/không hoạt động** trong các
@@ -131,8 +130,11 @@ chốt cuối cùng.**
   mở cùng lúc trong content area) và sidebar (1 nội dung phụ trợ bên trái)
   là hai khái niệm độc lập, cùng do module đăng ký nhưng vào hai slot khác
   nhau.
+- **Toggle state persist qua**: [UI state persistence](/dev-kit/ui-state) —
+  Sidebar là consumer đầu tiên của bảng `ui_state` chung.
 
 <Cards>
+  <Card title="UI state persistence" href="/dev-kit/ui-state" description="Bảng ui_state chung — nơi toggle global được lưu" />
   <Card title="Title bar" href="/dev-kit/title-bar" description="Sidebar toggle — vị trí cố định ngoài 3 vùng" />
   <Card title="Shell primitives" href="/dev-kit/shell-primitives" description="SplitPanel — nguồn pattern ReactNode + resize lib" />
   <Card title="Module tabs" href="/dev-kit/module-tabs" description="Tab trong content area — khái niệm độc lập với sidebar" />
