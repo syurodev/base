@@ -1,15 +1,20 @@
 ---
 title: Title bar
-description: Title bar 3 vùng (status / module quick action / app quick action), icon + tooltip only — thay thế TabStrip đa tab.
+description: Title bar — sidebar toggle cố định, 3 vùng (status / module quick action / app quick action), icon + tooltip only — thay thế TabStrip đa tab.
 ---
 
 # Title bar
 
-Title bar cao 30px, ngay sau 3 nút đèn giao thông macOS. Chia đúng **3 vùng cố định**, mỗi item trong cả 3 vùng chỉ là **icon + tooltip** — không có text label hiển thị trực tiếp trên bar.
+Title bar cao 30px, ngay sau 3 nút đèn giao thông macOS. Ngay sau đó là
+**sidebar toggle** (cố định, nằm ngoài 3 vùng), rồi tới **3 vùng cố định**:
+status / module quick action / app quick action. Mọi item trong cả 3 vùng
+(và sidebar toggle) chỉ là **icon + tooltip** — không có text label hiển thị
+trực tiếp trên bar.
 
 ```mermaid
 flowchart LR
-  TL["Traffic lights\n(macOS native)"] --> ST["Status area\n(trái)"]
+  TL["Traffic lights\n(macOS native)"] --> SB["Sidebar toggle\n(cố định, ngoài 3 vùng)"]
+  SB --> ST["Status area\n(trái)"]
   ST --> MA["Module quick actions\n(giữa)"]
   MA --> APP["App quick actions\n(phải)"]
 ```
@@ -25,6 +30,19 @@ mỗi module tự quản riêng, xem [Module tabs](/dev-kit/module-tabs). Chưa 
 runtime — `frontend/src/workbench/Workbench.tsx` hiện tại vẫn chạy theo mô tả
 ở `module-tabs.mdx`.
 </Callout>
+
+## Sidebar toggle (cố định, ngoài 3 vùng)
+
+Nút icon riêng, vị trí cố định ngay sau traffic lights — **không thuộc**
+status area hay bất kỳ vùng nào trong 3 vùng bên dưới. **Luôn hiển thị**
+(không opt-in theo module, khác module quick action area): mọi module đều có
+sidebar, không có trường hợp module không cần sidebar nên ẩn nút.
+
+Bấm để đóng/mở 1 sidebar cố định bên trái content area (320px, xem App Shell
+trong Figma — 4 biến thể `Panel=Closed/Open × Sidebar=Closed/Open`). Nội dung
+sidebar đổi theo module đang active — cùng nguyên tắc "module tự đăng ký nội
+dung vào slot do shell host" như `moduleActions`/`SplitPanel`, nhưng **là 1
+primitive khác, chưa có tài liệu riêng** (xem mục Quan hệ bên dưới).
 
 ## Vùng 1 — Status area (trái)
 
@@ -87,6 +105,11 @@ Cố định, không đổi theo module:
   riêng mô tả chi tiết Dock**; cần 1 trang/section riêng nếu Dock trở thành
   cơ chế điều hướng module duy nhất (thay vì chỉ song song với tab-strip như
   hiện tại).
+- **Sidebar content primitive — chưa có tài liệu.** App Shell trong Figma đã
+  có `_Slot / Sidebar Content` + 4 biến thể `Panel × Sidebar`, nhưng cơ chế
+  đăng ký nội dung (kiểu `useSidebarContent`, tương tự `moduleActions`/
+  `SplitPanel` ở [Shell primitives](/dev-kit/shell-primitives)) chưa được
+  viết thành spec. Cần 1 trang riêng trước khi implement.
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
