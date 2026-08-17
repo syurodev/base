@@ -71,6 +71,7 @@ flowchart LR
 | `SSHStopForward` | `ssh:forward` | `forward:<id>` |
 | `SSHSetActiveProfile` | `ssh:connect` | `profile:<id>` |
 | `SSHActiveProfile` | `ssh:connect` | `profile:active` |
+| `SSHStartTerminal` | `ssh:connect` | `profile:<id>` |
 
 Subject luôn `builtin.ssh`. Profile ID là 24 lowercase hex (opaque qua
 `recordID()`). Grants thật ở `internal/app/container.go`; manifest chỉ
@@ -140,6 +141,42 @@ tách biệt hoàn toàn khỏi cách UI hoạt động hôm nay:
 - Timeout cho popup và fallback khi DevKit chạy headless áp dụng y hệt NFR-9
   của Kafka UI.
 
+## Terminal tương tác (PTY)
+
+`RunCommand` (mục trên) chỉ one-shot — không có shell tương tác thật. Bổ
+sung **terminal tương tác**, dùng
+[Terminal](/dev-kit/terminal) (primitive dùng chung, consumer thứ 2 là
+CodeGraph). SSH đóng vai trò implementation "remote" của primitive đó:
+
+```mermaid
+sequenceDiagram
+  participant UI as SSHView - terminal tab
+  participant Svc as ssh.Service
+  participant Reg as terminal.Registry
+  participant Host as Remote host
+
+  UI->>Svc: SSHStartTerminal(profileId)
+  Svc->>Svc: dial() - đã auth, đã trust host-key (như RunCommand)
+  Svc->>Host: session.RequestPty(term, h, w, modes)
+  Svc->>Host: session.Shell()
+  Svc->>Reg: đăng ký session làm PTY - Read/Write qua StdoutPipe/StdinPipe
+  Reg-->>UI: sessionId
+
+  Note over UI,Reg: I/O sau đó theo đúng luồng chung ở Terminal
+```
+
+- **Tái dùng `dial()` nguyên vẹn** — cùng đường auth + host-key pin đã có
+  cho `RunCommand`/`TestConnection`, không có code path auth riêng cho
+  terminal.
+- **Resize** qua `Session.WindowChange(h, w)` — remote server tự biết kích
+  thước terminal đổi, chạy đúng như SSH client thật (`ssh` CLI cũng dùng
+  đường này).
+- **Không đổi `RunCommand`** — vẫn giữ nguyên cho one-shot command (kể cả
+  qua MCP agent); terminal tương tác là tính năng UI **mới**, không thay thế
+  cái cũ.
+- Chi tiết I/O loop, capability `terminal:io`, lifecycle kill-on-close: xem
+  [Terminal](/dev-kit/terminal).
+
 ## Non-goals (MVP)
 
 - Public-facing tunnel / unrestricted network bind
@@ -153,11 +190,16 @@ tách biệt hoàn toàn khỏi cách UI hoạt động hôm nay:
 - Host-key trust UX vẫn manual (observe → approve).
 - Passphrase đi qua bridge call metadata — phụ thuộc redaction + UI không log.
 - Target host/port do user chọn; chưa có policy prompt giàu hơn.
+- Terminal tương tác không expose MCP — agent chỉ có `ssh.runCommand`
+  one-shot, không có session tương tác riêng.
+- Đóng tab terminal kill process ngay — không giữ session chạy nền qua lúc
+  chuyển tab (khác Agent Hub).
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
   <Card title="Vault" href="/dev-kit/vault" description="Keyring/DEK + vaultitem substrate" />
+  <Card title="Terminal" href="/dev-kit/terminal" description="Primitive PTY dùng chung — SSH là implementation remote" />
   <Card title="Database" href="/dev-kit/database" description="Sibling module — cùng pattern connection-profile" />
   <Card title="Implementation status" href="/dev-kit/implementation-status" description="SSH evidence + remaining scope" />
   <Card title="Technical contracts" href="/dev-kit/technical-contracts" description="Bridge SSH family" />

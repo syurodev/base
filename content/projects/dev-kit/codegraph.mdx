@@ -145,6 +145,7 @@ sequenceDiagram
 | `codegraph.listEndpoints` | `read` | Liệt kê endpoint đã phát hiện trong project active |
 | `codegraph.getApiFlow` | `read` | Trả flow `Controller → Service → Repository` cho 1 endpoint |
 | `codegraph.searchSymbol` | `read` | Tìm class/method theo tên |
+| `codegraph.readFile` | `read` | Đọc nguyên văn 1 file trong project active — path verify lại phía Go, xem [File editing](#file-editing-add-on-v1) |
 
 Naming và effect đi theo đúng convention đã định nghĩa ở `docs/architecture/mcp-agent-integration.md` (`<module>.<action><Resource>`, mọi tool phải khai báo `Effect`).
 
@@ -179,6 +180,114 @@ node-link visualization mới retrofit.
 - Symbol resolution là best-effort: source trong project + reflection JDK + jar cục bộ tìm được (vd `~/.m2`) — **không** chạy `mvn`/`gradle` để resolve classpath chính xác. Project dùng dependency lạ hoặc multi-module phức tạp có thể có call chưa resolve được.
 - Data-flow (field/biến đi qua đâu) và BRD generation **chưa** nằm trong v1 — index v1 (AST + resolved symbol) là nền đủ để build hai tính năng này sau mà không phải đổi engine, nhưng cần thêm một lớp phân tích riêng khi làm.
 - Chỉ 1 project active — chưa có multi-project registry.
+- File editing (xem dưới) chưa có LSP/lint/format-on-save — chỉ edit text
+  thuần + syntax highlight.
+- `WriteFile` không expose MCP — agent không tự sửa source code được, chỉ
+  đọc (`codegraph.readFile`).
+
+## File editing (add-on v1)
+
+"Mở project" (FR-1) không chỉ để index Java — **project ở đây là 1 folder
+bất kỳ**, index Java chỉ là phần MVP phân tích, không phải giới hạn của khái
+niệm "project". User cần sửa trực tiếp file trong project đó (không riêng
+`.java`, cả config/doc cạnh code) mà không phải rời DevKit mở editor khác.
+Đây **không** phải module riêng — nằm ngay trong UI CodeGraph, dùng chung
+`activeProject` đã có ở FR-1. Editor dùng
+[Code editor](/dev-kit/code-editor) (CodeMirror 6 primitive dùng chung).
+
+```mermaid
+sequenceDiagram
+  participant UI as CodeGraph view - file panel
+  participant Svc as CodeGraphService
+  participant FS as Filesystem - project root
+
+  UI->>Svc: CodeGraphListFiles()
+  Svc->>FS: walk project root đã mở qua FR-1
+  FS-->>Svc: cây thư mục + file
+  Svc-->>UI: file tree - virtualize qua Sidebar/VirtualTree
+
+  UI->>Svc: CodeGraphReadFile(relativePath)
+  Svc->>Svc: resolve path, EvalSymlinks, verify vẫn trong project root
+  Svc->>FS: đọc file
+  FS-->>Svc: nội dung
+  Svc-->>UI: hiện trong Code editor
+
+  UI->>Svc: Ctrl+S -> CodeGraphWriteFile(relativePath, content)
+  Svc->>Svc: resolve + verify lại - phòng path đổi giữa lúc mở và lúc lưu
+  Svc->>FS: ghi file
+  Svc-->>UI: saved hoặc lỗi rõ ràng
+```
+
+### Functional requirements bổ sung
+
+| ID | Requirement |
+|---|---|
+| FR-9 | File panel liệt kê **toàn bộ** file trong project active (không giới hạn `.java`) dạng tree, virtualize qua [Sidebar § Hiệu năng khi nội dung sidebar lớn](/dev-kit/sidebar#hiệu-năng-khi-nội-dung-sidebar-lớn) cho project lớn. |
+| FR-10 | Click 1 file mở nội dung trong [Code editor](/dev-kit/code-editor). Syntax highlight `.java`/`.json`/`.yaml`/`.md` ở v1 — file đuôi khác vẫn mở/sửa được, chỉ không tô màu cú pháp. |
+| FR-11 | Lưu = **Ctrl+S thủ công**, ghi thẳng xuống file thật trên disk — không autosave (khác Notes). |
+| FR-12 | Path ngoài project root, kể cả qua symlink, bị reject ở cả `ReadFile` lẫn `WriteFile` — không tin path nhận từ UI mà không verify lại phía Go mỗi lần gọi. |
+
+### Capability mới
+
+| Method | Capability | Scope |
+|---|---|---|
+| `CodeGraphListFiles` | `codegraph:fs` | `project:active` |
+| `CodeGraphReadFile` | `codegraph:fs` | `file:<relative-path>` |
+| `CodeGraphWriteFile` | `codegraph:fs` | `file:<relative-path>` |
+
+- **Verify path mỗi lần, không tin cache** — `relativePath` từ UI resolve
+  thành absolute path, `filepath.EvalSymlinks` rồi so prefix với project root
+  đã mở; lệch → reject, không đọc/ghi. Chạy lại bước này ở **cả**
+  `ReadFile` lẫn `WriteFile` (không chỉ lúc `ListFiles`) — project root có
+  thể đổi giữa lúc mở file và lúc user bấm lưu (đổi project active, hoặc file
+  bị move/symlink đổi target giữa chừng).
+- **`WriteFile` không có trong MCP tool surface** — sửa source code trực
+  tiếp qua agent rủi ro cao hơn hẳn các MCP write khác đã có (Notes/Database),
+  giữ human-only. `ReadFile` **có** expose (`codegraph.readFile`, effect
+  `read`) — agent đọc nguyên văn 1 file để có context, cùng mức rủi ro với
+  `getApiFlow`/`searchSymbol` đã expose.
+
+### Non-goals bổ sung
+
+- LSP thật (go-to-definition ngoài phạm vi flow đã index, rename symbol,
+  refactor) — chỉ edit text thuần + syntax highlight.
+- Format-on-save / lint tự động.
+- Multi-file find & replace.
+
+## Terminal cục bộ (build/test/run project)
+
+File editing (trên) đủ để sửa nhanh — nhưng build/test/run project (`mvn
+test`, `./gradlew build`, chạy app) cần shell thật, không phải chạy 1 lệnh
+đơn lẻ. Dùng [Terminal](/dev-kit/terminal) (primitive dùng chung, consumer
+đầu tiên là SSH) — CodeGraph là implementation "local" của primitive đó.
+
+```mermaid
+sequenceDiagram
+  participant UI as CodeGraph view - terminal tab
+  participant Svc as CodeGraphService
+  participant Reg as terminal.Registry
+  participant Shell as Local shell process
+
+  UI->>Svc: CodeGraphStartTerminal()
+  Svc->>Shell: pty.StartWithSize(exec.Command(shell), ws) - cwd = project root
+  Svc->>Reg: đăng ký *os.File làm PTY
+  Reg-->>UI: sessionId
+
+  Note over UI,Reg: I/O sau đó theo đúng luồng chung ở Terminal
+```
+
+- **`cwd` = project root đang mở** (FR-1) — terminal mở sẵn đúng thư mục,
+  không cần user tự `cd`.
+- **Không qua `internal/sandbox`** — user tự tay gõ lệnh trong terminal của
+  chính mình, khác agent CLI subprocess (luôn cách ly); bọc sandbox vào đây
+  chỉ cản trở (thiếu quyền mount/`sudo` bình thường) mà không thêm an toàn
+  thật. Chi tiết lý do: [Terminal § Bảo mật](/dev-kit/terminal#bảo-mật-local-shell-không-qua-internalsandbox).
+- **Đóng tab kill process ngay** — build/test đang chạy dở bị dừng, không
+  chạy nền qua lúc chuyển tab.
+- Capability mới `codegraph:terminal` (scope `project:active`) cho
+  `CodeGraphStartTerminal` — I/O sau đó (`TerminalWrite`/`TerminalResize`/
+  `TerminalClose`) dùng `terminal:io` chung, xem
+  [Terminal § Capability](/dev-kit/terminal#capability-terminalio-tách-khỏi-capability-tạo-session).
 
 ## Open questions
 
@@ -189,6 +298,8 @@ import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
   <Card title="Frontend performance" href="/dev-kit/frontend-performance#code-graph" description="Bounded bridge API, virtual tree/list và graph renderer contract" />
+  <Card title="Code editor" href="/dev-kit/code-editor" description="CodeMirror 6 primitive dùng cho file editing" />
+  <Card title="Sidebar" href="/dev-kit/sidebar" description="VirtualTree cho file panel project lớn" />
   <Card title="MCP / Agent" href="/dev-kit/mcp-agent" description="Model chung cho mọi MCP tool, bao gồm codegraph" />
   <Card title="Plugins" href="/dev-kit/plugins" description="Pattern ModuleManifest mà codegraph sẽ theo" />
   <Card title="Technical contracts" href="/dev-kit/technical-contracts" description="Bridge/Capability Gateway boundary hiện có" />

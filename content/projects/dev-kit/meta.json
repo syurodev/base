@@ -17,6 +17,8 @@
     "module-tabs",
     "sidebar",
     "ui-state",
+    "code-editor",
+    "terminal",
     "frontend-performance",
     "---Modules---",
     "vault",
