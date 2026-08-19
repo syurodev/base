@@ -151,9 +151,15 @@ Git-style. M10/m11 không backfill dữ liệu cũ; app hiện greenfield.
 
 Conflict resolve contract (client):
 
-- `SyncConflicts` trả metadata non-secret; `SyncConflictDetail` decrypt on-demand
-  note text cho merge UI; `SyncResolveConflict` nhận strategy
+- `SyncConflicts` đọc từ `sync_conflicts` (cùng nguồn với Detail/Resolve — mọi entry
+  trong list đều resolvable); trả metadata non-secret gồm `remote_operation`,
+  `remote_entity_version`, `theirs_deleted`. `SyncConflictDetail` decrypt on-demand
+  note text cho merge UI và trả cờ `ours_deleted` / `theirs_deleted` cho các bên là
+  tombstone; `SyncResolveConflict` nhận strategy
   `use-ours` | `use-theirs` | `merge` (+ merged text cho notes).
+- Delete-theirs: `sync_conflicts.theirs_snapshot` nullable (m15) — một delete op
+  được capture không có record body; resolve `use-theirs` áp tombstone local,
+  `use-ours` re-materialize (update hoặc delete) tại `remote_head + 1`.
 - Orchestration ở `internal/syncconflict`; persistence ở `internal/syncstore`;
   `bridge` không import `storage`/`syncstore`/`sync` trực tiếp.
 - Không có auto-winner. Secret types chỉ ours/theirs.
@@ -298,8 +304,8 @@ Behavior công khai:
 Boundary redaction:
 
 - Capability Gateway và audit sink đều đi qua `audit.RedactMap(...)`.
-- Key có dạng như `password`, `passphrase`, `private_key`, `secret`, `token`,
-  `recovery`, `encryptionKey` sẽ bị thay bằng `[REDACTED]`.
+- Key có dạng như `password`, `passwd`, `pwd`, `passphrase`, `private_key`, `secret`, `token`,
+  `recovery`, `encryptionKey`, `credential`, `authorization`, `cookie` sẽ bị thay bằng `[REDACTED]`.
 - Transport/error-envelope redaction không cho raw URL, DSN, SQL text lỗi, raw
   driver error, hay command stderr đi qua như một public error body. Riêng
   `SSHRunCommand` vẫn trả `CombinedOutput` trong `CommandResult.Output` như

@@ -172,6 +172,15 @@ Lý do: `allow_always` tiện trên `dev`/`stg`, nhưng không được phép �
   (`kafka.listTopics/describeTopic/peekMessages/listConsumerGroups/publishMessage`,
   `db.query`, `ssh.runCommand`). **Không** áp cho
   `listProfiles` / `testConnection` / `connectionStatus` / `activeProfile`.
+- **Pin target theo call:** gate trả về đúng profile id đã được confirm; tool execute
+  chống lại id đó thay vì re-read active target — một `SetActiveProfile` chạy đồng thời
+  giữa lúc confirm và execute không thể chạy lệnh/SQL trên profile chưa được duyệt.
+- **Không có secret trong tool arguments** (v1): `ssh.runCommand` không nhận passphrase —
+  profile encrypted-PEM phải unlock per-operation qua UI. Agent clients persist
+  tool-input JSON trong transcript của chúng, nên secret qua tool arg là leak ngoài
+  biên redaction của DevKit.
+- **Kafka connect sau confirm:** connection (SASL credentials tới broker) chỉ được thiết
+  lập sau khi env confirmation phủ profile id đó — selection dialog không dial.
 - Call từ UI (`origin` ≠ `"mcp"`) không bị luật này.
 - Đổi `requiresConfirmation` của tag (trừ `prod`) là human-only — xem
   [Environments](/dev-kit/environments).

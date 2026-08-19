@@ -69,7 +69,7 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 
 | MCP tool | Effect | Map sang | Ghi chú |
 |---|---|---|---|
-| `notes.list` | `read` | `builtin.notes` / `notes:read` / `note:list` | trả `folder_id`, `tags`, `effective_tags`, `color`, `effective_color`, `preview` |
+| `notes.list` | `read` | `builtin.notes` / `notes:read` / `note:list` | trả `folder_id`, `tags`, `effective_tags`, `color`, `effective_color`, `preview`. Preview cần decrypt body nên vault locked → lỗi structured `vault_locked` (FR-6 mcp-agent), không trả list thiếu preview ngầm |
 | `notes.search` | `read` | `builtin.notes` / `notes:read` / `note:search` | match title/tag/folder-name luôn; body chỉ khi vault unlocked |
 | `notes.get` | `read` | `builtin.notes` / `notes:read` / `note:<id>` | trả cả `body` đã decrypt — note là nội dung người dùng, không phải credential như SSH/DB nên không áp rule "không trả raw secret" |
 | `notes.create` | `execute` | `builtin.notes` / `notes:write` / `note:new` | `folder_id`, `tags` optional |
@@ -105,7 +105,7 @@ của 1 link", chỉ cần `notes.get`/`notes.backlinks.list` là đủ ngữ c�
 | Field | At rest | Notes |
 |---|---|---|
 | `type` | `"note"` | Schema-validated |
-| `metadata` | `{"title":"...","folder_id":"...","tags":["..."],"color":"blue"}` plaintext | `folder_id`/`tags`/`color` optional; list/search không cần decrypt |
+| `metadata` | `{"title":"...","folder_id":"...","tags":["..."],"color":"blue"}` plaintext | `folder_id`/`tags`/`color` optional; title/tag/folder matching không cần decrypt (search vẫn chạy khi locked, chỉ thiếu body match); `notes.list` cần decrypt cho preview nên yêu cầu vault unlocked |
 | `payload` | Envelope V2 của body | AAD `(note, <id>, note-body)`; `key_id` phải = `note-body` |
 | `key_version` | starts at `1` | Crypto/record version — **không** phải sync entity version |
 | `sync_state` | `"local"` on create | Local-only; omitted on sync wire snapshot |
