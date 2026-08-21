@@ -454,9 +454,17 @@ type CodeSnippet struct {
   đúng luồng [File editing](#file-editing-add-on-v1) đã có (Ctrl+S, ghi
   xuống disk thật) — preview và edit là 2 chế độ của cùng 1 component, không
   phải 2 component khác nhau.
-- **Panel hiện qua `SplitPanel`** (shared shell primitive, xem
-  [Shell primitives](/dev-kit/shell-primitives)) — không che mất canvas
-  đang xem, giữ nguyên vị trí/zoom đang thao tác.
+- **Popover neo vào node, không phải `SplitPanel`** — thiết kế đầu đặt panel
+  này vào [SplitPanel](/dev-kit/shell-primitives#split-panel-primitive), nhưng
+  SplitPanel đã được dành cho **chat trực tiếp với agent**, nên không còn chỗ.
+  Popover mở ngay cạnh node vừa bấm: canvas giữ nguyên vị trí/zoom (đúng lý do
+  ban đầu đã loại modal), và node đang nói tới vẫn nằm trong tầm mắt — thứ
+  SplitPanel không đảm bảo được vì nó đẩy canvas hẹp lại.
+- **1 node → 1 popover, 2 tab** — `DETAIL` (FQN, plan note, source) và
+  `COMMENTS` (xem [Comment trên plan node](#comment-trên-plan-node)).
+  Không phải 2 popup riêng cho cùng 1 lần bấm.
+- **Popover che mất một phần canvas** — chấp nhận có chủ đích. Đổi lại là
+  không phải co canvas mỗi lần xem 1 node, và popover đóng lại là xong.
 
 ## Data flow analysis & BRD (add-on v1)
 
@@ -766,11 +774,37 @@ tiến độ trên canvas tự cập nhật live trong lúc agent đang code, kh
 
 | Method | Nơi gọi | Capability | Ghi chú |
 |---|---|---|---|
-| `CodeGraphProposeFlow` | MCP (`codegraph.proposeFlow`), effect `execute` | `codegraph:plan` | **Ngoại lệ duy nhất** cho phép agent "write" qua MCP trong toàn DevKit — plan ở trạng thái draft chưa có hiệu lực gì tới khi user duyệt, khác hẳn mọi MCP write khác (Notes/Database/Kafka) vốn có tác dụng ngay. Mỗi node cần 1 FQN dự kiến, không chỉ label; cạnh nối tới method cũ có điều kiện thì kèm `condition` (xem dưới). |
+| `CodeGraphProposeFlow` | MCP (`codegraph.proposeFlow`), effect `execute` | `codegraph:plan` | Nằm trong nhóm **MCP write chỉ chạm metadata plan** — xem [Ranh giới write](#ranh-giới-agent-chỉ-write-được-metadata-plan). Plan ở trạng thái draft chưa có hiệu lực gì tới khi user duyệt, khác hẳn mọi MCP write khác (Notes/Database/Kafka) vốn có tác dụng ngay. Mỗi node cần 1 FQN dự kiến, không chỉ label; cạnh nối tới method cũ có điều kiện thì kèm `condition` (xem dưới). |
 | `CodeGraphApprovePlan` | Bridge, UI-only | `codegraph:plan` | Human-only, giống `KafkaConnect`/`SSHTrustHostKey` — duyệt plan luôn là quyết định của con người. Duyệt 1 lần cho **toàn bộ** plan — không cần duyệt riêng từng node/cạnh khi agent implement. |
 | `CodeGraphGetPlannedFlow` | MCP (`codegraph.getPlannedFlow`), effect `read` | `codegraph:plan` | Trả kèm FQN từng node + yêu cầu rõ "phải tạo đúng package/class/method tên này" trong response — nhắc agent mỗi lần gọi, không dựa vào agent tự nhớ. |
 | `CodeGraphGetPlanProgress` | MCP (`codegraph.getPlanProgress`), effect `read` | `codegraph:plan` | Trạng thái từng node **+ trạng thái tổng thể** (`complete`/`in_progress`/`not_started`) — agent dùng để tự biết đã làm tới đâu, kể cả sau khi mất context/mở lại phiên mới. |
 | `CodeGraphRelinkPlanNode` | MCP (`codegraph.relinkPlanNode`), effect `execute` | `codegraph:plan` | Đổi FQN 1 plan node trỏ tới — dùng khi agent (có lý do chính đáng, vd tránh trùng tên) hoặc user đổi tên khác plan ban đầu. Cũng chỉ sửa metadata plan, không đụng code — cùng mức rủi ro thấp như `proposeFlow`, expose MCP được. |
+
+### Ranh giới: agent chỉ write được metadata plan
+
+<Callout type="warn" title="Sửa lại một câu đã sai từ đầu">
+Bảng trên từng ghi `CodeGraphProposeFlow` là **"ngoại lệ duy nhất cho phép
+agent write qua MCP trong toàn DevKit"**. Câu đó sai ngay tại thời điểm viết:
+`CodeGraphRelinkPlanNode` ở hai dòng dưới cũng là MCP `effect: execute`, tức
+cũng là agent write. Thêm `CodeGraphReplyPlanNode` thành cái thứ 3.
+</Callout>
+
+Đếm số ngoại lệ là cách phát biểu sai — nó hỏng mỗi lần thêm method. Nguyên
+tắc thật:
+
+> Agent write được qua MCP **chỉ trong phạm vi metadata của plan**, và không
+> method nào trong nhóm đó có hiệu lực cho tới khi con người đọc hoặc duyệt.
+
+| Method | Ghi cái gì | Vì sao an toàn để expose MCP |
+|---|---|---|
+| `CodeGraphProposeFlow` | `plan_nodes`/`plan_edges`, trạng thái draft | Chưa `approvePlan` thì plan không dẫn tới hành động nào |
+| `CodeGraphRelinkPlanNode` | `plan_nodes.fqn` | Chỉ đổi node plan trỏ tới đâu, không đụng code |
+| `CodeGraphReplyPlanNode` | `plan_node_comments` | Chỉ là text cho người đọc |
+
+Ngoài phạm vi này agent **không** write được gì qua MCP ở module Code Graph —
+`CodeGraphWriteFile` cố tình chỉ có ở bridge, không expose MCP, đúng nguyên
+tắc "DevKit chỉ ghi file khi user chủ động Ctrl+S" ở
+[File editing](#file-editing-add-on-v1).
 
 ### Điều kiện trên cạnh: dữ liệu plan-time, human review — không phải AI verify runtime
 
@@ -800,11 +834,75 @@ plan_edges(project_id, from_plan_node_id, to_plan_node_id, condition)
   gọi mà không thu thêm thông tin gì mới — đi ngược mục tiêu tiết kiệm token
   ban đầu của cả module này.
 
+### Comment trên plan node
+
+`condition` trên cạnh (mục trên) là chiều **agent nói với người**. Chiều ngược
+lại — người xem plan rồi bảo agent "chỗ này làm khác đi" — trước đây không có
+chỗ nào để ghi: user chỉ sửa được `label`/`description`/cạnh, tức là **sửa đè
+lên chữ của agent**, mất luôn ranh giới ai đề xuất gì và ai phản hồi gì.
+`plan_node_comments` là chỗ đó, tách khỏi `description`.
+
+**Comment agent đọc được** — trả kèm trong `getPlannedFlow`, không phải ghi
+chú riêng của người dùng. Đây là quyết định có hệ quả: comment **điều khiển
+implementation**, nên UI phải nói thẳng ra chứ không để user tưởng mình đang
+ghi nhớ cá nhân.
+
+#### Gửi vào đúng phiên đang chạy, không phải hàng đợi
+
+Điểm dễ làm sai nhất: comment **không** phải row ghi vào DB chờ agent poll.
+Khi đang có `AgentSession` implement plan đó, comment đi thẳng vào phiên ấy
+bằng `session/prompt` (xem [Agent Hub § Tab lifecycle](/dev-kit/agent-hub#tab-lifecycle--dựa-trên-trace-thật-initialize--sessionnew--prompt-turn--permission)),
+kèm phạm vi là node đang mở. Câu trả lời về theo chính luồng `session/update`
+đang nuôi khung chat.
+
+`session_id` trên `plan_node_comments` ghi lại comment đó đã đi vào phiên nào
+— để sau này đọc lại thread còn biết nó thuộc lần chạy nào, không phải để
+route.
+
+| Trạng thái phiên | UI | Chuyện gì xảy ra với tin nhắn |
+|---|---|---|
+| `idle`, `running` | **Live** — `claude · <plan>` / running | Vào phiên ngay như một prompt |
+| `awaiting_permission` | **Blocked** — waiting for permission | **Xếp sau** prompt xin quyền; user phải giải quyết ở Agent Hub trước |
+| `error` | session ended with an error | Không tới được agent; lưu lại chờ `getPlannedFlow` |
+| `done`, chưa có phiên | **None** — no agent session / queued | Lưu lại, giao khi agent gọi `getPlannedFlow` lần sau |
+
+`awaiting_permission` **bắt buộc có trạng thái riêng** — đó là ca user bấm gửi
+mà không có gì xảy ra. Gộp nó vào Live là thiết kế ra một nút im lặng.
+
+<Callout type="warn" title="Cùng phiên nghĩa là cùng cuộc hội thoại">
+Comment trên node **đi vào chung conversation** với chat ở SplitPanel — nó là
+một prompt có phạm vi, **không phải kênh riêng**. Câu trả lời của agent hiện
+ở cả hai nơi. Đánh đổi có chủ đích: đổi lấy việc agent phản hồi ngay trong
+ngữ cảnh nó đang làm, thay vì đọc lại comment ở một lần `getPlannedFlow` sau
+đó với context đã mất.
+</Callout>
+
+#### Agent trả lời được = ngoại lệ MCP write thứ 2
+
+Agent trả lời được nghĩa là thêm 1 MCP write nữa. Nó nằm gọn trong
+[ranh giới đã định](#ranh-giới-agent-chỉ-write-được-metadata-plan): chỉ ghi
+text vào metadata plan, không đụng code, không có hiệu lực gì cho tới khi con
+người đọc.
+
+| Method | Nơi gọi | Capability | Ghi chú |
+|---|---|---|---|
+| `CodeGraphCommentPlanNode` | Bridge, UI-only | `codegraph:plan` | Người viết. Có phiên đang chạy thì đồng thời `session/prompt` vào phiên đó; không thì chỉ lưu. |
+| `CodeGraphReplyPlanNode` | MCP (`codegraph.replyPlanNode`), effect `execute` | `codegraph:plan` | Agent trả lời. Ngoại lệ write thứ 2, lý do ngay trên. |
+
+#### Non-goals
+
+- **Resolve/reopen comment** — thread là để đọc, không phải issue tracker.
+- **Comment trên cạnh** — cạnh đã có `condition`; thêm thread nữa là 2 chỗ ghi
+  cùng một loại ý định.
+- **Comment sống qua `proposeFlow` mới** — 1 plan active/project, plan mới thay
+  plan cũ thì thread đi cùng nó, không migrate sang node trùng FQN.
+
 ### Storage: `plan_nodes`/`plan_edges`, cùng SQLite index (không phải vault)
 
 ```sql
 plan_nodes(project_id, plan_node_id, label, description, fqn, kind, status)
 plan_edges(project_id, from_plan_node_id, to_plan_node_id, condition)
+plan_node_comments(project_id, plan_node_id, comment_id, author, body, created_at, session_id)
 ```
 
 Cùng lý do index chính không nằm trong `vault_items` — đây là dữ liệu thiết
