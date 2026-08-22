@@ -53,9 +53,11 @@ flow để agent implement theo một flow đã duyệt. Nhưng **không có nơ
 "việc gì đang làm, ai làm, tới đâu rồi"** ở mức dự án: user phải tự nhớ mình đã
 giao gì cho tab nào, agent mất context giữa các phiên thì không có chỗ đọc lại
 để biết đã làm tới đâu, và không có cách nào nhìn một màn hình để biết toàn
-bộ công việc đang ở trạng thái nào. Dùng Jira/Linear thật thì agent không chạm
-được (phải qua network + credential ngoài vault), và thông tin dự án
-proprietary rời khỏi máy — trái nguyên tắc local-first.
+bộ công việc đang ở trạng thái nào. Đặt board ở một tracker SaaS thì mọi thao
+tác của agent phải đi qua network + credential ngoài vault, và thông tin dự án
+proprietary rời khỏi máy ở **mọi** thao tác chứ không chỉ khi user muốn — trái
+nguyên tắc local-first. Board local là mặc định; nối ra tracker của team là
+việc chọn thêm, có [cầu riêng](/dev-kit/jira-bridge) và có preview.
 
 ### Mục tiêu (goals)
 
@@ -123,8 +125,10 @@ proprietary rời khỏi máy — trái nguyên tắc local-first.
   của từng board. Chưa có nhu cầu thật thì chưa thiết kế (YAGNI).
 - **Multi-user / assignee là người thật khác** — DevKit là app cá nhân;
   `assignee` v1 chỉ là `user` hoặc một `agentType`.
-- **Sync board sang Jira/Linear thật** — cần credential + network ngoài vault,
-  thuộc một module integration riêng nếu sau này cần.
+- **Sync board sang tracker bên ngoài** — cần credential + network ngoài vault,
+  thuộc module riêng: [Jira bridge](/dev-kit/jira-bridge) (Design) phủ Jira
+  Cloud theo mô hình **một chiều theo từng board**. Linear/GitHub Issues chưa
+  có thiết kế.
 - **Task template / recurring task / automation rule** kiểu Jira Automation.
 - **Trash + purge tự động** — task là bản ghi lịch sử dự án, xoá tự động sau
   N ngày là sai; dùng archive (xem FR-16).
