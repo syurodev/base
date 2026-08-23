@@ -158,6 +158,7 @@ sequenceDiagram
 | `CodeGraphListEndpoints` | `codegraph:read` | `project:active` |
 | `CodeGraphGetApiFlow` | `codegraph:read` | `project:active` |
 | `CodeGraphSearchSymbol` | `codegraph:read` | `project:active` |
+| `CodeGraphListFields` | `codegraph:read` | `project:active` |
 
 4 capability tách theo đúng bản chất hành động, cùng lý do đã áp cho
 Kafka (`kafka:connect` khác `kafka:produce`) và Database
@@ -190,6 +191,7 @@ Kafka (`kafka:connect` khác `kafka:produce`) và Database
 | `codegraph.getCodeSnippet` | `read` | Đúng đoạn method/class theo `filePath`+`line`+`endLine` (ranh giới AST đã biết) — nhẹ hơn `readFile` cho use case "xem nhanh", xem [Graph UI § Click node](#graph-ui-node-link-add-on-v1) |
 | `codegraph.getNeighbors` | `read` | Subgraph quanh 1 node, bounded theo depth/ceiling — xem [Graph UI](#graph-ui-node-link-add-on-v1) |
 | `codegraph.traceDataFlow` | `read` | Trace 1 field/parameter theo call graph đã resolve — xem [Data flow analysis](#data-flow-analysis--brd-add-on-v1) |
+| `codegraph.listFields` | `read` | Liệt kê field 1 class/method chạm tới, kèm số lần đọc/ghi — **bước bắt buộc trước `traceDataFlow`**, xem [Data flow analysis](#data-flow-analysis--brd-add-on-v1) |
 | `codegraph.getBlastRadius` | `read` | File nào phụ thuộc (import/dùng symbol) vào 1 file cho trước — xem [Incremental re-index § Blast radius](#incremental-re-index-add-on-v1) |
 | `codegraph.waitForIndexReady` | `read` | Block tới khi mọi re-index đang chờ/đang chạy xong — tránh đọc trạng thái cũ do debounce, xem [Incremental re-index § Sync](#incremental-re-index-add-on-v1) |
 
@@ -414,7 +416,7 @@ sequenceDiagram
   UI->>Svc: CodeGraphGetCodeSnippet(filePath, line, endLine)
   Svc->>DB: đọc đúng đoạn source theo ranh giới method/class đã biết sẵn
   DB-->>Svc: source text
-  Svc-->>UI: mở trong SplitPanel - Code editor primitive, readOnly=true, highlight đúng vùng
+  Svc-->>UI: tab Detail cua panel phai - Code editor primitive, readOnly=true
 
   UI->>UI: user bấm "Edit" trong panel preview
   UI->>Svc: chuyển sang File editing (readOnly=false) - đúng file, Ctrl+S lưu thật
@@ -454,17 +456,72 @@ type CodeSnippet struct {
   đúng luồng [File editing](#file-editing-add-on-v1) đã có (Ctrl+S, ghi
   xuống disk thật) — preview và edit là 2 chế độ của cùng 1 component, không
   phải 2 component khác nhau.
-- **Popover neo vào node, không phải `SplitPanel`** — thiết kế đầu đặt panel
-  này vào [SplitPanel](/dev-kit/shell-primitives#split-panel-primitive), nhưng
-  SplitPanel đã được dành cho **chat trực tiếp với agent**, nên không còn chỗ.
-  Popover mở ngay cạnh node vừa bấm: canvas giữ nguyên vị trí/zoom (đúng lý do
-  ban đầu đã loại modal), và node đang nói tới vẫn nằm trong tầm mắt — thứ
-  SplitPanel không đảm bảo được vì nó đẩy canvas hẹp lại.
-- **1 node → 1 popover, 2 tab** — `DETAIL` (FQN, plan note, source) và
-  `COMMENTS` (xem [Comment trên plan node](#comment-trên-plan-node)).
-  Không phải 2 popup riêng cho cùng 1 lần bấm.
-- **Popover che mất một phần canvas** — chấp nhận có chủ đích. Đổi lại là
-  không phải co canvas mỗi lần xem 1 node, và popover đóng lại là xong.
+<Callout type="warn" title="Sửa lại: hai câu ở đây từng sai">
+Mục này từng viết **"popover neo vào node, không phải `SplitPanel`"**, với lý
+do *"SplitPanel đã được dành cho chat trực tiếp với agent, nên không còn chỗ"*.
+Cả hai vế đều sai.
+
+Sai về **kỹ thuật**: nội dung SplitPanel do module đang mở đăng ký, mà rời
+module là unmount cả subtree của nó. Chat đặt ở đó sẽ **chết mỗi lần đổi
+module** — tức SplitPanel chưa bao giờ chứa nổi thứ mà câu đó nói nó đang giữ
+chỗ cho.
+
+Sai về **thiết kế**: popover cỡ cố định neo trên canvas bị cắt ở mép viewport,
+bị canvas nuốt sự kiện cuộn, và ép code Java xuống ~400px bề ngang. Ba lỗi đó
+đều là hệ quả trực tiếp của việc đặt một khung đọc dài vào hộp nổi.
+</Callout>
+
+Nguyên tắc thay cho câu cũ:
+
+> Chia bề mặt theo **hình dạng nội dung và tuổi thọ của nó**, không theo "chỗ
+> nào còn trống".
+
+- **Detail và Data flow ở panel phải** — cả hai cần bề rộng, chiều cao và
+  thanh cuộn riêng, và cả hai **sống lâu hơn một cái liếc** vào một node: bạn
+  mở code ra rồi còn pan graph để đối chiếu. Panel resize được nên "thiếu bề
+  rộng" không phải vấn đề thật; đổi lại canvas hẹp đi khi kéo rộng, và nút thu
+  sidebar là van xả cho ca đó.
+- **Comment vẫn là popover neo vào node** — ngắn, viết về đúng node đang trỏ
+  tới, đóng lại là xong. Ở đây **thế neo mới là điểm chính**. Popover che một
+  phần canvas: chấp nhận có chủ đích.
+- **Ranh giới không tuỳ tiện — nó trùng ranh giới dữ liệu.** Detail và Data
+  flow đọc **node đã index**; comment gắn vào **plan node**, thứ có thể chưa
+  tồn tại dòng code nào. Hai loại object trên hai canvas khác nhau.
+- **1 node → panel 2 tab** (`Detail`, `Data flow`), không phải 3 tab. Tab thứ
+  ba biến mất cùng lúc comment tách ra thành popover riêng.
+
+#### Cột phải: hai slot, một của module một của shell
+
+Panel phải không còn là một khung duy nhất. Nó là một cột chia dọc thành hai
+slot, kéo được chiều cao ở giữa:
+
+| Slot | Ai sở hữu | Chứa gì | Sống tới khi nào |
+|---|---|---|---|
+| Trên | **Module đang mở** | `Detail` / `Data flow` của node | Chết khi rời module |
+| Dưới | **Shell** | Cuộc hội thoại với agent | Sống xuyên mọi module |
+
+Chủ sở hữu khác nhau là **điểm mấu chốt, không phải chi tiết cài đặt**. Nội
+dung slot trên do module đăng ký, nên nó biến mất cùng module — đúng ý đồ, vì
+node đang xem cũng không còn nghĩa lý gì ở module khác. Slot dưới do shell giữ,
+nên đổi module không đụng tới nó.
+
+Hệ quả trực tiếp: **stream sự kiện của agent cũng phải nằm ở shell**. Trước
+đây nó đăng ký bên trong view của Agent Hub, nghĩa là rời module là ngắt —
+agent vẫn chạy, vẫn trả lời, nhưng output đổ vào một handler không còn ai đăng
+ký. Không phải "bị ẩn", mà là **mất hẳn**. Transcript cũng vậy.
+
+<Callout type="warn" title="Đây là lý do thật, không phải chuyện sắp xếp cho gọn">
+Một cuộc hội thoại **không thể** đặt trong slot của module. Không phải vì xấu,
+mà vì rời module là unmount, và unmount là mất. Mọi thứ cần sống xuyên module
+— hội thoại, subscription, transcript — đều phải thuộc shell.
+</Callout>
+
+Ô soạn tin nằm ở slot **dưới** có chủ đích: nó sát đáy cửa sổ và **không nhảy**
+khi slot trên mở hay đóng. Đó là thứ user gõ vào liên tục nên nó phải đứng yên.
+
+Chiều cao lưu là **số tuyệt đối**, và được clamp **lúc render** chứ không lúc
+ghi — mở một lần ở cửa sổ nhỏ không được phép làm teo vĩnh viễn tỉ lệ đã kéo ở
+cửa sổ lớn. Cùng quy tắc với bottom slot.
 
 ## Data flow analysis & BRD (add-on v1)
 
@@ -484,9 +541,12 @@ sequenceDiagram
   participant DB as SQLite index
 
   UI->>Svc: CodeGraphTraceDataFlow(symbolId, fieldName)
-  Svc->>DB: đọc call graph đã resolve, lọc method đọc/ghi fieldName
-  DB-->>Svc: danh sách method + file:line, đọc hay ghi
-  Svc-->>UI: chuỗi trace - bounded theo đúng call graph đã có, không quét lại source
+  Svc->>DB: field_accesses cua field nay - method nao doc/ghi
+  Svc->>DB: call_sites cua tung method do - moi loi goi kem so dong
+  DB-->>Svc: access va call site
+  Svc->>Svc: tron 2 loai theo so dong trong tung method
+  Svc->>Svc: duyet call graph theo chieu sau tu method khong ai goi
+  Svc-->>UI: steps co depth, co buoc call, co ly do khi mat dau
 ```
 
 - Trace **chỉ đi theo call graph đã index** — field/biến chỉ theo dõi được
@@ -495,6 +555,82 @@ sequenceDiagram
   giới hạn riêng của data-flow.
 - Không cache trace — tính lại mỗi lần gọi (đã bounded, rẻ), không thêm bảng
   lưu trữ mới.
+
+#### `listFields`: không có nó thì `traceDataFlow` không gọi được
+
+`TraceDataFlow(symbolId, fieldName)` **đòi tên field có sẵn**, mà không API nào
+sinh ra được cái tên đó — `GetFieldAccesses` cũng bắt đưa tên vào trước. Thiếu
+mắt xích này thì UI chỉ còn cách bắt user gõ mò tên field, và agent cũng vậy.
+
+`ListFields(nodeId)` trả về từng field kèm số lần đọc/ghi. **Một truy vấn phục
+vụ cả hai loại node**: `field_accesses` lưu cả class khai báo lẫn method truy
+cập, nên một mệnh đề `OR` khớp đúng thứ được đưa vào — caller không phải tự
+phân tích node id để biết mình đang cầm class hay method. Đưa class thì ra mọi
+field của class; đưa method thì chỉ ra field method đó chạm tới.
+
+Trường `classId` trong kết quả chính là thứ `traceDataFlow` gọi là `symbolId`,
+trả thẳng lại được, không phải suy ngược từ tên.
+
+#### `call_sites`: bảng mới, vì `edges` cố tình vứt đúng thứ trace cần
+
+`edges` dedupe theo `(from, to, kind)` để graph sạch — mà việc đó **vứt cả số
+dòng lẫn sự lặp lại**. Một method gọi cùng target hai lần chỉ còn một cạnh,
+không còn biết ở dòng nào. Trace cần đúng hai thứ đó để xen kẽ lời gọi vào
+giữa các lần đọc/ghi field.
+
+```sql
+call_sites(from_id, to_id, line, unresolved)
+```
+
+Không dedupe, có `line`, và **có cả lời gọi không resolve được** (`to_id`
+rỗng, `unresolved` nói lý do). Chỗ này là thay đổi hành vi thật:
+`ProjectAnalyzer.addCallEdges` trước đây gặp call không resolve là `continue`
+— lời gọi **biến mất không dấu vết**.
+
+#### Ba bức tường, và vì sao phải gọi tên chúng
+
+Khảo sát JavaSymbolSolver 3.28.2 trước khi thiết kế, kết quả định hình toàn bộ
+mục này:
+
+| Lý do | Nghĩa | Vì sao không vượt được |
+|---|---|---|
+| `library` | Callee nằm trong jar/JDK | `JavassistMethodDeclaration` không override `toAst()`, thừa kế mặc định `return Optional.empty()` — **không bao giờ** có thân method để đọc |
+| `interface` | Callee là method của interface | `ResolvedReferenceTypeDeclaration` chỉ có `getAncestors`/`getAllAncestors` — đi lên. Không có API tìm lớp con; Spring proxy còn sinh lúc runtime |
+| `unresolved` | Solver không resolve nổi | Thiếu jar trong cache local, dynamic dispatch, kiểu tham số không resolve được |
+
+Trace **im lặng thì không phân biệt được** "luồng kết thúc ở đây" với "tôi mất
+dấu ở đây". Hai câu đó dẫn tới hai hành động khác hẳn nhau của người đọc, nên
+mỗi bức tường đều thành một step có `unresolved`, không phải một khoảng trống.
+
+Cộng thêm hai lý do do chính vòng duyệt sinh ra: `cycle` (method đã nằm trên
+đường đi hiện tại) và `depth` (chạm trần `maxDataFlowDepth = 6`, cùng kiểu trần
+phòng thủ với `maxNeighborDepth`).
+
+#### Trần thật: thứ tự là thứ tự **mã nguồn**, không phải thứ tự chạy
+
+```go
+type DataFlowStep struct {
+    NodeID, Label, FilePath string
+    Line       int
+    Kind       string // "read" | "write" | "call"
+    Depth      int    // 0 = method gốc, +1 mỗi lần đi theo một lời gọi
+    TargetID   string // callee khi Kind == "call"
+    Unresolved string // "" | library | interface | unresolved | cycle | depth
+}
+```
+
+`DataFlowTrace.OrderedBy` luôn là `"source"`, và nó nằm **trong payload** chứ
+không chỉ trong doc — để không consumer nào hiểu nhầm.
+
+<Callout type="warn" title="Không phải reaching-definitions">
+Trong một method, event sắp theo **số dòng**. Nhánh, vòng lặp, return sớm đều
+không được mô hình hoá — một lệnh ghi nằm trong `else` vẫn sắp trước một lệnh
+đọc ở dòng sau. Muốn đúng thì cần control-flow graph, mà JavaParser không dựng
+CFG. Trace nói "method này ghi field rồi gọi cái kia", **không** khẳng định giá
+trị vừa ghi chính là thứ callee nhận được — cái đó cần lan truyền liên thủ tục
+qua tham số/giá trị trả về, và ba bức tường ở trên khiến nó sai đúng ở những
+chỗ quan trọng nhất.
+</Callout>
 
 ### BRD: DevKit expose dữ liệu giàu hơn, **không** tự sinh prose
 
@@ -870,11 +1006,12 @@ route.
 mà không có gì xảy ra. Gộp nó vào Live là thiết kế ra một nút im lặng.
 
 <Callout type="warn" title="Cùng phiên nghĩa là cùng cuộc hội thoại">
-Comment trên node **đi vào chung conversation** với chat ở SplitPanel — nó là
-một prompt có phạm vi, **không phải kênh riêng**. Câu trả lời của agent hiện
-ở cả hai nơi. Đánh đổi có chủ đích: đổi lấy việc agent phản hồi ngay trong
-ngữ cảnh nó đang làm, thay vì đọc lại comment ở một lần `getPlannedFlow` sau
-đó với context đã mất.
+Comment trên node **đi vào chung conversation** với chat ở
+[slot companion](#cột-phải-hai-slot-một-của-module-một-của-shell) — nó là một
+prompt có phạm vi, **không phải kênh riêng**. Câu trả lời của agent hiện ở cả
+hai nơi. Đánh đổi có chủ đích: đổi lấy việc agent phản hồi ngay trong ngữ cảnh
+nó đang làm, thay vì đọc lại comment ở một lần `getPlannedFlow` sau đó với
+context đã mất.
 </Callout>
 
 #### Agent trả lời được = ngoại lệ MCP write thứ 2
@@ -888,6 +1025,8 @@ người đọc.
 |---|---|---|---|
 | `CodeGraphCommentPlanNode` | Bridge, UI-only | `codegraph:plan` | Người viết. Có phiên đang chạy thì đồng thời `session/prompt` vào phiên đó; không thì chỉ lưu. |
 | `CodeGraphReplyPlanNode` | MCP (`codegraph.replyPlanNode`), effect `execute` | `codegraph:plan` | Agent trả lời. Ngoại lệ write thứ 2, lý do ngay trên. |
+| `CodeGraphListPlanNodeComments` | Bridge, UI-only | `codegraph:plan` | Đọc thread 1 node. Agent **không** cần tool riêng — thread về kèm `getPlannedFlow`. |
+| `CodeGraphCountPlanNodeComments` | Bridge, UI-only | `codegraph:plan` | Số comment từng node, cho badge trên canvas. Một lần gọi cho cả canvas, không phải mỗi node một lần. |
 
 #### Non-goals
 
