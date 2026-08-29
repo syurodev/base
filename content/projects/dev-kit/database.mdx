@@ -261,6 +261,13 @@ sequenceDiagram
   lifetime of the application"). Forward mở lần đầu `Get()` cho profile đó
   (lazy, giống pool), đóng khi `Remove(profileID)`/`Close()` — dùng chung
   đúng lifecycle pool đã có, không thêm cơ chế riêng.
+- **TLS vẫn verify theo host thật, không theo loopback.** DSN sau khi ghi đè trỏ
+  tới `127.0.0.1`, nhưng certificate của server được cấp cho host thật — để
+  nguyên thì `verify-full` fail vì hostname không khớp, và lối thoát duy nhất sẽ
+  là hạ TLS, đúng thứ [ADR-007](/dev-kit/architecture-decisions#adr-007-verified-tls-for-remote-db-and-exact-ssh-host-key-pinning)
+  cấm. Sau `pgxpool.ParseConfig`, pin `ConnConfig.TLSConfig.ServerName` về host
+  gốc của profile. Ghi đè chỉ đụng host/port; credential, database và `sslmode`
+  giữ nguyên.
 - **Chỉ local forward** (`-L`) — DevKit dial vào port local, SSH server
   forward tới DB thật. Remote forward không liên quan use case này.
 - **Port local: động (OS chọn, `0`)** — tránh xung đột giữa nhiều profile
