@@ -5,8 +5,10 @@ description: Các contract ổn định giữa UI, bridge, gateway, core service
 
 # Technical contracts
 
-Trang này chốt các contract runtime đang hiện diện trong checkout DevKit tại
-`/Users/syuro/Workspace/dev-kit`. Mục tiêu là giúp người implement biết đâu là
+import { Callout } from 'fumadocs-ui/components/callout';
+
+Trang này chốt các contract runtime đang hiện diện trong checkout desktop
+`dev-kit-app/`. Mục tiêu là giúp người implement biết đâu là
 biên giới ổn định, đâu là chi tiết nội bộ có thể thay đổi mà không làm vỡ UI.
 Để xem trạng thái module hiện tại và phần nào còn thiếu runtime, xem
 [Implementation status](/dev-kit/implementation-status). Ma trận control và ADR
@@ -19,7 +21,7 @@ Phần lớn contract public hiện tại đi theo chuỗi capability-gated buil
 
 `frontend/src/bridge/*` → `internal/bridge/AppService.*` →
 `AppService.call(...)` → `internal/capabilities/Gateway.Call(...)` →
-`internal/{vaultitem,notes,database,ssh,kafka,tools,syncclient,syncconflict,…}` hoặc `internal/commands/Registry.Execute(...)` →
+`internal/{vaultitem,notes,database,ssh,kafka,codegraph,agenthub,terminal,environments,uistate,preferences,tools,syncclient,syncconflict,…}` hoặc `internal/commands/Registry.Execute(...)` →
 `Repository` / `internal/storage` / `internal/syncstore` / endpoint bên ngoài.
 
 Hai ngoại lệ hiện có cần đọc cùng boundary này:
@@ -34,7 +36,7 @@ Hai ngoại lệ hiện có cần đọc cùng boundary này:
 Boundary này được thể hiện ở:
 
 - `frontend/src/bridge/client.ts`
-- `frontend/src/bridge/{notes,database,ssh,kafka,vault,commands}.ts`
+- `frontend/src/bridge/*.ts` (một adapter mỗi family)
 - `internal/bridge/app_service.go`
 - `internal/bridge/gateway.go`
 - `internal/capabilities/gateway.go`
@@ -68,7 +70,8 @@ hoặc permission grant trong manifest. Contract hiện tại gồm:
 Backend `internal/modules.Registry` validate manifest trước khi mutate state,
 reject duplicate module/command/view/capability, và trả list deterministic với
 snapshot caller-owned. Built-in descriptors hiện được đăng ký từ
-`internal/app/app.go` cho `tools`, `notes`, `database`, `ssh`, `kafka` và `sync`.
+`internal/app/app.go` cho `tools`, `notes`, `database`, `ssh`, `kafka`,
+`codegraph`, `agenthub`, `sync` và `settings`.
 
 `apiVersion` là compatibility field của contract; type giữ tên
 `ModuleManifest`. Khi permission được thực thi, grants vẫn phải được cấp
@@ -147,7 +150,9 @@ Migration m7 tạo `sync_outbox` và `sync_cursors`; m8 thêm sync context, leas
 local device identity; m9 thêm account binding, remote entity-version ledger và
 applied-operation journal; m10 thêm account-neutral local entity ledger + durable
 mutation intents; m11 thêm `sync_conflicts` để giữ bản "theirs" khi resolve
-Git-style. M10/m11 không backfill dữ liệu cũ; app hiện greenfield.
+Git-style; m15 rebuild `sync_conflicts` cho nullable `theirs_snapshot`
+(delete-theirs) + index outbox lineage. M10/m11/m15 không backfill dữ liệu cũ;
+app hiện greenfield.
 
 Conflict resolve contract (client):
 
@@ -166,21 +171,36 @@ Conflict resolve contract (client):
 
 ## Bridge contract
 
-`internal/bridge` hiện publish các family operation sau:
+<Callout type="info" title="Family + pattern, không phải danh sách method">
+Trang này **không** liệt kê từng bridge method — danh sách đó drift ngay khi thêm
+module. Cái ổn định (và là contract thật) là: family nào tồn tại, family đó dùng
+subject/capability/scope pattern gì, và evidence file ở đâu. Danh sách method đầy
+đủ luôn nằm ở trang module tương ứng và ở chính file `internal/bridge/*.go`.
+</Callout>
 
-| Family | Public methods | Subject / capability / scope pattern | Evidence | MCP tool (design, xem [MCP / Agent](/dev-kit/mcp-agent)) |
+| Family | Subject / capability | Scope pattern | Evidence | Method list |
 | --- | --- | --- | --- | --- |
-| Vault | `VaultStatus`, `SetupVault`, `UnlockVault`, `UnlockVaultWithRecovery`, `LockVault` | `builtin.vault` / `vault:manage` / `vault` | `internal/bridge/vault.go` | `vault.status` only — Setup/Unlock/Lock **không expose** qua MCP |
-| Notes | `NotesList`, `NotesSearch`, `NotesCreate`, `NotesGet`, `NotesUpdate`, `NotesDelete`, `NotesSetOrganization`, `NotesFolderList`, `NotesFolderCreate`, `NotesFolderUpdate`, `NotesFolderDelete` | `builtin.notes` / `notes:read` hoặc `notes:write` / `note:list`, `note:search`, `note:new`, `note:<id>`, `note-folder:list`, `note-folder:new`, `note-folder:<id>` | `internal/bridge/notes.go` | `notes.list`, `notes.search`, `notes.get`, `notes.create`, `notes.update`, `notes.delete`, `notes.set_organization`, `notes.folder.list`, `notes.folder.create`, `notes.folder.update`, `notes.folder.delete` |
-| Database | `DBListProfiles`, `DBCreateProfile`, `DBDeleteProfile`, `DBTestConnection`, `DBQuery` | `builtin.database` / `db:query` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/database.go` | `db.listProfiles`, `db.query` — CreateProfile/DeleteProfile để v2 |
-| SSH | `SSHListProfiles`, `SSHCreateProfile`, `SSHDeleteProfile`, `SSHObserveHostKey`, `SSHTrustHostKey`, `SSHTestConnection`, `SSHRunCommand` | `builtin.ssh` / `ssh:connect` / `profile:list`, `profile:new`, `profile:<id>` | `internal/bridge/ssh.go` | `ssh.listProfiles`, `ssh.testConnection`, `ssh.runCommand` — CreateProfile/DeleteProfile/ObserveHostKey/TrustHostKey **không expose** |
-| SSH forwarding | `SSHStartForward`, `SSHListForwards`, `SSHStopForward` | `builtin.ssh` / `ssh:forward` / `profile:<id>`, `forward:list`, `forward:<id>` | `internal/bridge/ssh.go`, `internal/ssh/forwarding.go` | — (non-goal, không expose qua MCP) |
-| Kafka | `KafkaListProfiles`, `KafkaCreateProfile`, `KafkaDeleteProfile`, `KafkaTestConnection`, `KafkaConnect`, `KafkaDisconnect`, `KafkaConnectionStatus`, `KafkaListTopics`, `KafkaDescribeTopic`, `KafkaPeekMessages`, `KafkaListConsumerGroups`, `KafkaPublishMessage` | `builtin.kafka` / `kafka:connect` hoặc `kafka:produce` / `profile:list`, `profile:new`, `profile:<id>`, `connection` | `internal/bridge/kafka.go`, `internal/kafka` | `kafka.listProfiles`, `kafka.connectionStatus`, `kafka.listTopics`, `kafka.describeTopic`, `kafka.peekMessages`, `kafka.listConsumerGroups`, `kafka.publishMessage` — **design only**; CreateProfile/DeleteProfile/Connect/Disconnect **không expose** |
-| Tools | `ExecuteCommand` | `builtin.tools` / `tools:hash` / `command:<id>` | `internal/bridge/app_service.go`, `internal/commands/registry.go` | `tools.executeCommand` |
-| Search | `VaultSearch` | `builtin.search` / `vault:search` / `item:search` | `internal/bridge/search.go` | `vault.search` |
-| Sync | `AuthStatus`, `AuthLogin`, `AuthLogout`, `SyncStatus`, `SyncConnect`, `SyncNow`, `SyncDisconnect`, `SyncConflicts`, `SyncConflictDetail`, `SyncResolveConflict` | `builtin.sync` / `sync:manage` / `sync:status`, `sync:login`, `sync:logout`, `sync:connect`, `sync:run`, `sync:disconnect`, `sync:conflicts`, `sync:resolve` | `internal/bridge/{sync,syncresolve}.go`, `internal/auth`, `internal/syncclient`, `internal/syncconflict` | `sync.status`, `sync.conflicts` — auth/connect/now/disconnect/resolve để v2 |
-| Environments | `EnvListTags`, `EnvCreateTag`, `EnvUpdateTag`, `EnvDeleteTag` | `builtin.environments` / `env:read` hoặc `env:write` / `tag:list`, `tag:new`, `tag:<id>` | `internal/bridge/environments.go`, `internal/environments` | `env.listTags` — Create/Update/Delete **không expose** qua MCP |
-| Modules | `ListModules` | no capability gate; registry read-through only | `internal/bridge/app_service.go`, `internal/modules/registry.go` | — (không cần, registry metadata thuần) |
+| Vault | `builtin.vault` / `vault:manage` | `vault` | `internal/bridge/vault.go` | [Vault](/dev-kit/vault) |
+| Search | `builtin.search` / `vault:search` | `item:search` | `internal/bridge/search.go` | [Vault](/dev-kit/vault) |
+| Notes | `builtin.notes` / `notes:read`, `notes:write` | `note:list`, `note:search`, `note:new`, `note:<id>`, `note-folder:list`, `note-folder:new`, `note-folder:<id>` | `internal/bridge/notes.go` | [Notes](/dev-kit/notes) |
+| Database | `builtin.database` / `db:query` | `profile:list`, `profile:new`, `profile:active`, `profile:<id>` | `internal/bridge/{database,database_active}.go` | [Database](/dev-kit/database) |
+| SSH | `builtin.ssh` / `ssh:connect` | `profile:list`, `profile:new`, `profile:active`, `profile:<id>` | `internal/bridge/{ssh,ssh_active}.go` | [SSH](/dev-kit/ssh) |
+| SSH forwarding | `builtin.ssh` / `ssh:forward` | `profile:<id>`, `forward:list`, `forward:<id>` | `internal/bridge/ssh.go`, `internal/ssh/forwarding.go` | [SSH](/dev-kit/ssh) |
+| Kafka | `builtin.kafka` / `kafka:connect`, `kafka:produce` | `profile:list`, `profile:new`, `profile:<id>`, `connection` | `internal/bridge/kafka.go`, `internal/kafka` | [Kafka UI](/dev-kit/kafka) |
+| CodeGraph | `builtin.codegraph` / `codegraph:index`, `codegraph:read`, `codegraph:fs`, `codegraph:terminal`, `codegraph:plan` | `project:new`, `project:active`, `file:<relative-path>`, `plan:active` | `internal/bridge/{codegraph,plan}.go`, `internal/codegraph` | [Code Graph](/dev-kit/codegraph) |
+| Terminal I/O | `builtin.codegraph` / `terminal:io` | `session:<id>` | `internal/bridge/terminal.go`, `internal/terminal` | [Terminal](/dev-kit/terminal) |
+| Agent Hub | `builtin.agenthub` / `agenthub:read`, `agenthub:execute` | `session:list`, `session:new`, `session:<id>`, `vendor:list`, `permission:complete` | `internal/bridge/agenthub.go`, `internal/agenthub`, `internal/acp` | [Agent Hub](/dev-kit/agent-hub) |
+| Tools | `builtin.tools` / `tools:hash` | `command:<command-id>` | `internal/bridge/app_service.go`, `internal/commands/registry.go` | [Tools](/dev-kit/tools) |
+| Sync | `builtin.sync` / `sync:manage` | `sync:status`, `sync:login`, `sync:logout`, `sync:connect`, `sync:run`, `sync:disconnect`, `sync:devices`, `sync:conflicts`, `sync:resolve` | `internal/bridge/{sync,syncresolve}.go`, `internal/{auth,syncclient,syncconflict}` | [Data sync](/dev-kit/data-sync) |
+| Environments | `builtin.environments` / `env:read`, `env:write` | `tag:list`, `tag:new`, `tag:<id>` | `internal/bridge/environments.go`, `internal/environments` | [Environments](/dev-kit/environments) |
+| MCP install | `builtin.mcpinstall` / `mcp:install` | `agent:list`, `agent:claude-code`, `agent:codex` | `internal/bridge/mcp_install.go`, `internal/mcp/install` | [MCP / Agent](/dev-kit/mcp-agent) |
+| Interaction | `builtin.interaction` / `interaction:respond` | `pending`, `pending:complete` | `internal/bridge/interaction.go`, `internal/interaction` | [MCP / Agent](/dev-kit/mcp-agent) |
+| UI state | `builtin.uistate` / `ui:read`, `ui:write` | `key:<state-key>` | `internal/bridge/uistate.go`, `internal/uistate` | [UI state](/dev-kit/ui-state) |
+| Preferences | `builtin.settings` / `preferences:read`, `preferences:write` | `theme` | `internal/bridge/preferences.go`, `internal/preferences` | — |
+| Modules | no capability gate; registry read-through only | — | `internal/bridge/app_service.go`, `internal/modules/registry.go` | — |
+
+Cột "MCP tool" cũ đã bỏ khỏi bảng này vì cùng lý do — surface MCP theo module
+nằm ở [MCP / Agent](/dev-kit/mcp-agent), một chỗ duy nhất.
 
 Hai quy tắc bridge quan trọng:
 
@@ -188,8 +208,8 @@ Hai quy tắc bridge quan trọng:
   `commandID()` trong `internal/bridge/gateway.go`; ID không hợp lệ bị hạ về
   giá trị `"invalid"` thay vì đưa raw input vào audit/policy path.
 - Typed adapter ở frontend map DTO snake_case sang shape UI riêng
-  (`frontend/src/bridge/{notes,database,ssh,kafka,vault,commands}.ts`), vì vậy UI
-  contract ổn định là adapter function, không phải generated binding thô.
+  (`frontend/src/bridge/*.ts`), vì vậy UI contract ổn định là adapter function,
+  không phải generated binding thô.
 
 ## Capability contract
 
@@ -209,10 +229,16 @@ Built-in subjects đang được container cấp sẵn trong
 - `builtin.database`
 - `builtin.ssh`
 - `builtin.kafka`
+- `builtin.codegraph`
+- `builtin.agenthub`
 - `builtin.vault`
 - `builtin.search`
 - `builtin.sync`
 - `builtin.environments`
+- `builtin.mcpinstall`
+- `builtin.interaction`
+- `builtin.uistate`
+- `builtin.settings`
 
 Capability names public hiện tại:
 
@@ -224,32 +250,46 @@ Capability names public hiện tại:
 - `ssh:forward`
 - `kafka:connect`
 - `kafka:produce`
+- `codegraph:index`
+- `codegraph:read`
+- `codegraph:fs`
+- `codegraph:terminal`
+- `codegraph:plan`
+- `terminal:io`
+- `agenthub:read`
+- `agenthub:execute`
 - `vault:manage`
 - `vault:search`
 - `sync:manage`
 - `env:read`
 - `env:write`
+- `mcp:install`
+- `interaction:respond`
+- `ui:read`
+- `ui:write`
+- `preferences:read`
+- `preferences:write`
 
 Scope families hiện tại:
 
 - `command:<command-id>`
-- `note:list`
-- `note:search`
-- `note:new`
-- `note:<record-id>`
-- `note-folder:list`
-- `note-folder:new`
-- `note-folder:<record-id>`
-- `profile:list`
-- `profile:new`
-- `profile:<record-id>`
-- `forward:list`
-- `forward:<forward-id>`
+- `note:list`, `note:search`, `note:new`, `note:<record-id>`
+- `note-folder:list`, `note-folder:new`, `note-folder:<record-id>`
+- `profile:list`, `profile:new`, `profile:active`, `profile:<record-id>`
+- `forward:list`, `forward:<forward-id>`
+- `connection`
+- `project:new`, `project:active`, `file:<relative-path>`, `plan:active`
+- `session:list`, `session:new`, `session:<id>`
+- `vendor:list`, `permission:complete`
 - `vault`
 - `item:search`
-- `tag:list`
-- `tag:new`
-- `tag:<record-id>`
+- `tag:list`, `tag:new`, `tag:<record-id>`
+- `agent:list`, `agent:claude-code`, `agent:codex`
+- `pending`, `pending:complete`
+- `key:<state-key>`
+- `theme`
+- `sync:status`, `sync:login`, `sync:logout`, `sync:connect`, `sync:run`,
+  `sync:disconnect`, `sync:devices`, `sync:conflicts`, `sync:resolve`
 
 Generic command scope construction is broader than the runtime surface today:
 
@@ -333,13 +373,19 @@ Boundary ổn định:
 - Table hiện tại được chốt trong `internal/storage/sqlite.go`:
   `vault_keyring` và `vault_items` (id TEXT PRIMARY KEY, type TEXT, data TEXT).
   Ba bảng cũ `notes`/`connection_profiles`/`ssh_profiles` đã bị drop (migration
-  m6) và thay bằng `vault_items`. Migration m12 thêm bảng riêng `env_tags`
-  (id, name UNIQUE, requires_confirmation, is_builtin, locked) — **không** đi
-  qua `vault_items`, vì env tag không phải secret và không cần vault unlocked
-  để đọc/quản lý; xem [Environments](/dev-kit/environments).
+  m6) và thay bằng `vault_items`. Các bảng ngoài `vault_items` — không phải
+  secret, không cần vault unlocked để đọc/quản lý:
+  - m12 `env_tags` (id, name UNIQUE, requires_confirmation, is_builtin, locked);
+    xem [Environments](/dev-kit/environments)
+  - m13 agent hub sessions + turns; xem [Agent Hub](/dev-kit/agent-hub)
+  - m14 app preferences (theme)
+  - m16 `ui_state`; xem [UI state](/dev-kit/ui-state)
+
+  Index của CodeGraph nằm ở SQLite **riêng**, không qua migration runner của
+  `internal/storage` — xem [Code Graph](/dev-kit/codegraph).
 - `storage.Migrate(...)` chạy migration forward-only, idempotent, có version,
   bằng `schema_migrations` trong `internal/storage/{sqlite,migrations}.go`
-  (m5 tạo `vault_items`, m6 drop bảng cũ).
+  (m5 tạo `vault_items`, m6 drop bảng cũ). Head hiện tại là **m16**.
 
 Phân ranh dữ liệu nhạy cảm và metadata (mỗi type map field vào `metadata`
 plaintext và `payload` mã hóa của `vault_items`):

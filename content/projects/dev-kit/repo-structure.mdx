@@ -28,12 +28,11 @@ internal/
   crypto/            AEAD, Argon2id KDF, versioned envelope
   vault/             Master-password keyring + in-memory DEK
   vaultitem/         Vault-item substrate (Record + Repository + seal/open)
-  environments/      Env tag registry (dev/stg/prod + custom) + Repository (memory/SQL)
+  environments/      Env tag registry (dev/stg/prod + custom) + Repository (memory/SQL); Settings UI consumer
   notes/             Notes module
   database/          Database-connection module (pgx); requires env tag on create
   ssh/               SSH module (profiles, host keys, port forwarding); requires env tag
   kafka/             Kafka module (profiles, connect, topics, peek, groups, publish); requires env tag
-  environments/      Env tag registry (dev/stg/prod + custom); Settings UI consumer
   tools/             Hashing tools module
   syncclient/        Sync application service (connect / syncnow / conflicts)
   syncconflict/      Conflict-resolution application service

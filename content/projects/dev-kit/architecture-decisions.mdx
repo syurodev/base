@@ -6,7 +6,7 @@ description: ADR ghi nhận các quyết định kiến trúc đã chấp nhận
 # Architecture decisions
 
 Trang này ghi các Architecture Decision Record (ADR) phản ánh runtime và design
-docs hiện có trong checkout DevKit tại `/Users/syuro/Workspace/dev-kit`. Mỗi
+docs hiện có trong checkout desktop `dev-kit-app/`. Mỗi
 record có `Decision`, `Context`, `Alternatives considered`, `Consequences` và
 `Status`. Control implementation evidence nằm ở
 [Security controls](/dev-kit/security-controls); boundary contract ở
@@ -62,8 +62,12 @@ registry. External plugin SDK, loader, marketplace và untrusted code execution
 định.
 
 **Context:** `docs/architecture/devkit-architecture.md` principle #6 và #7: built-in
-modules trước, security boundaries trước marketplace. Checkout hiện tại không
-có `internal/plugins`, `internal/marketplace`, `internal/mcp`, `internal/sync`.
+modules trước, security boundaries trước marketplace. Lúc ra quyết định, checkout
+chưa có `internal/plugins`, `internal/marketplace`, `internal/mcp`, `internal/sync`.
+(Cập nhật: `internal/mcp` và `internal/sync` nay đã `Implemented`;
+`internal/plugins` và `internal/marketplace` vẫn chưa tồn tại — xem
+[Implementation status](/dev-kit/implementation-status). Quyết định không đổi:
+plugin/marketplace vẫn sau.)
 
 **Alternatives considered:**
 
@@ -329,8 +333,11 @@ sandbox first-party nhưng không đủ cho Hub multi-vendor và spawn ACP.
 - Positive: một `Runner` dùng lại cho mọi vendor; fail-closed khi thiếu `bwrap`.
 - Negative: phụ thuộc package host (`bubblewrap`); macOS dựa API `sandbox-exec`
   deprecated nhưng vẫn là thực tế ngành.
-- Neutral: Agent Hub vẫn postponed cho tới khi vendor adapter gọi
-  `sandbox.DefaultRunner().Start` (xem [/dev-kit/sandbox](/dev-kit/sandbox)).
+- Neutral: điều kiện "Agent Hub chỉ ship khi vendor adapter spawn qua sandbox"
+  **đã thoả** — Phase 4 v1 (Claude-only) đóng với Claude adapter spawn qua
+  `sandbox.DefaultRunner().StartPiped` (biến thể interactive ACP stdio của
+  `Start`), fail-closed. Xem [Sandbox](/dev-kit/sandbox) và
+  [Implementation status](/dev-kit/implementation-status).
 
 ---
 
@@ -439,7 +446,7 @@ auto-collapse coordination — DevKit desktop-only, không có hai concern đó.
 
 **Consequences:**
 
-- Positive: Module khác (Database/SSH/Kafka/…) có thể tái dùng hai primitive
+- Positive: Module khác (Database/SSH/Kafka/…) có thể tái dùng các primitive
   này ngay mà không phải build lại state/animation; `Workbench.tsx` chỉ có
   một chỗ duy nhất biết vẽ title-bar actions + panel slot. Chi tiết API +
   rules/gotchas: [/dev-kit/shell-primitives](/dev-kit/shell-primitives).
@@ -452,6 +459,8 @@ auto-collapse coordination — DevKit desktop-only, không có hai concern đó.
   register-by-id-idempotent (`registerAction` upsert theo `id`, không push
   trùng) thay vì né StrictMode; không cần opt-out StrictMode cho vùng này.
 
+---
+
 ## ADR-012: Workbench tab strip in the native titlebar
 
 **Status:** Accepted (2026-08-15) — **Implemented** (Phase 1: module-level
@@ -462,6 +471,12 @@ drag-to-reorder — `frontend/src/stores/workbenchTabs.ts`,
 `frontend/src/modules/notes/NoteEditor.tsx`. Phase 3, Agent Hub per-session
 tabs + live status, still pending — see
 [Module tabs → Scope](/dev-kit/module-tabs#scope-module-tabs--notes-per-note-hôm-nay-agent-hub-sau).)
+
+**Supersede đang chờ:** thiết kế Phase 5 ở [Title bar](/dev-kit/title-bar) bỏ
+hẳn tab khỏi title bar (đổi module qua Dock, tab chuyển xuống content area —
+[Module tabs](/dev-kit/module-tabs)). Thiết kế đó còn `Design only`, chưa có
+runtime, nên ADR này **vẫn Accepted + Implemented**; sẽ chuyển `Superseded by
+ADR-013` khi Phase 5 được chốt thành ADR riêng.
 
 **Decision:** Thay `activeModuleId` string đơn (1 module active tại 1 thời
 điểm) bằng model open/close/focus **tab**, hiển thị trong dải `<header>`
@@ -552,17 +567,21 @@ status) không phải đổi lại shape của store.
 
 ---
 
-## Verified snapshot
+## Evidence (pass 2026-07-24)
 
-- Checked on: 2026-07-24
-- DevKit checkout branch: `main`
-- DevKit checkout commit: `0403a80ae5ffdb89b2be09e9223b5ff30bdaad33`
+Snapshot chuẩn của repo ở
+[Implementation status § Verified snapshot](/dev-kit/implementation-status#verified-snapshot).
+Mục dưới chỉ ghi evidence riêng của pass ADR **đầu tiên**, chạy trên `main` @
+`0403a80`. **Pass này cũ hơn ADR-009…012** (Accepted 2026-08-12…15) — các ADR
+đó chưa nằm trong phạm vi verify của nó; trạng thái Implemented của chúng lấy
+theo Implementation status.
+
 - Verification commands run:
-  - `git -C /Users/syuro/Workspace/dev-kit branch --show-current`
-  - `git -C /Users/syuro/Workspace/dev-kit rev-parse HEAD`
-  - `rg -n 'container\.Modules\.Register|builtin\.vault|builtin\.search' /Users/syuro/Workspace/dev-kit/internal/app/app.go /Users/syuro/Workspace/dev-kit/internal/app/container.go`
-  - `rg -n 'TableVaultItems|create vault_items|drop legacy' /Users/syuro/Workspace/dev-kit/internal/storage/sqlite.go`
-  - `test -d /Users/syuro/Workspace/dev-kit/internal/vaultitem`
+  - `git branch --show-current`
+  - `git rev-parse HEAD`
+  - `rg -n 'container\.Modules\.Register|builtin\.vault|builtin\.search' ./internal/app/app.go ./internal/app/container.go`
+  - `rg -n 'TableVaultItems|create vault_items|drop legacy' ./internal/storage/sqlite.go`
+  - `test -d ./internal/vaultitem`
 - Primary sources: `docs/architecture/devkit-architecture.md`,
   `docs/architecture/core-foundation.md`, `main.go`,
   `internal/capabilities/gateway.go`, `internal/storage/sqlite.go`,

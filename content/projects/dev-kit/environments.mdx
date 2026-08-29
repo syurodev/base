@@ -103,9 +103,8 @@ Subject `builtin.environments`. Grants ở `internal/app/container.go`.
 Profile lưu **tên tag** string trong metadata (`env`), không copy
 `requiresConfirmation`. Create path (SSH/Database/Kafka):
 
-```text
-CreateProfile(..., Env) → reject if Env == "" || !envs.Exists(Env)
-```
+`CreateProfile` reject nếu `Env` rỗng hoặc không có trong registry
+(`envs.Exists`).
 
 `EnvLookup` khai báo riêng ở từng module (không import `internal/environments`);
 `*environments.Service` thỏa interface khi wiring ở `internal/app/container.go`.

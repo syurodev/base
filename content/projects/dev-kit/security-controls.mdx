@@ -5,8 +5,7 @@ description: Ma trận control implementation và evidence đã kiểm chứng c
 
 # Security controls
 
-Trang này ghi lại các security control đang có runtime trong checkout DevKit tại
-`/Users/syuro/Workspace/dev-kit`, kèm evidence path và rủi ro còn lại. Kiến thức
+Trang này ghi lại các security control đang có runtime trong checkout desktop `dev-kit-app/`, kèm evidence path và rủi ro còn lại. Kiến thức
 threat model, protected assets và security principles nằm ở
 [Security model](/dev-kit/security). Boundary contract giữa UI, bridge và gateway
 xem thêm [Technical contracts](/dev-kit/technical-contracts); trạng thái module
@@ -32,13 +31,14 @@ xem [Implementation status](/dev-kit/implementation-status).
 | Remote DB verified TLS, pool limits, cancellation và row cap | Remote host mặc định `sslmode=verify-full`; `disable` chỉ cho loopback. `PoolManager` giữ một pool/profile với `MaxConns=4`, `MaxConnLifetime=30m`. Query/test dùng `context.WithTimeout` 30s và tôn trọng caller cancellation. `DefaultMaxRows=200` cap kết quả query. | `internal/database/database.go`, `internal/database/pool.go`, `internal/bridge/database.go`; tests: `internal/database/database_test.go`, `internal/database/pool_test.go`, `internal/database/integration_test.go`. | TLS trust phụ thuộc system CA store của pgx; chưa có custom CA pinning. Row cap cố định; arbitrary SQL vẫn chạy được trong giới hạn permission hiện tại. |
 | Loopback-only server mode | `servermode.ValidateHost` chỉ chấp nhận blank/default `127.0.0.1`, `localhost`, hoặc loopback IP; reject public/wildcard bind. Desktop/server entrypoint gọi validator trước khi bind Wails server host. | `internal/servermode/servermode.go`, `main.go`; tests: `internal/servermode/servermode_test.go`. | Chỉ enforce tại startup bind address; không thay thế OS firewall hay network policy nếu process bị misconfigure bên ngoài code path này. |
 
-## Verified snapshot
+## Evidence (pass 2026-08-10)
 
-- Checked on: 2026-08-10
-- DevKit checkout branch: `feat/phase-3-sync-closure`
-- DevKit checkout commit: `7708b99`
-- DevKit checkout status: deployed matrix G1–G4 pass qua `cmd/synce2e/`; companion
-  details ở `/dev-kit/implementation-status`.
+Snapshot chuẩn của repo (branch/commit/ngày hiện hành) ở
+[Implementation status § Verified snapshot](/dev-kit/implementation-status#verified-snapshot).
+Mục dưới chỉ ghi evidence riêng của pass security này, chạy trên
+`feat/phase-3-sync-closure` @ `7708b99`: deployed matrix G1–G4 pass qua
+`cmd/synce2e/`.
+
 - Verification commands run (representative):
   - `set -a; . .superpowers/sdd/deployed-e2e.env; set +a`
   - `go test ./cmd/synce2e/ -count=1 -timeout 15m`

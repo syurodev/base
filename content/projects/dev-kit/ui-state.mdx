@@ -20,11 +20,11 @@ Chưa có runtime.
 
 ```mermaid
 flowchart LR
-  Store["Zustand store\n(vd useSidebarStore)"] -->|"persist middleware"| Adapter["UI state storage adapter\n(getItem/setItem/removeItem)"]
+  Store["Zustand store<br/>(vd useSidebarStore)"] -->|"persist middleware"| Adapter["UI state storage adapter<br/>(getItem/setItem/removeItem)"]
   Adapter -->|"debounce ~300-500ms"| Bridge["UIStateGet / UIStateSet"]
-  Bridge --> GW["Capability Gateway\nbuiltin.uistate"]
+  Bridge --> GW["Capability Gateway<br/>builtin.uistate"]
   GW --> SVC["internal/uistate.Service"]
-  SVC --> DB[("ui_state — internal/storage,\nkhông thuộc vault_items")]
+  SVC --> DB[("ui_state — internal/storage,<br/>không thuộc vault_items")]
 ```
 
 ## Vì sao không dùng `localStorage`/IndexedDB thẳng trong WebView
@@ -43,9 +43,8 @@ Cùng tiền lệ `env_tags` ([Environments](/dev-kit/environments)) — bảng 
 trong `internal/storage`, **không phải** `vault_items`, không cần vault
 `unlocked` để đọc/ghi:
 
-```sql
-ui_state(key TEXT PRIMARY KEY, value TEXT /* JSON */, updated_at)
-```
+Bảng `ui_state` có 3 cột: `key` (TEXT, primary key), `value` (TEXT chứa JSON),
+và `updated_at`.
 
 Generic key-value thay vì 1 bảng riêng cho từng feature — thêm 1 preference
 mới không cần migration, chỉ cần 1 `key` mới.
@@ -74,9 +73,8 @@ Viết **1 storage adapter khớp interface `persist` middleware của Zustand**
 dùng cú pháp Zustand quen thuộc, không ai tự gọi bridge tay mỗi lần thêm 1
 store mới cần nhớ:
 
-```ts
-persist(useSidebarStore, { name: 'sidebar', storage: uiStateStorage })
-```
+Mỗi store chỉ cần bọc `persist(...)` với `name` riêng và `storage:
+uiStateStorage`.
 
 `uiStateStorage` là **1 implementation duy nhất, dùng chung** cho mọi store
 cần persist — không viết lại adapter riêng mỗi consumer.

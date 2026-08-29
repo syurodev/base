@@ -119,9 +119,9 @@ Ba primitive từng có — **Roots, Sampling, Logging** — đã bị deprecate
 | Vault | [Vault § MCP tool surface](/dev-kit/vault#mcp-tool-surface-design) — chỉ `vault.status`, `vault.search` |
 | Notes | [Notes § MCP tool surface](/dev-kit/notes#mcp-tool-surface) — `notes.list/search/get/create/update/delete/set_organization`, `notes.folder.list/create/update/delete` |
 | Database | [Database § MCP tool surface](/dev-kit/database#mcp-tool-surface-design) — `db.listProfiles/testConnection/query` |
-| SSH | [SSH § MCP tool surface](/dev-kit/ssh#mcp-tool-surface-design) — `ssh.listProfiles/testConnection/runCommand` |
+| SSH | [SSH § MCP tool surface](/dev-kit/ssh#mcp-tool-surface) — `ssh.listProfiles/testConnection/runCommand` |
 | Tools | [Tools § MCP tool surface](/dev-kit/tools#mcp-tool-surface-design) — mỗi command 1 tool riêng (`tools.hash`, `tools.base64Encode`...) |
-| Kafka UI (design) | [Kafka UI § MCP tool surface](/dev-kit/kafka#mcp-tool-surface-design) — read + `kafka.publishMessage` (execute, capability riêng `kafka:produce`) |
+| Kafka UI | [Kafka UI § MCP tool surface](/dev-kit/kafka#mcp-tool-surface) — read + `kafka.publishMessage` (execute, capability riêng `kafka:produce`) |
 | Search, Sync | [Technical contracts § Bridge contract](/dev-kit/technical-contracts#bridge-contract) — cột "MCP tool (design)" |
 | Code Graph | [Code Graph § MCP tool surface](/dev-kit/codegraph#mcp-tool-surface) |
 | Agent Hub | [Agent Hub § MCP tool surface](/dev-kit/agent-hub#mcp-tool-surface) — `agenthub.listAgents/createAgentSession/invokeAgent/getSessionStatus/cancelAgent` (Implemented Claude-only; Codex/Gemini Design) |
@@ -215,12 +215,10 @@ Yêu cầu hành vi:
 - Sau khi cài: user vẫn phải **chạy DevKit desktop** (vault unlock + socket host)
   thì agent mới gọi tool được; install chỉ ghi config.
 
-```text
-UI/CLI → McpInstall(agent, scope, projectPath?)
-       → internal/mcp/install writer (claude-code | codex)
-       → file config trên máy
-Agent spawn → cmd/devkit-mcp (stdio) → unix socket → DevKit GUI tools
-```
+Đường đi khi cài: UI hoặc CLI gọi `McpInstall(agent, scope, projectPath?)` →
+writer trong `internal/mcp/install` (`claude-code` hoặc `codex`) → ghi file
+config trên máy. Đường đi lúc chạy: agent spawn `cmd/devkit-mcp` qua stdio →
+unix socket → tool của DevKit GUI.
 
 Open question đã chốt cho Cursor IDE: **v1 chưa** auto-install Cursor
 (`.cursor/mcp.json`) — thêm agent ID sau khi Claude Code + Codex ổn định.

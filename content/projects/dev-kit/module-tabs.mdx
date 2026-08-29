@@ -60,18 +60,16 @@ flowchart LR
 `useWorkbenchTabsStore` (`frontend/src/stores/workbenchTabs.ts`) giữ
 `openTabs: WorkbenchTab[]` phẳng + `activeTabId`.
 
-```ts
-type WorkbenchTab = {
-  id: string; // tabKey(moduleId, viewId, params) — dedupe key
-  moduleId: string;
-  viewId: string;
-  title: string;
-  params?: Record<string, unknown>;
-  status?: "idle" | "running" | "success" | "error";
-  icon?: LucideIcon; // overrides ModuleManifest.icon for this one tab
-  preview?: boolean; // VS Code-style "italic, replaced by next single-click"
-};
-```
+Mỗi `WorkbenchTab` gồm:
+
+| Field | Ý nghĩa |
+|---|---|
+| `id` | Dedupe key, tính bằng `tabKey(moduleId, viewId, params)` |
+| `moduleId`, `viewId`, `title` | Tab thuộc module/view nào, hiện chữ gì |
+| `params` | Tham số của view, optional — cũng là phần tạo nên `id` |
+| `status` | `idle` / `running` / `success` / `error`, optional |
+| `icon` | Optional; đè `ModuleManifest.icon` cho riêng tab này |
+| `preview` | Optional; tab preview kiểu VS Code — in nghiêng, bị thay bởi lần single-click kế tiếp |
 
 - **`openTab({moduleId, viewId, title, params?, icon?, preview?})` là
   open-or-focus** — tính `id` qua `tabKey()` (sort key của `params` rồi

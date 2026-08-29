@@ -59,19 +59,11 @@ setup và không bao giờ persist — xem [Operations](/dev-kit/operations#reco
 ### Envelope — "phong bì" chứa dữ liệu đã mã hóa
 
 Mỗi field bí mật không lưu dạng bytes thô mà lưu một **envelope** có cấu trúc, đủ
-thông tin để giải mã lại (`internal/crypto/envelope.go`):
+thông tin để giải mã lại (`internal/crypto/envelope.go`). Đúng 5 field:
 
-```json
-{
-  "version": 2,
-  "algorithm": "xchacha20-poly1305",
-  "key_id": "note-body",
-  "nonce": "…",
-  "ciphertext": "…"
-}
-```
-
-- `version` / `algorithm`: đọc đúng cách kể cả khi sau này đổi thuật toán.
+- `version` (luôn `2`) / `algorithm` (`xchacha20-poly1305`): đọc đúng cách kể
+  cả khi sau này đổi thuật toán.
+- `key_id`: định danh khoá dùng cho field đó, vd `note-body`.
 - `nonce`: số ngẫu nhiên dùng một lần cho mỗi lần mã hóa; cùng nội dung mã hóa hai
   lần ra hai ciphertext khác nhau.
 - `ciphertext`: bản mã.

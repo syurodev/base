@@ -122,12 +122,8 @@ Quy tắc:
 
 Store chứa collection phải ưu tiên normalized shape:
 
-```ts
-type EntityStore<T> = {
-  ids: string[];
-  byId: Record<string, T>;
-};
-```
+Cụ thể: giữ `ids` (mảng thứ tự) tách khỏi `byId` (map id → entity), thay vì
+một mảng object duy nhất.
 
 Row/tab subscribe đúng entity theo ID. Không subscribe cả `sessions[]`,
 `nodes[]` hoặc `rows[]` nếu consumer chỉ cần một record. Selector không được

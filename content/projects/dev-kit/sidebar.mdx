@@ -32,9 +32,7 @@ Cùng hợp đồng với `SplitPanel`
 ([Shell primitives](/dev-kit/shell-primitives)) — nhận `ReactNode` bất kỳ,
 primitive không quan tâm hình dạng nội dung bên trong:
 
-```ts
-useSidebarContent(content: ReactNode | null)
-```
+`useSidebarContent(content)` nhận `ReactNode` hoặc `null`.
 
 **Khác `SplitPanel` ở 1 điểm quan trọng:** với `SplitPanel`, "có nội dung" và
 "đang mở" là cùng 1 hành động (`openPanel()`). Với Sidebar, **đăng ký nội
@@ -57,8 +55,12 @@ bấm) là **hai việc tách biệt** — xem mục Toggle bên dưới.
 
 ## Resize
 
-Dùng lại `react-resizable-panels` (đã có trong `frontend/package.json`,
-cùng lib `SplitPanel` dùng) — không thêm dependency mới cho việc này.
+Dùng lại đúng hook resize mà `SplitPanel` dùng — `useResizableSize`
+(`frontend/src/workbench/useResizableSize.ts`): `pointerdown` trên gutter +
+`pointermove`/`pointerup` global, clamp qua `frontend/src/workbench/panelLayout.ts`,
+width persist ở `stores/panelWidths.ts`. Không thêm dependency mới. (`react-resizable-panels`
+có trong `frontend/package.json` nhưng không được shell dùng — chỉ còn wrapper
+shadcn `components/ui/resizable.tsx` không ai import.)
 
 - **`MIN_SIDEBAR_WIDTH`–`MAX_SIDEBAR_WIDTH`: 240–480px**, default 320px.
   Trần thấp hơn `SplitPanel` (320–720px) vì nội dung sidebar chủ yếu
@@ -70,10 +72,9 @@ cùng lib `SplitPanel` dùng) — không thêm dependency mới cho việc này.
 **Clamp động khi cả hai cùng mở** — không phải 2 range tĩnh độc lập, trần
 thực tế của mỗi panel co theo panel còn lại và theo width cửa sổ thật:
 
-```
-maxSidebarWidth    = min(480, windowWidth - splitPanelWidth - 480)
-maxSplitPanelWidth = min(720, windowWidth - sidebarWidth    - 480)
-```
+Trần thật của sidebar là **480px hoặc phần còn lại của cửa sổ sau khi trừ
+width split panel và sàn content 480px** — lấy giá trị nhỏ hơn. Trần của split
+panel tính đối xứng, với trần tĩnh 720px.
 
 <Callout type="info" title="Open question">
 Số liệu trên giả định window min-width thực tế của DevKit ~1024px (chưa xác

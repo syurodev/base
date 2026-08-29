@@ -55,27 +55,16 @@ cho Hub multi-vendor.
 
 ## Surface API
 
-```go
-r := sandbox.DefaultRunner()
-if err := r.Available(ctx); err != nil {
-    // bwrap missing / unsupported OS
-}
+Vào bằng `sandbox.DefaultRunner()`. `Available(ctx)` kiểm tra trước — lỗi
+nghĩa là thiếu `bwrap` hoặc OS không hỗ trợ.
 
-// Capture-and-wait (stdout/stderr buffered) — helpers / one-shot commands.
-proc, err := r.Start(ctx, sandbox.Policy{
-    WorkDir: "/abs/path/to/project",
-    Network: sandbox.NetworkNone, // or NetworkHost
-    Env:     map[string]string{"PATH": "/usr/bin:/bin"},
-}, sandbox.Cmd{Path: "/usr/bin/tool", Args: []string{"--once"}})
+Hai cách chạy, cùng nhận `Policy` + `Cmd`:
 
-// Interactive ACP / vendor agent stdio — prefer StartPiped.
-piped, err := r.StartPiped(ctx, sandbox.Policy{
-    WorkDir: "/abs/path/to/project",
-    Network: sandbox.NetworkHost, // agent may need net for model API
-    Env:     map[string]string{"PATH": "/usr/bin:/bin"},
-}, sandbox.Cmd{Path: "/usr/bin/agent", Args: []string{"--acp"}})
-// piped.StdinWriter() / piped.StdoutReader() for line-delimited JSON-RPC
-```
+- **`Start`** — capture-and-wait, stdout/stderr buffered. Dùng cho helper và
+  lệnh one-shot; thường đi với `NetworkNone`.
+- **`StartPiped`** — stdio tương tác cho ACP / vendor agent. Trả về handle có
+  `StdinWriter()` / `StdoutReader()` cho JSON-RPC line-delimited. Thường cần
+  `NetworkHost` vì agent phải gọi model API.
 
 | Type / func | Role |
 |---|---|

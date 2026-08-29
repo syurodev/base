@@ -30,14 +30,10 @@ flowchart LR
 
 ## API — không biết ngôn ngữ, không biết schema
 
-```ts
-type CodeEditorProps = {
-  value: string;
-  onChange: (value: string) => void;
-  extensions?: Extension[]; // consumer tự mang: sql(...), java(), json(), yaml(), markdown()
-  readOnly?: boolean;
-};
-```
+Props chỉ có 4: `value` + `onChange` (controlled), `readOnly`, và `extensions`
+— mảng `Extension` của CodeMirror do **consumer tự mang** (`sql(...)`,
+`java()`, `json()`, `yaml()`, `markdown()`). Primitive không import bất kỳ
+language package nào.
 
 - **Consumer mang `extensions` riêng** — Database console truyền
   `sql({ dialect, schema })` (`@codemirror/lang-sql`; dialect theo `engine`,
@@ -67,20 +63,10 @@ trỏ). Dùng
 khởi tạo, đổi qua `view.dispatch({ effects: compartment.reconfigure(newExt) })`
 khi prop đổi:
 
-```ts
-const language = new Compartment();
-
-// khởi tạo
-new EditorView({
-  state: EditorState.create({
-    doc: value,
-    extensions: [/* basicSetup, ... */, language.of(initialExtensions)],
-  }),
-});
-
-// mỗi lần prop `extensions` đổi (effect trong React wrapper)
-view.dispatch({ effects: language.reconfigure(newExtensions) });
-```
+Cụ thể: tạo 1 `Compartment` cho phần language, bọc `extensions` ban đầu bằng
+`compartment.of(...)` lúc dựng `EditorView`, rồi mỗi lần prop `extensions` đổi
+thì effect trong React wrapper dispatch `compartment.reconfigure(...)` — không
+dựng lại `EditorView`.
 
 Đây là pattern chính thức của CodeMirror cho "dynamic configuration" — không
 phải giải pháp riêng của DevKit, primitive chỉ áp dụng đúng cách thư viện đã

@@ -6,8 +6,7 @@ description: Runbook local để chạy, verify và troubleshoot DevKit.
 # Operations
 
 Trang này mô tả cách chạy DevKit trên máy local, verify build/test, quản lý dữ
-liệu và xử lý sự cố thường gặp. Nội dung được kiểm chứng từ checkout DevKit tại
-`/Users/syuro/Workspace/dev-kit` (commit `0403a80ae5ffdb89b2be09e9223b5ff30bdaad33`).
+liệu và xử lý sự cố thường gặp. Nội dung được kiểm chứng từ checkout desktop `dev-kit-app/` (commit `0403a80ae5ffdb89b2be09e9223b5ff30bdaad33`).
 Boundary contract và security control xem thêm
 [Technical contracts](/dev-kit/technical-contracts) và
 [Security controls](/dev-kit/security-controls).
@@ -75,7 +74,7 @@ gây lỗi:
 GOCACHE=/private/tmp/devkit-go-cache go test ./...
 GOCACHE=/private/tmp/devkit-go-cache go vet ./...
 GOCACHE=/private/tmp/devkit-go-cache go build -tags server .
-npm --prefix frontend run build
+cd frontend && bun run build
 ```
 
 | Lệnh | Mục đích |
@@ -83,7 +82,7 @@ npm --prefix frontend run build
 | `go test ./...` | Regression cho vault, crypto, bridge, gateway, storage, services. |
 | `go vet ./...` | Static check Go trước commit. |
 | `go build -tags server .` | Xác nhận server entrypoint compile với loopback guard. |
-| `npm --prefix frontend run build` | Typecheck (`tsc`) + production Vite bundle. |
+| `cd frontend && bun run build` | Typecheck (`tsc`) + production Vite bundle. |
 
 `task test` chạy `go test -v -cover ./...` nhưng không set `GOCACHE` override.
 
@@ -174,24 +173,25 @@ Nếu `chmod 0600` trên `devkit.db` fail, `storage.Open` đóng DB và trả l�
 vì để file mở với permission lỏng. Kiểm tra ownership, filesystem read-only, hoặc
 antivirus lock file.
 
-## Verified snapshot
+## Evidence (pass 2026-08-01)
 
-- Checked on: 2026-08-01
-- DevKit checkout branch: `main`
-- DevKit checkout commit: `0403a80ae5ffdb89b2be09e9223b5ff30bdaad33`
-- DevKit checkout status: working tree contains the uncommitted SSH forwarding implementation; baseline `HEAD` is synchronized with `origin/main`
+Snapshot chuẩn của repo ở
+[Implementation status § Verified snapshot](/dev-kit/implementation-status#verified-snapshot).
+Mục dưới chỉ ghi evidence riêng của pass operations này, chạy trên `main` @
+`0403a80` (working tree lúc đó còn SSH forwarding chưa commit).
+
 - Verification commands run:
-  - `git -C /Users/syuro/Workspace/dev-kit branch --show-current`
-  - `git -C /Users/syuro/Workspace/dev-kit rev-parse HEAD`
-  - `git -C /Users/syuro/Workspace/dev-kit status --short --branch`
-  - `git -C /Users/syuro/Workspace/dev-kit rev-list --left-right --count origin/main...HEAD`
-  - `rg -n 'UserConfigDir|Server\.Host' /Users/syuro/Workspace/dev-kit/main.go`
-  - `rg -n '127\.0\.0\.1:8080' /Users/syuro/Workspace/dev-kit/build/Taskfile.yml`
+  - `git branch --show-current`
+  - `git rev-parse HEAD`
+  - `git status --short --branch`
+  - `git rev-list --left-right --count origin/main...HEAD`
+  - `rg -n 'UserConfigDir|Server\.Host' ./main.go`
+  - `rg -n '127\.0\.0\.1:8080' ./build/Taskfile.yml`
   - `GOCACHE=/private/tmp/devkit-go-cache go test ./...`
   - `GOCACHE=/private/tmp/devkit-go-cache go vet ./...`
   - `GOCACHE=/private/tmp/devkit-go-cache go build -tags server -o /private/tmp/devkit-server .`
   - `GOCACHE=/private/tmp/devkit-go-cache go test -race ./internal/ssh ./internal/bridge -count=1`
-  - `npm --prefix /Users/syuro/Workspace/dev-kit/frontend run build`
+  - `cd frontend && bun run build`
 - Evidence paths: `Taskfile.yml`, `build/Taskfile.yml`, `main.go`,
   `internal/servermode/servermode.go`, `internal/storage/sqlite.go`,
   `internal/vault/service.go`, `README.md`
