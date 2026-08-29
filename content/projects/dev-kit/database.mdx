@@ -219,6 +219,8 @@ test.
   `BlockedBy` chỉ có với Postgres (`pg_blocking_pids`), engine khác để trống.
 - Live activity là snapshot theo yêu cầu, không có lịch sử: mở lại là số mới,
   không so sánh được với lần trước. Time-series thuộc module Monitor.
+- SSH tunnel v1 không dùng được với SSH profile có passphrase trên private key.
+- Query history không sync và không có cách bật — nó nằm ngoài `vault_items`.
 - `EXPLAIN ANALYZE` rollback chỉ cuốn ngược phần trong MVCC — sequence,
   `pg_notify` và side effect ra ngoài DB không lùi lại được.
 - Query plan v1 chỉ Postgres. SQLite `EXPLAIN QUERY PLAN` không có cost nên
@@ -266,6 +268,12 @@ sequenceDiagram
 - **Auth tái dùng nguyên vẹn** — `dial()` của `ssh.Service` (đã xác thực, đã
   trust host-key) chạy trước; DB profile không lưu thêm secret nào ngoài
   `ssh_profile_id`.
+- **v1 chỉ hỗ trợ SSH profile không có passphrase.** `StartForward` nhận
+  `passphrase` từ caller, mà tunnel ở đây mở **lazy trong `PoolManager.Get()`**
+  — thời điểm đó không có ai để hỏi. Ba lối ra đã cân nhắc: giới hạn ở key không
+  passphrase, hỏi user lần đầu mỗi phiên rồi cache trong bộ nhớ như DEK, hoặc
+  cất passphrase vào vault. v1 chọn cách thứ nhất vì nó không đóng hai cách kia:
+  profile có passphrase bị từ chối bằng lỗi rõ ràng, không phải treo im lặng.
 - Không đổi `Driver`/`ConnConfig` (mục multi-engine trên) — tunnel hoạt động
   ở tầng network, trong suốt với driver DB, áp dụng như nhau cho
   Postgres/MySQL/MariaDB.
@@ -320,55 +328,90 @@ tới loopback trong khi profile ghi một host nội bộ.
 
 ## Query history và Saved query
 
-2 khái niệm tách biệt, cùng 1 record type mới `db-query` (phân biệt qua field
-`kind`):
+2 khái niệm tách biệt, và — khác bản trước của trang này — **2 cơ chế lưu trữ
+khác nhau**, vì chúng có yêu cầu đồng bộ ngược nhau:
 
 | | History | Saved query |
 |---|---|---|
 | Tạo | Tự động, mỗi lần `DBQuery` chạy thành công | User chủ động gọi `DBSaveQuery` |
 | Giữ | 50 gần nhất / profile, cũ nhất bị prune | Không giới hạn, không tự xoá |
 | Tên | Không có (chỉ SQL + timestamp) | User đặt tên |
+| **Sync** | **Không** — dấu vết thao tác của riêng máy này | **Có** — thứ user cố ý muốn mang theo |
+| **Nằm ở** | Bảng riêng `db_query_history` | `vault_items`, type `db-query` |
+
+### Vì sao không thể nhét cả hai vào `vault_items`
+
+`vault_items` **sync-bound theo cấu trúc**, không phải theo chính sách:
+`SQLMutationRepository.Put` gọi `validateMutationRecord`, hàm này reject mọi
+record type không nằm trong `IsSupportedItemType`
+(`internal/vaultitem/sqlmutationrepository.go:67,198`), và cùng transaction đó
+ghi một outbox operation. Không có khái niệm "record local-only" trong bảng đó.
+
+Nên một type `db-query` duy nhất phân biệt bằng field `kind` sẽ khiến history và
+saved **cùng sync hoặc cùng không** — không có cửa giữa. Tách bảng là cách duy
+nhất, và nó khiến "history không rời khỏi máy" thành **tính chất cấu trúc** chứ
+không phải một cái filter mà ai đó gỡ nhầm là rò rỉ.
 
 ```mermaid
 sequenceDiagram
   participant UI as DatabaseView
   participant SVC as database.Service
-  participant DB as vault_items
+  participant VS as vault.Service
+  participant LOCAL as db_query_history (local)
+  participant ITEMS as vault_items -> sync
 
   UI->>SVC: DBQuery(profileId, sql)
   SVC->>SVC: chạy query, áp safe-mode nếu bật
-  SVC->>DB: Put db-query kind=history, profile_id, sql đã seal
-  SVC->>SVC: prune history cũ nhất nếu vượt 50 mỗi profile
+  SVC->>VS: SealV2(AAD db-query-history, sql)
+  SVC->>LOCAL: insert, rồi prune quá 50 theo profile
   SVC-->>UI: QueryResult
+  Note over LOCAL: sync không nhìn thấy bảng này
 
   UI->>SVC: DBSaveQuery(profileId, name, sql)
-  SVC->>DB: Put db-query kind=saved, name, sql đã seal, không prune
+  SVC->>ITEMS: Put db-query, name plaintext, sql đã seal
+  Note over ITEMS: đi vào outbox như mọi vault item
 ```
 
-### Record shape
+### Saved query — record shape
 
 | Field | At rest | Notes |
 |---|---|---|
-| `type` | `"db-query"` | Schema-validated — type thứ 6, xem Blast radius dưới |
-| `metadata` | `{"profile_id":"<24hex>","kind":"history"\|"saved","name":"..."}` plaintext | `name` chỉ có khi `kind=saved`; **không chứa SQL** |
-| `payload` | Envelope V2 của SQL text | AAD `(db-query, <id>, db-query-body)` — SQL nằm ở payload vì có thể chứa literal nhạy cảm, khác `name` (an toàn plaintext như title note) |
+| `type` | `"db-query"` | Type thứ 6, xem Blast radius dưới |
+| `metadata` | `{"profile_id":"<24hex>","name":"..."}` plaintext | **Không chứa SQL**; `name` an toàn plaintext như title note |
+| `payload` | Envelope V2 của SQL text | AAD `(db-query, <id>, db-query-body)` — SQL ở payload vì có thể chứa literal nhạy cảm |
+
+Không còn field `kind`: bảng nào quyết định loại nào.
 
 <Callout type="warn" title="Blast radius: internal/vaultitem/schema.go">
-Cùng lưu ý như `note-version` trước đây — thêm `type = "db-query"` đụng 2
-switch hardcode dùng chung mọi record type (`IsSupportedItemType`,
-`ValidateRecordSchema`). File lõi, review kỹ hơn 1 thay đổi cục bộ trong
-`internal/database`.
+Thêm `type = "db-query"` đụng 2 switch hardcode dùng chung mọi record type
+(`IsSupportedItemType`, `ValidateRecordSchema`). File lõi, và nó cũng là cổng
+gác của sync — review kỹ hơn 1 thay đổi cục bộ trong `internal/database`.
 </Callout>
 
-- **Retention 50/profile dùng lại đúng cơ chế đã thiết kế cho Notes version
-  history** — `ListByTypeAndMetaField("db-query", "profile_id", id)` (xem
-  [Notes § Version history](/dev-kit/notes#version-history)) lọc đúng
-  history của 1 profile, không quét toàn vault; sort theo `created_at`, xoá
-  phần dư quá 50. `kind=saved` **không** đi qua bước prune này dù cùng type.
+### History — bảng cục bộ
+
+- **Bảng riêng, migration mới.** Cột tối thiểu: `id`, `profile_id`,
+  `sql_envelope` (blob), `created_at`. Không có cột nào chứa SQL plaintext.
+- **Mã hoá bằng `vault.SealV2` / `OpenWithAD` gọi trực tiếp**, không qua
+  `vaultitem`. AAD riêng `(db-query-history, <row id>, db-query-body)` để một
+  envelope history không thể bị dán sang chỗ khác.
+- **Prune bằng SQL thuần** theo `profile_id` + `created_at`, giữ 50. Không cần
+  `ListByTypeAndMetaField` — cơ chế đó vẫn còn nợ cho
+  [Notes version history](/dev-kit/notes#version-history), nhưng history của DB
+  không phải chỗ đòi nó.
+- **Xoá profile xoá luôn history của nó.** Nằm ngoài `vault_items` nên không ăn
+  theo cascade của vault item; `DeleteProfile` phải tự dọn.
+
+### Chung cho cả hai
+
 - **Vault phải unlocked mới đọc/ghi được** — SQL text encrypted thật, khác
   `note_links` (plaintext, đọc được bất kể vault state). Vault đang lock thì
-  `DBListQueryHistory`/`DBListSavedQueries` trả lỗi, không phải danh sách
-  rỗng (tránh hiểu nhầm "chưa từng query" khi thực ra chỉ là chưa unlock).
+  `DBListQueryHistory`/`DBListSavedQueries` trả **lỗi, không phải danh sách
+  rỗng** — rỗng khiến người dùng hiểu nhầm là "chưa từng query", trong khi thực
+  ra chỉ là chưa unlock.
+- **Ghi history không được làm hỏng query.** Query đã chạy xong và người dùng có
+  kết quả; nếu seal hoặc insert lỗi thì log rồi thôi, không biến một query thành
+  công thành lỗi trả về UI.
 - Xoá 1 saved query (`DBDeleteSavedQuery`): hard delete luôn — không có khái
   niệm trash cho query (khác Notes).
 
