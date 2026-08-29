@@ -10,7 +10,7 @@ xử version per-entity, và **không bao giờ thấy plaintext**. Thiết kế
 đã có trong `internal/sync` — xem [Data & sync](/dev-kit/data-sync).
 
 > Trạng thái: **Implemented** (Phase A closure). Backend Phase A và Gateway MVC đã có
-> runtime trong `/Users/syuro/Workspace/PERSONAL/dev-kit/dev-kit-backend` (commit
+> runtime trong `dev-kit-backend/` (commit
 > `cca601f`); desktop PKCE, enrollment handshake và rotating refresh token đã có
 > runtime trong worktree `feat/phase-3-sync-closure` (commit `7708b99`). Deployed
 > matrix G1–G4 pass ngày 2026-08-10 qua `go test ./cmd/synce2e/ -count=1 -timeout 15m`
@@ -99,34 +99,24 @@ request/response ≤ **4 MiB**, cursor ≤ 512 ký tự.
 
 Response `200`:
 
-```json
-{ "account_id": "…", "device_id": "<phải == header>", "expires_at": "<RFC3339 UTC>" }
-```
+Trả `account_id`, `device_id` (phải khớp header), và `expires_at` dạng RFC3339
+UTC.
 
 ### `POST /v1/sync/push`
 
 Request:
 
-```json
-{ "operations": [
-  { "idempotency_key": "…", "operation": "create|update|delete",
-    "envelope": {
-      "record_id": "…", "record_type": "note|db|ssh|…",
-      "key_version": 1, "envelope_version": 2,
-      "account_id": "…", "device_id": "…", "protocol_version": 1,
-      "operation_id": "…", "entity_version": 3,
-      "operation": "create|update|delete",
-      "ciphertext": "<base64 opaque>"
-    } } ] }
-```
+Body là mảng `operations`, mỗi phần tử có `idempotency_key`, `operation`
+(`create` | `update` | `delete`), và `envelope`. Envelope mang: `record_id`,
+`record_type` (`note` | `db` | `ssh` | …), `key_version`, `envelope_version`
+(luôn 2), `account_id`, `device_id`, `protocol_version`, `operation_id`,
+`entity_version`, `operation` lặp lại, và `ciphertext` base64 opaque.
 
 Response `200`:
 
-```json
-{ "sent_idempotency_keys": ["…"],
-  "conflicts": [ { "id":"…","record_id":"…","record_type":"…",
-    "local_change_key":"…","remote_change_key":"…","detected_at":"<RFC3339>" } ] }
-```
+Trả `sent_idempotency_keys` (mảng) và `conflicts` — mỗi conflict gồm `id`,
+`record_id`, `record_type`, `local_change_key`, `remote_change_key`,
+`detected_at` (RFC3339).
 
 Kiểm tra mỗi op: `envelope.account_id == session.account`, `device_id == session.device`,
 `protocol_version == 1`, ciphertext ≤ cap. `sent_idempotency_keys` chỉ chứa key thuộc batch;
@@ -136,11 +126,8 @@ Kiểm tra mỗi op: `envelope.account_id == session.account`, `device_id == ses
 
 Response `200`:
 
-```json
-{ "account_id":"…", "device_id":"<session>", "protocol_version":1,
-  "operations":[ { "idempotency_key":"…","operation":"…","envelope":{…} } ],
-  "next_cursor":"<opaque>" }
-```
+Trả `account_id`, `device_id` (của session), `protocol_version`, mảng
+`operations` cùng shape với push, và `next_cursor` opaque.
 
 Trả ops của account có `seq > cursor`, order theo `seq`, ≤ limit; **envelope echo nguyên vẹn**.
 
@@ -249,60 +236,22 @@ erDiagram
   }
 ```
 
-### DDL (rút gọn, PostgreSQL 18, không FK)
+### Ràng buộc DDL (PostgreSQL 18, không FK)
 
-```sql
-CREATE TABLE accounts (
-  id               uuid PRIMARY KEY DEFAULT uuidv7(),
-  keycloak_subject text        NOT NULL,
-  primary_email    text,
-  username         text,                    -- optional, cập nhật sau
-  created_at       timestamptz NOT NULL DEFAULT now(),
-  updated_at       timestamptz NOT NULL DEFAULT now()
-);
-CREATE UNIQUE INDEX ux_accounts_subject ON accounts (keycloak_subject);
+Cột và kiểu đã nằm đủ trong sơ đồ trên; phần dưới chỉ ghi những gì sơ đồ không
+diễn đạt được.
 
-CREATE TABLE devices (
-  id               uuid PRIMARY KEY DEFAULT uuidv7(),
-  account_id       uuid        NOT NULL,    -- logical ref, không REFERENCES
-  device_id        text        NOT NULL,
-  status           text        NOT NULL DEFAULT 'active',
-  protocol_version int         NOT NULL,
-  first_seen       timestamptz NOT NULL DEFAULT now(),
-  last_seen        timestamptz NOT NULL DEFAULT now()
-);
-CREATE UNIQUE INDEX ux_devices_account_device ON devices (account_id, device_id);
+| Bảng | Index / constraint | Ghi chú |
+|---|---|---|
+| `accounts` | `ux_accounts_subject` unique trên `keycloak_subject` | `username` nullable, cập nhật sau |
+| `devices` | `ux_devices_account_device` unique trên `(account_id, device_id)` | `status` default `active` |
+| `replication_log` | `ux_log_account_op` unique trên `(account_id, operation_id)` — chặn replay | `seq` là `bigserial`, dùng làm cursor ordering |
+| `replication_log` | `ix_log_account_seq` trên `(account_id, seq)` | `envelope` là `jsonb` opaque — server không parse ciphertext |
+| `entity_heads` | `ux_heads_account_record` unique trên `(account_id, record_id)` | |
 
-CREATE TABLE replication_log (
-  id             uuid PRIMARY KEY DEFAULT uuidv7(),
-  seq            bigserial   NOT NULL,      -- cursor ordering
-  account_id     uuid        NOT NULL,
-  record_id      text        NOT NULL,
-  record_type    text        NOT NULL,
-  device_id      text        NOT NULL,
-  entity_version int         NOT NULL,
-  operation      text        NOT NULL,
-  idempotency_key text       NOT NULL,
-  operation_id   text        NOT NULL,
-  envelope       jsonb       NOT NULL,      -- opaque; server không parse ciphertext
-  content_digest text        NOT NULL,
-  created_at     timestamptz NOT NULL DEFAULT now()
-);
-CREATE UNIQUE INDEX ux_log_account_op  ON replication_log (account_id, operation_id);
-CREATE INDEX        ix_log_account_seq ON replication_log (account_id, seq);
-
-CREATE TABLE entity_heads (
-  id                     uuid PRIMARY KEY DEFAULT uuidv7(),
-  account_id             uuid        NOT NULL,
-  record_id              text        NOT NULL,
-  current_entity_version int        NOT NULL,
-  head_seq               bigint      NOT NULL,
-  head_idempotency_key   text        NOT NULL,
-  record_type            text        NOT NULL,
-  updated_at             timestamptz NOT NULL DEFAULT now()
-);
-CREATE UNIQUE INDEX ux_heads_account_record ON entity_heads (account_id, record_id);
-```
+Mọi bảng: `id uuid PRIMARY KEY DEFAULT uuidv7()`, timestamp default `now()`.
+`account_id` là **logical ref**, cố ý không khai `REFERENCES` — quan hệ enforce
+ở app layer.
 
 ## Concurrency và idempotency
 

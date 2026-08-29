@@ -217,25 +217,15 @@ Kết luận thiết kế: **core layer chỉ nên cam kết với phần schema
 
 ### Data model tối thiểu
 
-```
-AgentSession {
-  id               string
-  agentType        enum        // claude | codex | gemini | ...
-  projectPath      string
-  status           enum        // idle | running | awaiting_permission | error | done
-  parentSessionId  string?     // ai đã spawn/gọi session này
-  depth            int         // parentSessionId == null → 0
-  title            string?     // lấy từ session_info_update nếu vendor hỗ trợ
-  createdAt        timestamp
-}
+`AgentSession` giữ: `id`, `agentType` (`claude` | `codex` | `gemini` | …),
+`projectPath`, `status` (`idle` | `running` | `awaiting_permission` | `error` |
+`done`), `parentSessionId` (ai đã spawn session này, null nếu là gốc), `depth`
+(0 khi không có parent), `title` (lấy từ `session_info_update` nếu vendor hỗ
+trợ), `createdAt`.
 
-TurnRecord {
-  sessionId        string
-  stopReason       string
-  usage            NormalizedUsage   // cost, tokens — từ vendor adapter
-  rawMeta          json              // toàn bộ _meta chưa parse, giữ nguyên cho audit
-}
-```
+`TurnRecord` giữ: `sessionId`, `stopReason`, `usage` đã normalize (cost, token —
+do vendor adapter quy đổi), và `rawMeta` — toàn bộ `_meta` chưa parse, giữ
+nguyên cho audit.
 
 ### Error handling
 

@@ -29,6 +29,7 @@
     "environments",
     "kafka",
     "codegraph",
+    "codegraph-plan",
     "agent-hub",
     "sandbox",
     "plugins",

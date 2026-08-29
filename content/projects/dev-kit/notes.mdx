@@ -145,19 +145,16 @@ hơn 1 thay đổi cục bộ trong `internal/notes`.
 
 Create path (note):
 
-```text
-notes.Create → store.Create("note", "note-body", metaJSON, bodyBytes)
-            → vaultitem seals with vault DEK + AAD
-            → SQLMutationRepository Put (+ sync mutation intent when wired)
-```
+`notes.Create` gọi `store.Create` với record type `note` và key id
+`note-body`, kèm metadata JSON và body bytes → `vaultitem` seal bằng vault DEK
++ AAD → `SQLMutationRepository.Put`, cộng sync mutation intent khi đã wire.
 
 ## Effective tags / effective color (live inheritance)
 
-```
-effective_tags(note)  = unique(note.tags ∪ folder.tags)      // note's own first
-effective_color(note) = note.color != "" ? note.color
-                       : (folder exists ? folder.color : "")
-```
+- **Effective tags** = hợp của tag riêng của note và tag của folder, khử trùng
+  lặp, tag của chính note đứng trước.
+- **Effective color** = màu riêng của note nếu có; không có thì lấy màu folder;
+  không có folder thì rỗng.
 
 Cả hai đều **live**: đổi tag/màu của folder thay đổi ngay effective value của
 mọi note trong folder đó, không rewrite note record nào. `Update`/`List`/

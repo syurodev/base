@@ -9,11 +9,13 @@ Kafka UI là built-in module cho DevKit để làm việc với 1 Kafka cluster 
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout type="info" title="Implemented — UI + bridge; MCP deferred">
+<Callout type="info" title="Implemented — UI + bridge + MCP">
 Runtime có `internal/kafka`, bridge `Kafka*`, và UI `KafkaView`. Profiles, connect,
 topics, peek, consumer groups, và publish đi qua capability gateway (`kafka:connect` /
-`kafka:produce`). MCP tool surface, cluster-selection popup flow, và env confirmation
-gate vẫn **design only** — xem [MCP / Agent](/dev-kit/mcp-agent) và
+`kafka:produce`). MCP tool surface `kafka.*` cũng đã Implemented
+(`internal/mcp/tools_kafka.go` + `active_kafka.go`), gồm cluster-selection và env
+confirmation gate qua `internal/interaction` — headless thì **fail-fast**, không
+auto-approve. Xem [MCP / Agent](/dev-kit/mcp-agent) và
 [Implementation status](/dev-kit/implementation-status).
 </Callout>
 
@@ -372,7 +374,7 @@ Hai tầng tách riêng: **lưu trữ** nhiều profile cùng lúc (giống SSH/
 
 `KafkaConnect`/`KafkaDisconnect` **là bridge method, chỉ UI gọi được** (từ KafkaView hoặc sidebar, hoặc gián tiếp từ popup ở flow "Agent gọi khi chưa có cluster active"). Agent không tự chọn cluster. `KafkaCreateTopic`/`KafkaDeleteTopic`/`KafkaAlterTopicConfig`/`KafkaResetConsumerGroupOffset` — xem quyết định MCP exposure ở mục dưới.
 
-### MCP tool surface (design)
+### MCP tool surface
 
 Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 
