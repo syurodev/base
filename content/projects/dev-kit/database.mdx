@@ -62,7 +62,7 @@ flowchart LR
 | `DBQuery` | `db:query` | `profile:<id>` | |
 | `DBSetActiveProfile` (design) | `db:query` | `profile:<id>` | |
 | `DBActiveProfile` (design) | `db:query` | `profile:active` | |
-| `DBUpdateProfileOptions` | `db:query` | `profile:<id>` | metadata-only, đổi `ssh_profile_id`/`read_only` không cần tạo lại profile |
+| `DBUpdateProfileOptions` | `db:query` | `profile:<id>` | metadata-only, đổi `env`/`ssh_profile_id`/`read_only` không cần tạo lại profile |
 | `DBListQueryHistory` | `db:query` | `profile:<id>` | 50 query gần nhất, tự động log |
 | `DBSaveQuery` | `db:query` | `profile:<id>` | user đặt tên, không bị prune |
 | `DBListSavedQueries` | `db:query` | `profile:<id>` | |
@@ -70,6 +70,11 @@ flowchart LR
 | `DBListForeignKeys` | `db:query` | `profile:<id>` | FK thật từ DB catalog, cho ERD |
 | `DBIndexSchema` | `db:query` | `profile:<id>` | full introspect + ghi cache, cho console autocomplete + ERD |
 | `DBGetSchemaCache` | `db:query` | `profile:<id>` | đọc cache đã index, không đụng DB thật |
+| `DBListActivity` (design) | `db:query` | `profile:<id>` | snapshot session đang chạy, không phải time-series |
+| `DBCancelQuery` (design) | `db:query` | `session:<pid>` | huỷ statement của 1 pid — human-only |
+| `DBTerminateSession` (design) | `db:query` | `session:<pid>` | đóng connection của 1 pid — human-only |
+| `DBExplain` (design) | `db:query` | `profile:<id>` | lấy kế hoạch, **không** chạy câu lệnh |
+| `DBExplainAnalyze` (design) | `db:query` | `profile:<id>` | **chạy thật** trong transaction rồi rollback — theo policy env tag |
 
 Subject luôn `builtin.database`. Packages: `internal/database/{database,pool}.go`,
 `internal/bridge/database.go`, `frontend/src/modules/database/DatabaseView.tsx`,
@@ -98,31 +103,22 @@ MySQL-family mà nếu không thiết kế trước sẽ vỡ khi implement. T�
 
 ### 1. `Driver` interface — chốt method shape trước khi viết driver thứ 2
 
-```text
-type Driver interface {
-    Dial(ctx context.Context, cfg ConnConfig) (Conn, error)
-}
+`Driver` chỉ có duy nhất `Dial(ctx, ConnConfig) → Conn`. `Conn` chốt đúng 6
+method, không hơn — phần việc không phải mọi engine làm được nằm ở interface
+tuỳ chọn riêng, xem "Session đang chạy" bên dưới:
 
-type Conn interface {
-    Ping(ctx context.Context) error
-    Query(ctx context.Context, sql string, args ...any) (Rows, error)
-    ListSchemas(ctx context.Context) ([]string, error)
-    ListTables(ctx context.Context, schema string) ([]TableInfo, error)
-    ListColumns(ctx context.Context, schema, table string) ([]ColumnInfo, error)
-    Close() error
-}
+| Method | Việc |
+|---|---|
+| `Ping` | Kiểm tra connection còn sống |
+| `Query` | Chạy SQL kèm args, trả `Rows` |
+| `ListSchemas` | Danh sách schema |
+| `ListTables` | Bảng trong 1 schema, kèm `TableInfo` |
+| `ListColumns` | Cột của 1 bảng, kèm `ColumnInfo` |
+| `Close` | Đóng connection |
 
-type ConnConfig struct {
-    Engine   string // "postgres" | "mysql" | "mariadb"
-    Host     string
-    Port     int
-    Database string
-    Username string
-    Password string // từ vault, không log
-    SSLMode  string
-    Options  map[string]string // engine-specific escape hatch, xem mục 6
-}
-```
+`ConnConfig` mang `Engine` (`postgres` | `mysql` | `mariadb`), `Host`, `Port`,
+`Database`, `Username`, `Password` (lấy từ vault, **không log**), `SSLMode`, và
+`Options` — map string escape hatch cho tham số engine-specific (xem mục 6).
 
 `pgx` hiện tại phải được bọc lại đúng interface này — không phải viết thêm 1
 interface song song rồi giữ code path `pgx` cũ chạy tắt.
@@ -219,6 +215,14 @@ test.
 - Schema cache cho console/ERD chỉ tự refresh khi DDL chạy **qua chính
   console DevKit** — đổi schema từ nơi khác (tool khác, teammate khác) không
   tự cập nhật, cần refresh thủ công.
+- `SessionInspector` không suy đoán quan hệ khoá trên MySQL/MariaDB —
+  `BlockedBy` chỉ có với Postgres (`pg_blocking_pids`), engine khác để trống.
+- Live activity là snapshot theo yêu cầu, không có lịch sử: mở lại là số mới,
+  không so sánh được với lần trước. Time-series thuộc module Monitor.
+- `EXPLAIN ANALYZE` rollback chỉ cuốn ngược phần trong MVCC — sequence,
+  `pg_notify` và side effect ra ngoài DB không lùi lại được.
+- Query plan v1 chỉ Postgres. SQLite `EXPLAIN QUERY PLAN` không có cost nên
+  viewer sẽ suy biến thành cây không số liệu khi thêm engine đó.
 
 ## SSH tunnel cho DB profile
 
@@ -266,12 +270,53 @@ sequenceDiagram
   ở tầng network, trong suốt với driver DB, áp dụng như nhau cho
   Postgres/MySQL/MariaDB.
 
-<Callout type="info" title="Open question">
-Vault phải unlocked để đọc secret của SSH profile — nếu DB profile có tunnel
-mà SSH profile bị xoá sau đó, `Get()` nên fail rõ ràng hay im lặng bỏ qua
-tunnel (kết nối thẳng, gần như chắc chắn timeout)? Chưa quyết định, nghiêng
-về fail rõ ràng để không âm thầm đổi đường kết nối.
+<Callout type="info" title="Đã chốt: fail rõ ràng">
+SSH profile bị xoá trong khi DB profile còn `ssh_profile_id` trỏ tới nó →
+`Get()` trả `ErrSSHProfileMissing`, **không** fallback sang kết nối thẳng.
+
+Lý do quyết định như vậy, không phải chỉ vì "sạch hơn": khi có tunnel thì
+`Host`/`Port` trên DB profile là địa chỉ **nhìn từ phía SSH server** — thường
+là `localhost` hoặc IP nội bộ. Kết nối thẳng tới cặp đó từ máy client không
+phải là "cùng đích đến nhưng chậm hơn"; nó là **một đích khác hẳn**, có thể là
+một máy khác trong mạng của client. Fallback im lặng vì vậy không chỉ timeout,
+nó gửi thông tin kết nối ra sai mạng.
+
+UI: Figma `15 Database` → `Database / 19 Tunnel unavailable`.
 </Callout>
+
+### Env, tunnel và safe-mode sửa ở cùng một chỗ
+
+`DBUpdateProfileOptions` đổi `env`, `ssh_profile_id` và `read_only` mà không
+phải tạo lại profile, nên cả ba thuộc về **một dialog** chứ không phải ba màn
+rời — đều là "connection này hoạt động và được đối xử thế nào", không phải danh
+tính của nó. UI: Figma `Database / 17 Connection options`.
+
+**`env` không cùng loại với hai field kia.** `ssh_profile_id` và `read_only` là
+tuỳ chọn kết nối; `env` là **chính sách** — nó quyết định `db.query` qua MCP có
+phải hỏi xác nhận hay không, và `env=prod` là locked. Vì vậy:
+
+- **Validate y hệt `DBCreateProfile`** — tag phải tồn tại, thiếu thì reject.
+  Không được có đường update nào tạo ra trạng thái mà create đã cấm.
+- **Validate trên giá trị *mới*, không trên giá trị hiện tại.** Đây là điều
+  kiện để sửa được profile đang ở `ErrEnvTagUnresolved`: tag cũ đã bị xoá,
+  nhưng vẫn phải gán được tag mới hợp lệ. Nếu validate trạng thái hiện tại
+  trước thì profile bị kẹt vĩnh viễn — xem `Database / 25 Env unresolved`.
+- **Vẫn human-only, không expose qua MCP** — hạ `env` từ `prod` xuống `local`
+  chính là gỡ bỏ yêu cầu xác nhận, nên nó phải là hành động của con người, cùng
+  nguyên tắc đã áp cho `DBSetActiveProfile`.
+- **Ghi audit** — đây là thay đổi policy, không phải đổi một tuỳ chọn hiển thị.
+
+**Ba field, ba cái giá khác nhau ở runtime** — đừng đối xử như nhau:
+
+| Field | Phải làm gì với pool |
+|---|---|
+| `env` | Không gì cả — plaintext metadata, không nằm trong DSN |
+| `read_only` | **Phải tạo lại pool.** `AfterConnect` chỉ chạy cho connection mới; connection đang nằm trong pool vẫn giữ setting cũ, nên bật safe-mode mà không drop pool sẽ để lọt mutation qua connection cũ |
+| `ssh_profile_id` | `StopForward` + đóng pool, lần `Get()` sau mở forward mới và bind port mới |
+
+Dialog hiển thị cặp địa chỉ đã ghi đè (`127.0.0.1:<port động> → host:port thật`)
+vì đó là câu trả lời cho câu hỏi người dùng chắc chắn sẽ hỏi khi thấy DevKit nối
+tới loopback trong khi profile ghi một host nội bộ.
 
 ## Query history và Saved query
 
@@ -363,12 +408,101 @@ sequenceDiagram
   riêng ở tầng Gateway/MCP.
 - **Không thay thế** "không phân biệt SELECT vs mutating" ở Known ceiling —
   đây là opt-in, mặc định mọi profile vẫn như cũ trừ khi user tự bật.
+- **Lỗi đến từ DB, không phải DevKit** — mutation bị chặn trả về
+  `SQLSTATE 25006 · cannot execute UPDATE in a read-only transaction`. UI phải
+  nói rõ ai từ chối, vì người dùng vừa gõ câu lệnh đó và cần biết đây là chính
+  sách của profile chứ không phải lỗi cú pháp. UI: Figma
+  `Database / 18 Read-only rejected`.
+- **Không chặn được cancel/terminate** — `SELECT pg_cancel_backend(4412)` là
+  một `SELECT`, nên `default_transaction_read_only` cho nó đi qua. Profile bật
+  safe-mode **vẫn giết được session của người khác**. Hai method đó phải có
+  gate riêng, xem "Session đang chạy" bên dưới.
+
+## Session đang chạy (live activity)
+
+Trả lời đúng một câu hỏi: *"câu nào đang treo, ai đang khoá ai"*. Đây **không
+phải** monitoring theo trục thời gian — ranh giới với module Monitor tương lai
+ghi ở [Non-goals](#non-goals-mvp).
+
+<Callout type="warn" title="Design only">
+Chưa có runtime. Cần 1 interface tuỳ chọn mới trên driver và 3 bridge method.
+UI đã thiết kế: Figma `15 Database` → `Database / 10 Active queries`.
+</Callout>
+
+### Không phải method thứ 7 của `Conn`
+
+Mục 1 chốt `Conn` đúng 6 method. Quyết định đó **giữ nguyên** — activity nằm ở
+một interface riêng mà driver implement hoặc không:
+
+| | |
+|---|---|
+| Interface | `SessionInspector` — `ListActivity`, `CancelQuery`, `TerminateSession` |
+| Postgres | `pg_stat_activity` + `pg_blocking_pids()`; `pg_cancel_backend` / `pg_terminate_backend` |
+| MySQL/MariaDB | `information_schema.PROCESSLIST`; `KILL QUERY <id>` / `KILL <id>` |
+| SQLite | **không implement** — không có server thì không có session |
+
+Vì sao tách interface chứ không thêm vào `Conn`: SQLite không có gì để trả, và
+`ListActivity` không có tương đương ANSI kiểu `information_schema` — SQL giữa
+Postgres và MySQL lệch nhau nhiều hơn hẳn so với schema browse ở mục 2. Service
+hỏi `inspector, ok := conn.(SessionInspector)`; `ok == false` thì UI hiện empty
+state "engine này không báo cáo session", không phải panel rỗng không giải thích.
+
+### `read_only` KHÔNG chặn cancel/terminate
+
+Bẫy quan trọng nhất của mục này, đã ghi ở
+[Safe-mode](#safe-mode--read-only-profile): `pg_cancel_backend` là một `SELECT`
+nên safe-mode cho qua. Hai method destructive vì vậy có gate riêng, không dựa
+vào `read_only`:
+
+- **Human-only** — không expose qua MCP, cùng nguyên tắc đã áp cho
+  `DBSetActiveProfile` và unlock vault.
+- **Theo policy env tag** — `env=prod` luôn hỏi xác nhận (locked), giống
+  `db.query`. Hộp xác nhận nêu rõ pid, user và câu lệnh sắp bị huỷ.
+- **Hai method tách biệt, không gộp thành một "kill"** — huỷ statement khác
+  đóng connection. Gộp lại là lấy mất của người dùng lựa chọn nhẹ tay hơn.
+
+### Snapshot, không poll
+
+Refresh thủ công, đúng tiền lệ `db_schema_cache` ở mục "Schema index". Không có
+vòng lặp poll, vì cả ba invariant hiện có đều chống lại: connection theo mô
+hình on-demand và vault có thể khoá giữa chừng; `env=prod` là always-asks nên
+poller sẽ spam popup hoặc cần một standing grant — thứ Capability Gateway sinh
+ra để tránh; và một snapshot lặp lại không có nơi lưu vẫn không trả lời được
+câu hỏi "có tệ hơn hôm qua không", vốn là việc của module Monitor.
+
+### Query text của session khác là dữ liệu nhạy cảm
+
+`pg_stat_activity.query` và `PROCESSLIST.INFO` trả về SQL **của session khác**,
+kèm nguyên literal — có thể chứa email, token, số tiền. Đây là lý do thứ hai,
+độc lập với tính destructive, khiến cả ba method human-only. Cũng **không** ghi
+vào query history: history là những gì *bạn* đã chạy.
+
+### Trường trả về
+
+| Field | Postgres | MySQL/MariaDB |
+|---|---|---|
+| `PID` | `pid` | `ID` |
+| `State` | `state` | `COMMAND` + `STATE` |
+| `Duration` | `now() - xact_start` | `TIME` |
+| `User` / `Client` | `usename` / `client_addr` | `USER` / `HOST` |
+| `WaitEvent` | `wait_event_type` + `wait_event` | `STATE` |
+| `BlockedBy` | `pg_blocking_pids(pid)` | — |
+| `Query` | `query` | `INFO` |
+| `Application` | `application_name` | — |
+
+`BlockedBy` là lý do chính người ta mở màn này. pgAdmin/DBeaver hiển thị danh
+sách phẳng; UI DevKit vẽ quan hệ khoá thành đường nối giữa hàng khoá và các
+hàng bị khoá, đúng nguyên tắc "lines are data" của design system. MySQL không
+có tương đương `pg_blocking_pids`; v1 để trống thay vì suy đoán từ
+`INNODB_LOCK_WAITS` — khác nhau theo phiên bản, dễ sai.
+
+Session của chính DevKit được đánh dấu và **không** có nút cancel, để người
+dùng không tự giết phiên đang thao tác.
 
 ## Export kết quả query
 
 Export đúng dữ liệu **đang có trong tay** — `QueryResult{Columns []string,
-Rows [][]string}` (`database.go:60-65`) đã tách cột/dòng sẵn, không cần
-bridge method mới, không query lại DB.
+Rows [][]string}` (`database.go:60-65`) đã tách cột/dòng sẵn, không query lại DB.
 
 - **Theo đúng `DefaultMaxRows` (200)** — export = dump `QueryResult` hiện tại
   ra file, cùng giới hạn UI đang hiển thị. Muốn nhiều hơn 200 dòng thì chỉnh
@@ -381,8 +515,95 @@ bridge method mới, không query lại DB.
   phải quyết định riêng của export. Muốn JSON giữ kiểu gốc phải đổi
   `QueryResult` sang giữ giá trị typed thay vì string hoá sớm — ảnh hưởng cả
   UI table đang dùng shape này, ngoài phạm vi feature export.
-- Chạy phía frontend (đã có `QueryResult` sau khi query xong), qua dialog
-  Save As của Wails — không cần capability/bridge method mới.
+- **Ghi file an toàn qua Go bridge** — chuỗi hoá dữ liệu (CSV/JSON) chạy ở
+  frontend từ `QueryResult` có sẵn, sau đó chuyển nội dung xuống Go qua bridge
+  method `DBSaveExportFile(suggestedName, content string)` (`builtin.database` /
+  `db:query`). Go mở dialog Save As của Wails (`application.Dialog.SaveFile`)
+  và ghi file trực tiếp trên backend, đảm bảo kiểm soát an toàn qua Capability
+  Gateway và tránh mở bề mặt ghi file tuỳ ý từ frontend.
+
+## Query plan (EXPLAIN)
+
+<Callout type="warn" title="Design only">
+Chưa có runtime. Cần interface tuỳ chọn thứ hai trên driver và 2 bridge method.
+v1 **chỉ Postgres**; MySQL/MariaDB theo sau qua cùng interface.
+</Callout>
+
+### Lại là một interface tuỳ chọn, không phải method thứ 7
+
+Cùng lý do đã áp cho `SessionInspector`, và lần này chênh lệch còn lớn hơn:
+
+| Engine | Lệnh | Hình dạng kết quả |
+|---|---|---|
+| Postgres | `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` | Cây lồng nhau: cost, rows ước lượng vs thật, thời gian, buffers |
+| MySQL 8 | `EXPLAIN FORMAT=JSON`; `EXPLAIN ANALYZE` | Schema khác hẳn; bản ANALYZE chỉ có text dạng cây |
+| MariaDB | `ANALYZE FORMAT=JSON` | Khác tiếp |
+| SQLite | `EXPLAIN QUERY PLAN` | Ba cột, gần phẳng, **không có cost** |
+
+Interface `QueryPlanner` — `Explain`, `ExplainAnalyze`. Việc phải thêm interface
+tuỳ chọn lần thứ hai là bằng chứng pattern đó đúng, không phải cái cớ để nới
+luật "`Conn` đúng 6 method".
+
+### `EXPLAIN` và `EXPLAIN ANALYZE` là hai hành động khác nhau
+
+`EXPLAIN` chỉ lập kế hoạch. `EXPLAIN ANALYZE` **chạy thật câu lệnh** — trên
+`UPDATE`/`DELETE` nghĩa là dữ liệu bị sửa thật. Và DevKit **không parse SQL**
+(mục 3 + Known ceiling), nên không thể biết trước câu lệnh có phải mutation hay
+không. Không đoán; xử lý bằng cơ chế:
+
+- **ANALYZE luôn chạy trong transaction rồi rollback** — `BEGIN` →
+  `EXPLAIN (ANALYZE, …)` → `ROLLBACK`. Mutation bị cuốn ngược, số đo thời gian
+  vẫn là số thật.
+- **Rollback chỉ bảo vệ những gì nằm trong MVCC.** Sequence đã nhảy thì không
+  lùi; `pg_notify` đã bắn thì đã bắn; trigger gọi ra ngoài (dblink, http
+  extension) không có gì cuốn lại được. Ghi rõ ở đây để lời hứa an toàn không
+  rộng hơn thực tế — cùng loại bẫy với "`read_only` không chặn được terminate".
+- **Hai nút riêng trên UI, không phải một toggle.** `Explain` không chạy nên
+  không hỏi gì; `Explain analyze` có chạy nên chịu **cùng policy env tag** như
+  `db.query` (`env=prod` luôn hỏi xác nhận).
+- **Safe-mode có tác dụng thật ở đây** — session `read_only` để chính DB chặn
+  mutation ngay trong transaction. Khác với cancel/terminate, chỗ này safe-mode
+  bảo vệ được.
+- **Chịu chung timeout 30s** vì ANALYZE thực sự chạy query.
+
+### Chuẩn hoá xương sống, giữ nguyên phần còn lại
+
+Chuẩn hoá toàn bộ thì mất thông tin (riêng Postgres đã ~40 loại node, thuộc
+tính khác nhau); giữ raw toàn bộ thì UI phải viết riêng cho từng engine. Cắt ở
+giữa: **một xương sống nhỏ** (tên thao tác, rows ước lượng, rows thật, thời
+gian, node con) đủ để dựng cây và so sánh, còn thuộc tính gốc giữ nguyên trong
+bag riêng cho panel chi tiết.
+
+Đây đúng pattern doc đã chọn cho `driver_options` ở mục 6 multi-engine — field
+chuẩn hoá ở struct chính, phần không chuẩn hoá được ở bag riêng. Dùng lại, không
+phát minh cách thứ hai.
+
+### Plan viewer phải chỉ ra vấn đề, không chỉ vẽ cây
+
+Cái cây không phải giá trị — ai cũng vẽ được. Bốn thứ cần làm nổi:
+
+- **Lệch ước lượng vs thực tế** — nguyên nhân số một của plan tồi. Ước lượng 12
+  dòng mà thực tế 1.2 triệu nghĩa là statistics đã cũ. Đánh dấu mọi node lệch
+  quá 10 lần.
+- **Thời gian dồn ở đâu** — tính theo **self time**, không phải inclusive, nếu
+  không node gốc luôn là 100%.
+- **Rows removed by filter** — công đã làm rồi vứt đi.
+- **Seq Scan trên bảng lớn.**
+
+Hình thức: thời gian vẽ thành **độ rộng thanh** trên mỗi node (dạng flame
+graph), không phải cây thuần chữ — khớp principle "lines are data" và dùng lại
+ngôn ngữ dòng chảy đã có ở Sync.
+
+### MCP
+
+`db.explain` (`read`) **có** expose: agent tối ưu query cần đọc plan, và lệnh
+này không chạy gì. `EXPLAIN ANALYZE` **không** expose qua MCP vì nó thực thi —
+cùng nguyên tắc đã áp cho cancel/terminate.
+
+### Ranh giới với module Monitor
+
+`EXPLAIN` nói về **câu query vừa viết**, không có trục thời gian, không cần
+retention — thuộc module Database, không phải Monitor.
 
 ## Sơ đồ quan hệ (ERD)
 
@@ -416,17 +637,8 @@ click) và ERD (load toàn schema 1 lần để vẽ) là 2 nhu cầu khác nhau
 suất/khối lượng — nhét FK vào `ListColumns` bắt sidebar tree trả FK mỗi lần
 mở dù không dùng đến.
 
-```text
-type Conn interface {
-    // ... (đã có: Ping, Query, ListSchemas, ListTables, ListColumns, Close)
-    ListForeignKeys(ctx context.Context, schema string) ([]ForeignKey, error)
-}
-
-type ForeignKey struct {
-    FromTable, FromColumn string
-    ToTable, ToColumn     string
-}
-```
+`Conn` thêm đúng 1 method thứ 7 — `ListForeignKeys(schema)` — trả danh sách
+`ForeignKey`, mỗi cái chỉ 4 field: bảng/cột nguồn và bảng/cột đích.
 
 Mỗi driver tự implement bằng catalog phù hợp — Postgres qua
 `information_schema.key_column_usage` + `information_schema.constraint_column_usage`
@@ -599,6 +811,15 @@ password trực tiếp qua tham số, để v2 sau khi có UI permission review 
 là hành động của con người, cùng nguyên tắc human-only action đã áp cho unlock
 vault / trust SSH host-key.
 
+`db.explain` **có** expose (`read`) — plan-only, không chạy câu lệnh, và là thứ
+agent cần khi tối ưu query. `DBExplainAnalyze` thì **không**, vì nó thực thi.
+
+`DBListActivity`/`DBCancelQuery`/`DBTerminateSession` **không** expose qua MCP,
+vì hai lý do độc lập nhau: cancel/terminate là hành động destructive lên tài
+nguyên dùng chung, và `ListActivity` trả về SQL nguyên văn của session khác
+(xem "Session đang chạy"). Agent cần biết DB đang bận thì đọc kết quả query của
+chính nó, không đọc phiên của người khác.
+
 `DBUpdateProfileOptions`/`DBSaveQuery`/`DBDeleteSavedQuery` **cũng không**
 expose qua MCP — bật/tắt tunnel hay safe-mode, và chủ động lưu 1 query để
 dùng lại, đều là quyết định của con người về cách 1 profile hoạt động lâu
@@ -636,6 +857,13 @@ hoàn toàn khỏi cách UI hoạt động hôm nay:
 - Sửa/ghi đè kết quả query trực tiếp trên bảng kết quả (data editing) — chỉ
   chạy SQL, không có UI edit-cell.
 - ERD tự động chạy lại/refresh khi schema đổi — mở lại view mới quét lại.
+- **Monitoring theo trục thời gian** — TPS, connection theo giờ, cache hit
+  ratio, replication lag, xu hướng slow query. Module Database trả lời *"query
+  và schema của tôi đang làm gì"*; *"hệ thống hành xử ra sao theo thời gian"*
+  là việc của một module Monitor riêng nối vào Grafana/SigNoz. Ranh giới đó
+  cũng là lý do live activity ở trên cố tình dừng ở snapshot: không retention,
+  không alerting, không auto-refresh. Module Monitor khi làm sẽ khớp host qua
+  `Host` có sẵn trong metadata `db-profile`, không cần thêm field nào bây giờ.
 
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
