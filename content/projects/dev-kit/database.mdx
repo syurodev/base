@@ -39,6 +39,27 @@ flowchart LR
   Không có field `engine` trong metadata vì chưa cần — thêm khi mở rộng
   driver (xem Design bên dưới).
 
+### Thử kết nối trước khi lưu
+
+`DBTestConnection` nhận `profileID`, nên nó chỉ thử được profile **đã tồn tại**.
+Màn New connection thì chưa có profile — nút "Test connection" ở đó không có hợp
+đồng nào chống lưng, và bắt người dùng lưu một profile có thể sai rồi mới biết
+là đổi thứ tự sai.
+
+`DBTestNewConnection` nhận nguyên `CreateProfileInput`:
+
+- **Không ghi gì cả** — validate `env` và `sslmode` y hệt `DBCreateProfile`, dial,
+  ping, đóng. Không tạo vault item, không đụng `PoolManager` (không có
+  `profileID` để cache theo, và một connection thử nghiệm không nên sống tiếp).
+- **Không expose qua MCP** — nhận password trực tiếp qua tham số, cùng lý do đã
+  loại `DBCreateProfile`/`DBDeleteProfile` khỏi tool surface.
+- **Password không vào audit.** Metadata chỉ ghi engine và host.
+
+`CreateProfileInput` đồng thời nhận thêm `ssh_profile_id`: dialog tạo mới có ô
+chọn tunnel, và nếu phải tạo rồi mới `DBUpdateProfileOptions` thì có một khoảng
+profile tồn tại với đường kết nối sai — đúng thứ `ErrSSHProfileMissing` sinh ra
+để tránh.
+
 ## TLS default và giới hạn runtime (hiện tại — Postgres)
 
 - Remote profile mặc định `sslmode=verify-full`; chỉ cho phép `sslmode=disable`
@@ -58,7 +79,8 @@ flowchart LR
 | `DBListProfiles` | `db:query` | `profile:list` | |
 | `DBCreateProfile` | `db:query` | `profile:new` | |
 | `DBDeleteProfile` | `db:query` | `profile:<id>` | |
-| `DBTestConnection` | `db:query` | `profile:<id>` | |
+| `DBTestConnection` | `db:query` | `profile:<id>` | profile đã lưu |
+| `DBTestNewConnection` | `db:query` | `profile:new` | thử **trước khi lưu** — nhận nguyên input, không có id |
 | `DBQuery` | `db:query` | `profile:<id>` | |
 | `DBSetActiveProfile` (design) | `db:query` | `profile:<id>` | |
 | `DBActiveProfile` (design) | `db:query` | `profile:active` | |
