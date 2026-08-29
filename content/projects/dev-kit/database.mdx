@@ -73,6 +73,9 @@ flowchart LR
 | `DBListSchemas` | `db:query` | `profile:<id>` | catalog qua driver, không phải SQL cứng |
 | `DBListTables` | `db:query` | `profile:<id>` | |
 | `DBListColumns` | `db:query` | `profile:<id>` | |
+| `DBListForeignKeys` | `db:query` | `profile:<id>` | FK khai báo thật, không kèm quan hệ suy đoán |
+| `DBIndexSchema` | `db:query` | `profile:<id>` | full introspect + ghi cache |
+| `DBGetSchemaCache` | `db:query` | `profile:<id>` | đọc cache; rỗng thì index một lần |
 | `DBListActivity` (design) | `db:query` | `profile:<id>` | snapshot session đang chạy, không phải time-series |
 | `DBCancelQuery` (design) | `db:query` | `session:<pid>` | huỷ statement của 1 pid — human-only |
 | `DBTerminateSession` (design) | `db:query` | `session:<pid>` | đóng connection của 1 pid — human-only |
@@ -105,9 +108,11 @@ MySQL-family mà nếu không thiết kế trước sẽ vỡ khi implement. T�
 
 ### 1. `Driver` interface — chốt method shape trước khi viết driver thứ 2
 
-`Driver` chỉ có duy nhất `Dial(ctx, ConnConfig) → Conn`. `Conn` chốt đúng 6
-method, không hơn — phần việc không phải mọi engine làm được nằm ở interface
-tuỳ chọn riêng, xem "Session đang chạy" bên dưới:
+`Driver` chỉ có duy nhất `Dial(ctx, ConnConfig) → Conn`. `Conn` chốt **7
+method** — 6 method dưới đây cộng `ListForeignKeys`, xem
+[mục ERD](#listforeignkeys--method-riêng-tách-khỏi-listcolumns) cho lý do nó
+tách khỏi `ListColumns`. Phần việc **không phải engine nào cũng làm được** nằm
+ở interface tuỳ chọn riêng, không nhét vào đây:
 
 | Method | Việc |
 |---|---|
@@ -241,7 +246,9 @@ test.
 - Query history không sync và không có cách bật — nó nằm ngoài `vault_items`.
 - `EXPLAIN ANALYZE` rollback chỉ cuốn ngược phần trong MVCC — sequence,
   `pg_notify` và side effect ra ngoài DB không lùi lại được.
-- Query plan v1 chỉ Postgres. SQLite `EXPLAIN QUERY PLAN` không có cost nên
+- Query plan v1 chỉ Postgres — MySQL/MariaDB implement `SessionInspector` nhưng
+  không implement `QueryPlanner`.
+- MySQL/MariaDB không trả `BlockedBy` trong live activity. SQLite `EXPLAIN QUERY PLAN` không có cost nên
   viewer sẽ suy biến thành cây không số liệu khi thêm engine đó.
 
 ## SSH tunnel cho DB profile
@@ -492,15 +499,16 @@ Trả lời đúng một câu hỏi: *"câu nào đang treo, ai đang khoá ai"*
 phải** monitoring theo trục thời gian — ranh giới với module Monitor tương lai
 ghi ở [Non-goals](#non-goals-mvp).
 
-<Callout type="warn" title="Design only">
-Chưa có runtime. Cần 1 interface tuỳ chọn mới trên driver và 3 bridge method.
-UI đã thiết kế: Figma `15 Database` → `Database / 10 Active queries`.
+<Callout type="info" title="Core Implemented">
+Go core đã có: `internal/database/{inspector,inspector_postgres,inspector_mysql}.go`,
+bridge `DBListActivity`/`DBCancelQuery`/`DBTerminateSession`. UI vẫn là thiết kế
+Figma `15 Database` → `Database / 10 Active queries`.
 </Callout>
 
 ### Không phải method thứ 7 của `Conn`
 
-Mục 1 chốt `Conn` đúng 6 method. Quyết định đó **giữ nguyên** — activity nằm ở
-một interface riêng mà driver implement hoặc không:
+`Conn` là surface bắt buộc: mọi driver phải làm được cả 7 method. Activity thì
+không — nó nằm ở interface **tuỳ chọn**, driver implement hoặc không:
 
 | | |
 |---|---|
@@ -558,7 +566,7 @@ vào query history: history là những gì *bạn* đã chạy.
 | `Query` | `query` | `INFO` |
 | `Application` | `application_name` | — |
 
-`BlockedBy` là lý do chính người ta mở màn này. pgAdmin/DBeaver hiển thị danh
+`BlockedBy` chỉ có ở Postgres; driver MySQL trả về rỗng. `BlockedBy` là lý do chính người ta mở màn này. pgAdmin/DBeaver hiển thị danh
 sách phẳng; UI DevKit vẽ quan hệ khoá thành đường nối giữa hàng khoá và các
 hàng bị khoá, đúng nguyên tắc "lines are data" của design system. MySQL không
 có tương đương `pg_blocking_pids`; v1 để trống thay vì suy đoán từ
@@ -592,9 +600,10 @@ Rows [][]string}` (`database.go:60-65`) đã tách cột/dòng sẵn, không que
 
 ## Query plan (EXPLAIN)
 
-<Callout type="warn" title="Design only">
-Chưa có runtime. Cần interface tuỳ chọn thứ hai trên driver và 2 bridge method.
-v1 **chỉ Postgres**; MySQL/MariaDB theo sau qua cùng interface.
+<Callout type="info" title="Core Implemented (Postgres)">
+Go core đã có: `QueryPlanner` trong `internal/database/inspector.go`, implement
+ở `inspector_postgres.go`, bridge `DBExplain`/`DBExplainAnalyze`. MySQL/MariaDB
+chưa implement — xem lý do ngay dưới.
 </Callout>
 
 ### Lại là một interface tuỳ chọn, không phải method thứ 7
@@ -609,8 +618,13 @@ Cùng lý do đã áp cho `SessionInspector`, và lần này chênh lệch còn 
 | SQLite | `EXPLAIN QUERY PLAN` | Ba cột, gần phẳng, **không có cost** |
 
 Interface `QueryPlanner` — `Explain`, `ExplainAnalyze`. Việc phải thêm interface
-tuỳ chọn lần thứ hai là bằng chứng pattern đó đúng, không phải cái cớ để nới
-luật "`Conn` đúng 6 method".
+tuỳ chọn lần thứ hai là bằng chứng pattern đó đúng: `Conn` giữ nguyên 7 method
+bắt buộc, còn thứ chỉ một số engine làm được thì không leo lên đó.
+
+**MySQL/MariaDB implement `SessionInspector` nhưng không implement
+`QueryPlanner`.** `EXPLAIN ANALYZE` của MySQL trả cây dạng text chứ không phải
+JSON mà xương sống chuẩn hoá dựng từ đó; v1 để trống thay vì parse nửa vời — và
+đó chính là công dụng của việc interface là tuỳ chọn.
 
 ### `EXPLAIN` và `EXPLAIN ANALYZE` là hai hành động khác nhau
 
