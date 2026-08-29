@@ -70,6 +70,9 @@ flowchart LR
 | `DBListForeignKeys` | `db:query` | `profile:<id>` | FK thật từ DB catalog, cho ERD |
 | `DBIndexSchema` | `db:query` | `profile:<id>` | full introspect + ghi cache, cho console autocomplete + ERD |
 | `DBGetSchemaCache` | `db:query` | `profile:<id>` | đọc cache đã index, không đụng DB thật |
+| `DBListSchemas` | `db:query` | `profile:<id>` | catalog qua driver, không phải SQL cứng |
+| `DBListTables` | `db:query` | `profile:<id>` | |
+| `DBListColumns` | `db:query` | `profile:<id>` | |
 | `DBListActivity` (design) | `db:query` | `profile:<id>` | snapshot session đang chạy, không phải time-series |
 | `DBCancelQuery` (design) | `db:query` | `session:<pid>` | huỷ statement của 1 pid — human-only |
 | `DBTerminateSession` (design) | `db:query` | `session:<pid>` | đóng connection của 1 pid — human-only |
@@ -89,11 +92,10 @@ song song được) **không đổi gì** — 2 method này chỉ phục vụ ag
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout type="warn" title="Design only — toàn bộ phần này">
-`internal/database` hiện tại chỉ implement Postgres qua `pgx`, đi thẳng không
-qua interface trung gian. Phần dưới đây thiết kế lại thành driver abstraction
-thật để nhận MySQL/MariaDB mà không rẽ nhánh if/else theo engine trong
-service — chưa có runtime.
+<Callout type="info" title="Implemented">
+`Driver`/`Conn` đã có runtime: `internal/database/driver.go` (interface),
+`driver_postgres.go` (pgx bọc lại), `driver_mysql.go` (MySQL + MariaDB qua
+`database/sql`). Service không còn rẽ nhánh theo engine.
 </Callout>
 
 Bản trước của trang này chỉ nói "thêm 1 driver MySQL, generalize pool sau" —
@@ -122,6 +124,12 @@ tuỳ chọn riêng, xem "Session đang chạy" bên dưới:
 
 `pgx` hiện tại phải được bọc lại đúng interface này — không phải viết thêm 1
 interface song song rồi giữ code path `pgx` cũ chạy tắt.
+
+**`Query` trả `Rows` với giá trị đã stringify sẵn trong driver.** Đây là điều
+kiện để một `QueryResult` duy nhất phục vụ mọi engine — và cũng chính là lý do
+[export JSON](#export-kết-quả-query) ra toàn string: kiểu gốc mất ở đây, trước
+khi tới bước export. Cắt theo `DefaultMaxRows` nằm ở service chứ không ở driver,
+nên giới hạn giống nhau bất kể engine.
 
 ### 2. Schema browse phải thành method riêng, không phải SQL cứng Postgres
 
@@ -161,6 +169,11 @@ tương ứng của từng driver.
   vậy — phải đăng ký `tls=custom` kèm CA pool tương đương thủ công
   (`mysql.RegisterTLSConfig`), nếu không remote MySQL với `verify-full`-style
   sẽ không hoạt động đúng như kỳ vọng của ADR-007.
+- **Qua tunnel, hai engine lệch nhau rõ nhất ở đây.** `pgx` cho phép giữ
+  `sslmode=verify-full` rồi pin `TLSConfig.ServerName` về host thật. MySQL không
+  có chế độ "system CA + override hostname", nên phải đăng ký hẳn một TLS config
+  mang `ServerName`, và **huỷ đăng ký khi đóng connection** — tên config là
+  global, để lại là rò rỉ dần.
 - MySQL 8 mặc định dùng auth plugin `caching_sha2_password` — cần xác nhận
   driver + phiên bản server tương thích khi implement, không giả định driver
   nào cũng handshake được; đây là rủi ro tương thích thật cần test với MySQL 8
@@ -219,6 +232,11 @@ test.
   `BlockedBy` chỉ có với Postgres (`pg_blocking_pids`), engine khác để trống.
 - Live activity là snapshot theo yêu cầu, không có lịch sử: mở lại là số mới,
   không so sánh được với lần trước. Time-series thuộc module Monitor.
+- **`engine` không sửa được sau khi tạo profile.** Đổi engine kéo theo port,
+  `sslmode` và cú pháp placeholder mặc định khác hẳn; v1 tạo profile mới thay vì
+  cho sửa tại chỗ. `DBUpdateProfileOptions` chỉ đụng `env`/`read_only`/`ssh_profile_id`.
+- Profile tạo trước khi có multi-engine không có field `engine`; rỗng được đọc
+  là `postgres`, nên không cần migration.
 - SSH tunnel v1 không dùng được với SSH profile có passphrase trên private key.
 - Query history không sync và không có cách bật — nó nằm ngoài `vault_items`.
 - `EXPLAIN ANALYZE` rollback chỉ cuốn ngược phần trong MVCC — sequence,
@@ -446,12 +464,12 @@ sequenceDiagram
   luân phiên). DB tự reject `INSERT`/`UPDATE`/`DELETE`/DDL ở tầng engine thật
   — không phải prefix-check hay parse SQL phía DevKit, nên không bị bypass
   bởi multi-statement hay cú pháp lạ.
-- **Bất đối xứng với MySQL/MariaDB (khi build)** — `AfterConnect` là hook có
-  sẵn của `pgx`; `database/sql` (driver MySQL sẽ dùng, xem mục 4 multi-engine)
-  **không có hook tương đương built-in** — cần 1 `driver.Connector` tuỳ
-  chỉnh chạy `SET SESSION TRANSACTION READ ONLY` ngay sau dial, phức tạp hơn
-  hẳn 1 dòng config của pgx. Cùng dạng bất đối xứng đã ghi nhận ở mục 4
-  ("Pool: `pgx` có pool riêng, MySQL driver đi qua `database/sql`").
+- **MySQL hoá ra không cần `driver.Connector` tuỳ chỉnh.** Bản trước của trang
+  này dự đoán phải viết một Connector riêng chạy `SET SESSION TRANSACTION READ
+  ONLY` sau dial. Không cần: `go-sql-driver/mysql` diễn giải mọi tham số DSN lạ
+  thành **session system variable**, nên `?transaction_read_only=1` cho đúng
+  đảm bảo per-connection mà `pgx` có được từ `AfterConnect`. Bất đối xứng ở mục
+  4 (pool) vẫn đúng; riêng safe-mode thì không.
 - **Áp dụng đều cho UI lẫn MCP agent** — vì set ở tầng connection/pool (dùng
   chung `PoolManager`), không phải theo caller. `db.query` qua MCP trên 1
   profile `read_only=true` tự động bị DB chặn mutation, không cần logic
