@@ -227,11 +227,10 @@ sequenceDiagram
   hai — chỉ gọi được từ UI (nút "Delete forever" / "Empty trash" trong màn
   Trash), không expose MCP (xem MCP tool surface ở trên).
 
-<Callout type="info" title="Open question">
-Note đang mở dưới dạng 1 tab ([Module tabs](/dev-kit/module-tabs)) bị trash từ
-nơi khác (vd Dashboard, hoặc sync về từ thiết bị khác) — tab đó nên tự đóng
-hay hiện trạng thái "note đã bị xoá"? Chưa quyết định.
-</Callout>
+**Tab đang mở note bị trash nơi khác — đã chốt: hiện trạng thái, không tự
+đóng.** Body đang trên màn hình và vẫn là của người đọc để copy ra; một tab
+biến mất dưới tay họ tệ hơn. Banner nói rõ note đang ở trash, sửa vẫn lưu, và
+có nút Restore ngay đó. Figma `Notes / 03b Editor — Note trashed elsewhere`.
 
 ## Version history
 
@@ -494,6 +493,30 @@ title/body/metadata trước khi sync: rơi vào `use-ours`/`use-theirs` như
 conflict thường, **không** phải target của `merge` (`deleted_at` không phải
 text mergeable). Chọn "theirs" (bản sửa) tự resurrect note khỏi trash; chọn
 "ours" (bản trash) thì bỏ bản sửa, note ở lại trash.
+
+## Trạng thái triển khai
+
+Sáu đợt, tất cả đã land:
+
+1. **Trash** — `deleted_at` là field trên chính note, không phải record type
+   mới, nên restore trả note về đúng folder/tag/color cũ. Sweep chạy piggyback
+   trong `List` nên mở Dashboard là đủ già hoá trash, không cần vào màn Trash.
+2. **Version history** — `note-version` + `ListByTypeAndMetaField` đẩy xuống
+   `json_extract`. Checkpoint no-op khi không đổi; restore tự chụp
+   `pre-restore` trước khi ghi đè.
+3. **Backlink** — bảng `note_links` (migration m19), index ghi như side-effect
+   của Create/Update khi body còn plaintext. Dạng serialize là
+   `[[note:<id>]]`, vì body là markdown nên inline void phải sống sót qua text.
+4. **Sidebar + Trash screen** — sidebar đăng ký qua `useSidebarContent`. Không
+   phải di chuyển mà là **viết lại**: `SidebarMenuButton` gọi `useSidebar()` và
+   throw nếu không có `SidebarProvider`, nên primitive shadcn không sống được
+   trong rail của shell. Notes là module cuối cùng còn tự vẽ rail.
+5. **Panel history + backlink + trạng thái trashed** — diff dùng LCS theo dòng,
+   không so từng dòng: chèn một dòng ở đầu sẽ khiến mọi dòng dưới bị đánh dấu
+   vừa xoá vừa thêm, và một lịch sử tô sáng cả note thì vô nghĩa.
+6. **`[[` note link** — inline void đầu tiên của editor. `LinkKit` là inline
+   nhưng bọc text thật, `ImageUpload` là void nhưng block-level, nên schema,
+   render và round trip đều wiring từ đầu.
 
 ## Known limitations
 
