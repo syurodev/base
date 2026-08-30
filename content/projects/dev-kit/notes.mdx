@@ -297,13 +297,13 @@ sequenceDiagram
   (soft-delete) thường **không** đụng version — note vào trash vẫn giữ
   nguyên lịch sử, restore từ Trash thì version cũ vẫn còn nguyên.
 
-<Callout type="info" title="Open question">
-UI xem/diff version — tái dùng style git-diff line-highlight đã có ở
+UI xem/diff version tái dùng style git-diff line-highlight đã có ở
 [Sync conflict `ResolvePanel`](/dev-kit/data-sync) (so version cũ với bản
 hiện tại), mở qua 1 nút `History` đăng ký vào title bar giống `PanelRight`
-("Note details") đang làm với `NoteMetaPanel`. Vị trí/chi tiết UI chưa thiết
-kế — cần 1 lượt riêng.
-</Callout>
+("Note details") đang làm với `NoteMetaPanel`. Figma đã thiết kế xong —
+`Notes / 05 Editor — Version history` và `Notes / History Panel Content` /
+`Notes / History Diff Content` — với đúng hai con số ở trên: *"checkpoints
+every idle 5 min · keeps last 50"*.
 
 ## Backlink / wiki-link
 
@@ -459,9 +459,26 @@ Manifest: `frontend/src/modules/notes/manifest.ts` khai báo
 
 ## Sync & conflict
 
-Notes + folder sync như mọi `vault_items` record
-(`record_type IN (note, note-folder)`), không có pipeline riêng — xem
-[Data & sync](/dev-kit/data-sync).
+Note, folder **và version** sync như mọi `vault_items` record
+(`record_type IN (note, note-folder, note-version)`), không có pipeline riêng
+— xem [Data & sync](/dev-kit/data-sync).
+
+<Callout type="warn" title="Danh sách type ở trên là mô tả, không phải bộ lọc">
+Không có chỗ nào trong tầng sync lọc theo record type.
+`SQLMutationRepository.Put` đặt `SyncState` local rồi ghi operation cho **bất
+kỳ** type nào qua được `IsSupportedItemType` — xem
+`internal/vaultitem/sqlmutationrepository.go`. Nên khoảnh khắc `note-version`
+được thêm vào switch đó là version sync, không cần wire gì thêm; và ngược lại,
+muốn một type **không** sync thì phải viết một bộ lọc hôm nay chưa tồn tại.
+Đây là lý do query history của Database nằm ở bảng cục bộ riêng chứ không phải
+một item type.
+</Callout>
+
+**Version sync — đã chốt.** Lịch sử sửa đổi đi theo note sang máy khác. Cái
+giá là băng thông: mỗi checkpoint là một full snapshot, giữ 50 bản, nên một
+note 50KB có thể đẩy tới 2.5MB qua sync. Chấp nhận vì lịch sử mà chỉ tồn tại
+trên một máy thì mất ý nghĩa ngay khi người dùng đổi máy — khác với query
+history của Database, thứ gắn với một thiết bị theo đúng nghĩa.
 
 Conflict resolve strategies:
 
@@ -489,8 +506,8 @@ text mergeable). Chọn "theirs" (bản sửa) tự resurrect note khỏi trash;
   không qua trash.
 - Trash retention cố định 30 ngày, chưa cấu hình được theo user.
 - Version history lưu full snapshot mỗi checkpoint (không diff) — tốn dung
-  lượng vault theo số version × kích thước note; idle-checkpoint 5 phút và
-  giới hạn 50 version chưa cấu hình được theo user.
+  lượng vault **và băng thông sync** theo số version × kích thước note;
+  idle-checkpoint 5 phút và giới hạn 50 version chưa cấu hình được theo user.
 - Version chỉ phủ title+body — đổi folder/tag/color không tạo version, không
   khôi phục được tổ chức cũ qua restore.
 - Backlink chỉ note-to-note — không link được tới folder/tag, không có graph
