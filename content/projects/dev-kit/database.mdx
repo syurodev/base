@@ -771,8 +771,8 @@ liệu ERD thật, không tốn thêm query nào:
    (`id`) cùng họ kiểu dữ liệu (int/uuid) với cột đang xét → ghi nhận **quan
    hệ suy đoán**. Điều kiện "không phải chính nó" sinh ra từ chính bước tiền
    tố: `crm_customers.customer_id` khớp đúng tên bảng chứa nó.
-4. Trả về **danh sách tách biệt** với FK thật — UI (thiết kế sau) vẽ nét đứt
-   + nhãn "suy đoán", không trộn chung 1 kiểu đường với FK thật.
+4. Trả về **danh sách tách biệt** với FK thật — ERD vẽ nét đứt, mỏng hơn và mờ
+   hơn, không trộn chung một kiểu đường với FK thật.
 
 <Callout type="warn" title="Best-effort, không phải phát hiện chính xác">
 Heuristic dựa thuần vào tên cột — sai cả 2 chiều: bỏ sót quan hệ ngầm nếu
@@ -894,8 +894,8 @@ ràng buộc.
 <Callout type="info" title="Editor engine: CodeMirror 6 — thiết kế ở trang riêng">
 Console dùng 1 **CodeMirror 6 primitive dùng chung**, không viết riêng cho
 Database — sẽ có module code-edit cơ bản khác dùng lại đúng primitive này.
-Phần dựng editor (theme, key bindings, wiring React) thuộc về trang riêng
-cho primitive đó, chưa viết. Trang này chỉ nói phần **Database cần cung
+Phần dựng editor (theme, key bindings, wiring React) thuộc về
+[Code editor](/dev-kit/code-editor). Trang này chỉ nói phần **Database cần cung
 cấp**: SQL dialect theo `engine` + schema map cho completion source của
 `@codemirror/lang-sql` — không lặp lại chi tiết editor ở đây.
 </Callout>
