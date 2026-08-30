@@ -232,7 +232,11 @@ test.
 - Profile `engine=mysql` connect thành công tới MySQL 8 thật, `ListTables`
   trả đúng danh sách.
 - Profile `engine=mariadb` connect thành công tới MariaDB 10.x thật bằng cùng
-  driver `mysql`, không cần code path riêng.
+  driver `mysql`, không cần code path riêng. **Đã kiểm chứng** với MariaDB
+  10.11 thật: `driver_mariadb_live_test.go` chạy cả bảy method của `Conn`,
+  `IndexLister` phân biệt đúng unique với non-unique, và lời hứa rollback của
+  `ExplainAnalyze` — test bị skip trừ khi trỏ vào một server qua
+  `DEVKIT_MARIADB_ADDR`.
 - Query dùng sai placeholder syntax cho engine đã chọn (vd `$1` gửi vào MySQL
   profile) → lỗi rõ ràng từ driver, không phải silent wrong result.
 - Đổi `engine` của 1 profile đã tồn tại (nếu UI cho phép) → `port`/`SSLMode`
@@ -254,6 +258,8 @@ test.
 - Schema cache cho console/ERD chỉ tự refresh khi DDL chạy **qua chính
   console DevKit** — đổi schema từ nơi khác (tool khác, teammate khác) không
   tự cập nhật, cần refresh thủ công.
+- `EXPLAIN ANALYZE` trên **MySQL** không có xương sống chuẩn hoá, chỉ có cây
+  text trong `Raw`. MariaDB thì đầy đủ nhờ `ANALYZE FORMAT=JSON`.
 - `SessionInspector` không suy đoán quan hệ khoá trên MySQL/MariaDB —
   `BlockedBy` chỉ có với Postgres (`pg_blocking_pids`), engine khác để trống.
 - Live activity là snapshot theo yêu cầu, không có lịch sử: mở lại là số mới,
@@ -621,10 +627,11 @@ Rows [][]string}` (`database.go:60-65`) đã tách cột/dòng sẵn, không que
 
 ## Query plan (EXPLAIN)
 
-<Callout type="info" title="Core Implemented (Postgres)">
-Go core đã có: `QueryPlanner` trong `internal/database/inspector.go`, implement
-ở `inspector_postgres.go`, bridge `DBExplain`/`DBExplainAnalyze`. MySQL/MariaDB
-chưa implement — xem lý do ngay dưới.
+<Callout type="info" title="Core Implemented">
+`QueryPlanner` trong `internal/database/inspector.go`, implement ở
+`inspector_postgres.go` và `inspector_mysql_plan.go`, bridge
+`DBExplain`/`DBExplainAnalyze`. Cả ba engine đều có `EXPLAIN`; phần `ANALYZE`
+thì MySQL khác hai engine kia — xem ngay dưới.
 </Callout>
 
 ### Lại là một interface tuỳ chọn, không phải method thứ 7
@@ -634,7 +641,7 @@ Cùng lý do đã áp cho `SessionInspector`, và lần này chênh lệch còn 
 | Engine | Lệnh | Hình dạng kết quả |
 |---|---|---|
 | Postgres | `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` | Cây lồng nhau: cost, rows ước lượng vs thật, thời gian, buffers |
-| MySQL 8 | `EXPLAIN FORMAT=JSON`; `EXPLAIN ANALYZE` | Schema khác hẳn; bản ANALYZE chỉ có text dạng cây |
+| MySQL 8 | `EXPLAIN FORMAT=JSON`; `EXPLAIN ANALYZE` | `query_block`; bản ANALYZE **chỉ có text dạng cây** |
 | MariaDB | `ANALYZE FORMAT=JSON` | Khác tiếp |
 | SQLite | `EXPLAIN QUERY PLAN` | Ba cột, gần phẳng, **không có cost** |
 
@@ -642,10 +649,23 @@ Interface `QueryPlanner` — `Explain`, `ExplainAnalyze`. Việc phải thêm in
 tuỳ chọn lần thứ hai là bằng chứng pattern đó đúng: `Conn` giữ nguyên 7 method
 bắt buộc, còn thứ chỉ một số engine làm được thì không leo lên đó.
 
-**MySQL/MariaDB implement `SessionInspector` nhưng không implement
-`QueryPlanner`.** `EXPLAIN ANALYZE` của MySQL trả cây dạng text chứ không phải
-JSON mà xương sống chuẩn hoá dựng từ đó; v1 để trống thay vì parse nửa vời — và
-đó chính là công dụng của việc interface là tuỳ chọn.
+**Cả hai engine đều implement `QueryPlanner`, nhưng chỉ một bên dựng được xương
+sống ở bước `ANALYZE`.** `EXPLAIN FORMAT=JSON` trả cây `query_block` trên cả
+MySQL lẫn MariaDB nên phần `Explain` dựng giống hệt nhau. Chỗ rẽ là `ANALYZE`:
+`ANALYZE FORMAT=JSON` của MariaDB mang theo `r_rows` và `r_total_time_ms` bên
+cạnh số ước lượng, còn `EXPLAIN ANALYZE` của MySQL chỉ trả **cây dạng text**.
+MariaDB điền đầy xương sống; MySQL trả cây đó vào `Raw` — đúng công dụng của
+`Raw`, và plan viewer đã có sẵn tab *Raw Output* cho nó.
+
+Điều thay đổi so với v1 là quyết định **để trống cả interface**, không phải
+nhận định về cây text: parse nó thành node vẫn sẽ khẳng định một độ chính xác
+mà output không có.
+
+Parser đi qua JSON theo cách tổng quát chứ không liệt kê từng khoá của engine:
+`nested_loop` và các khoá tương tự là **container**, bảng bên trong nằm ở cùng
+độ sâu với block chứa chúng — nếu không, mỗi phép join lại đẻ thêm một tầng ma.
+Cả hai cách viết khoá số dòng đều được đọc, vì chỉ đọc cách của MariaDB thì mọi
+plan MySQL sẽ báo 0 dòng, trông như một câu trả lời thật thay vì một chỗ thiếu.
 
 ### `EXPLAIN` và `EXPLAIN ANALYZE` là hai hành động khác nhau
 
