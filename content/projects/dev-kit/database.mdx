@@ -1077,37 +1077,54 @@ máy khác — và nếu ép vào, nó còn cần một item type mới chỉ đ
 preference, đi kèm validator riêng vì `decodeMetadataObject` chạy
 `DisallowUnknownFields`.
 
-### Icon cho folder (design — chưa implement)
+### Sửa folder: đổi tên, đổi icon, xoá (design — chưa implement)
 
-Hiện mọi folder dùng chung một cặp icon `Folder`/`FolderOpen`
-(`DatabaseSidebar.tsx`), nên "Production" và "Development" chỉ khác nhau ở
-chữ. Với người có nhiều nhóm — theo khách hàng, theo môi trường, theo dự án —
-icon là thứ mắt bắt được trước chữ. Figma có màn hình picker cho việc này.
+Component `DB / Folder Icon Picker` (`532:2726`) không chỉ là bộ chọn icon —
+nó là dialog **Edit folder** gộp ba việc: ô *Folder name*, lưới icon, và ba nút
+*Delete folder* / *Cancel* / *Save*. Hiện mọi folder dùng chung một cặp
+`Folder`/`FolderOpen` trong `DatabaseSidebar.tsx`, nên "Production" và
+"Development" chỉ khác nhau ở chữ.
+
+Chính màn hình đó tự ghi ranh giới của mình, nguyên văn: *"the folder icon is
+cosmetic — grouping never changes how a profile connects"*. Icon **không** mang
+ngữ nghĩa an toàn; env tag `prod` mới là thứ gác always-ask và safe-mode, và
+một folder đeo icon khiên không được phép trông như một đảm bảo.
 
 Hợp đồng:
 
 1. Icon lưu **tên**, không lưu ảnh: thêm `folderIcons: Record<tên folder,
-   string>` vào đúng slice `database.folders` đang persist, giá trị là tên một
-   icon Lucide. Không phải SVG inline, không phải đường dẫn file, không phải
-   emoji. Lý do là nguyên tắc 04 của chính design system — *"Lucide for
-   familiar actions"* — và vì tên icon giữ `ui_state` nhỏ, đồng thời để icon
-   ăn màu theo theme thay vì đóng cứng màu vào ảnh.
-2. Picker mở từ **allowlist đóng**, không phải ô nhập tự do. Giá trị trong
-   `ui_state` sẽ được dùng để tra một component; một chuỗi lạ — do sửa tay,
-   do bản cũ, do đổi tên icon ở lần nâng Lucide — phải rơi về `Folder` mặc
-   định chứ không được làm vỡ render.
-3. Danh sách icon nằm ở frontend, không qua bridge. Đây là preference hiển
-   thị, Go không cần biết folder tồn tại.
-4. Icon **không** mang ngữ nghĩa an toàn. Env tag `prod` mới là thứ gác
-   always-ask và safe-mode; một folder gắn icon khiên không được phép trông
-   như một đảm bảo nào cả.
+   string>` vào đúng slice `database.folders` đang persist. Không SVG inline,
+   không đường dẫn file, không emoji — tên giữ `ui_state` nhỏ và để icon ăn màu
+   theo theme thay vì đóng cứng màu vào ảnh.
+2. Allowlist đóng, đúng 20 tên trong lưới của màn hình: `folder`, `server`,
+   `laptop`, `database`, `monitor`, `layers`, `clock`, `hash`, `tag`,
+   `terminal`, `user`, `sliders-horizontal`, `file-text`, `link`, `palette`,
+   `plus`, `db-postgres`, `db-mysql`, `db-mariadb`, `db-sqlite`. **16 cái đầu
+   là Lucide, 4 cái cuối không phải** — chúng là nhãn hiệu engine (voi
+   Postgres, cá heo MySQL, hải cẩu MariaDB, lông vũ SQLite) và phải lấy từ
+   asset của design system, không tra được trong `lucide-react`. Bất cứ cài đặt
+   nào coi giá trị này là "tên icon Lucide" đều hỏng ở đúng 4 ô cuối.
+3. Tên lạ — sửa tay `ui_state`, bản cũ, hoặc Lucide đổi tên icon ở lần nâng
+   version — rơi về `folder` mặc định, không được làm vỡ render.
+4. Danh sách nằm ở frontend, không qua bridge. Đây là preference hiển thị, Go
+   không cần biết folder tồn tại.
+5. *Delete folder* chỉ xoá **nhóm**, profile bên trong quay về Ungrouped.
+   Không có đường nào từ màn hình này dẫn tới xoá một connection thật; xoá
+   profile là `DBDeleteProfile`, ở chỗ khác.
 
-<Callout type="warn" title="Đổi tên folder làm mất icon">
-Cả `folders`, `expandedFolders` và `folderIcons` đều khoá theo **tên folder**.
-Đổi tên là tạo khoá mới — icon, danh sách profile và trạng thái gập đều rơi về
-mặc định. Sửa đúng thì phải cho folder một id ổn định và tên chỉ là nhãn; đó
-là một migration của `ui_state`, đáng làm cùng lúc nếu tính đến việc kéo thả
-sắp xếp folder, chưa đáng làm chỉ vì icon.
+<Callout type="warn" title="Ô đổi tên biến migration id thành điều kiện tiên quyết">
+`folders`, `expandedFolders` và `folderIcons` đều khoá theo **tên folder**.
+Chừng nào chưa có id ổn định, đổi tên là tạo khoá mới: profile trong folder,
+trạng thái gập và icon đều rơi về mặc định cùng lúc. Trước đây đó là lỗi lý
+thuyết vì UI không cho đổi tên — nhưng màn hình này **có ô đổi tên**, nên nó
+trở thành đường đi thường ngày. Cho folder một id và để tên chỉ là nhãn là việc
+phải làm **trước** khi dựng dialog này, không phải sau.
+</Callout>
+
+<Callout type="info" title="db-sqlite có trong lưới, SQLite thì chưa có driver">
+Lưới icon đã trù tính SQLite. `driverFor()` hiện chỉ nhận postgres, mysql và
+mariadb. Icon là nhãn cosmetic nên không mâu thuẫn — một folder có thể tên
+"SQLite" và rỗng — nhưng đừng đọc lưới này như danh sách engine được hỗ trợ.
 </Callout>
 
 ## Non-goals (MVP)
