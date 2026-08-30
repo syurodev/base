@@ -1077,13 +1077,13 @@ máy khác — và nếu ép vào, nó còn cần một item type mới chỉ đ
 preference, đi kèm validator riêng vì `decodeMetadataObject` chạy
 `DisallowUnknownFields`.
 
-### Sửa folder: đổi tên, đổi icon, xoá (design — chưa implement)
+### Sửa folder: đổi tên, đổi icon, xoá
 
 Component `DB / Folder Icon Picker` (`532:2726`) không chỉ là bộ chọn icon —
 nó là dialog **Edit folder** gộp ba việc: ô *Folder name*, lưới icon, và ba nút
-*Delete folder* / *Cancel* / *Save*. Hiện mọi folder dùng chung một cặp
-`Folder`/`FolderOpen` trong `DatabaseSidebar.tsx`, nên "Production" và
-"Development" chỉ khác nhau ở chữ.
+*Delete folder* / *Cancel* / *Save*. Trước đó folder chỉ là trang trí: hai tên đóng cứng,
+`assignProfileToFolder` nằm trong store mà không component nào gọi, và không có
+đường nào để tạo/đổi tên/xoá — nên mọi profile ở lại Ungrouped vĩnh viễn.
 
 Chính màn hình đó tự ghi ranh giới của mình, nguyên văn: *"the folder icon is
 cosmetic — grouping never changes how a profile connects"*. Icon **không** mang
@@ -1106,19 +1106,28 @@ Hợp đồng:
    nào coi giá trị này là "tên icon Lucide" đều hỏng ở đúng 4 ô cuối.
 3. Tên lạ — sửa tay `ui_state`, bản cũ, hoặc Lucide đổi tên icon ở lần nâng
    version — rơi về `folder` mặc định, không được làm vỡ render.
-4. Danh sách nằm ở frontend, không qua bridge. Đây là preference hiển thị, Go
-   không cần biết folder tồn tại.
+4. Danh sách nằm ở frontend (`folderIcons.tsx`), không qua bridge. Đây là
+   preference hiển thị, Go không cần biết folder tồn tại. Bốn mark engine
+   được export từ chính vector layer của Figma vào `icons/engineMarks.tsx`.
 5. *Delete folder* chỉ xoá **nhóm**, profile bên trong quay về Ungrouped.
    Không có đường nào từ màn hình này dẫn tới xoá một connection thật; xoá
    profile là `DBDeleteProfile`, ở chỗ khác.
+6. Figma vẽ dialog nhưng **không** vẽ cách một profile vào được folder. Chỗ đó
+   là một dropdown trên chính dòng profile, đồng thời cho biết nó đang nằm ở
+   đâu. Một profile thuộc tối đa một folder, nên gán là gỡ khỏi mọi folder
+   khác.
 
 <Callout type="warn" title="Ô đổi tên biến migration id thành điều kiện tiên quyết">
-`folders`, `expandedFolders` và `folderIcons` đều khoá theo **tên folder**.
-Chừng nào chưa có id ổn định, đổi tên là tạo khoá mới: profile trong folder,
-trạng thái gập và icon đều rơi về mặc định cùng lúc. Trước đây đó là lỗi lý
-thuyết vì UI không cho đổi tên — nhưng màn hình này **có ô đổi tên**, nên nó
-trở thành đường đi thường ngày. Cho folder một id và để tên chỉ là nhãn là việc
-phải làm **trước** khi dựng dialog này, không phải sau.
+Folder khoá theo **id**, tên chỉ là nhãn — và điều này phải làm **trước** dialog
+chứ không phải sau. Bản v0 khoá theo tên, nên đổi tên là tạo khoá mới và
+profile bên trong lẫn trạng thái gập đều rơi về mặc định cùng lúc. Chừng nào
+chưa có UI đổi tên thì đó là lỗi lý thuyết; màn hình này **có ô đổi tên**, nên
+nó thành đường đi thường ngày.
+
+`persist` chạy ở `version: 1` với `migrateFoldersToIds()` trong
+`databaseStore.ts` — hàm thuần, export riêng để test được mà không dựng store.
+Test khẳng định không mất một profile nào trên đường chuyển, vì mất ở đây là
+mất im lặng: người dùng chỉ thấy một nhóm rỗng, không có lỗi nào.
 </Callout>
 
 <Callout type="info" title="db-sqlite có trong lưới, SQLite thì chưa có driver">
