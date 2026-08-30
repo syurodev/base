@@ -900,6 +900,35 @@ cấp**: SQL dialect theo `engine` + schema map cho completion source của
 `@codemirror/lang-sql` — không lặp lại chi tiết editor ở đây.
 </Callout>
 
+### Bảng kết quả: chuột phải để lấy dữ liệu ra
+
+Chuột phải một ô cho *Copy cell*, *Copy row as JSON*, *Copy column name* và
+*Inspect cell*; chuột phải header cột cho tên cột và **toàn bộ giá trị của cột**,
+nối bằng xuống dòng — dạng dán thẳng được vào mệnh đề `IN` hoặc bảng tính.
+
+Ba ràng buộc, đều là chuyện đúng/sai chứ không phải tiện nghi:
+
+**Copy lấy giá trị thật, không lấy thứ đang hiển thị.** Ô bảng cắt ở 280px với
+`truncate`, nên cái mắt đọc được thường không phải cái nằm trong dòng. Copy mà
+đọc text trên DOM là đưa cho người ta một giá trị cụt mà không báo gì.
+
+**Nhãn copy cột đếm số dòng đang có, không viết "copy cột".** Kết quả bị cap ở
+200 dòng; menu còn hiện thêm cảnh báo khi `truncated`. Đưa 200 dòng của một
+tổng số không biết dưới chữ "cột" là thứ dễ đi thẳng vào một `WHERE` sai.
+
+**`rowAsJSON` rơi về `col_N` cho cột không tên.** `SELECT 1, 1` trả về hai cột
+không tên; thiếu fallback thì hai giá trị đè lên cùng một khoá và một cái biến
+mất im lặng — JSON vẫn hợp lệ, vẫn parse được, chỉ thiếu dữ liệu. Cùng lý do
+đó, header khoá theo cả tên lẫn chỉ số: `SELECT a.id, b.id` trả về hai cột cùng
+tên `id` và React gộp chúng lại.
+
+<Callout type="warn" title="Clipboard đi qua runtime, không qua navigator">
+`navigator.clipboard` không đáng tin trong WKWebView và hỏng **im lặng** —
+người dùng bấm copy, không lỗi, không có gì trong clipboard. Mọi lệnh copy đi
+qua `Clipboard.SetText` của `@wailsio/runtime`, gói trong
+`frontend/src/bridge/clipboard.ts`.
+</Callout>
+
 ### Schema index — cache cục bộ kiểu JetBrains, không quét lại mỗi lần gõ
 
 - **Index đầy đủ 1 lần, cache cục bộ, đọc lại tức thì** — giống DataGrip:
@@ -1076,6 +1105,21 @@ cây cho dễ nhìn trên **máy này** không phải dữ liệu người dùng
 máy khác — và nếu ép vào, nó còn cần một item type mới chỉ để chứa một
 preference, đi kèm validator riêng vì `decodeMetadataObject` chạy
 `DisallowUnknownFields`.
+
+### Chuột phải trên các dòng sidebar
+
+Dòng bảng trong cây schema là lý do đáng làm nhất: chèn `SELECT * FROM x LIMIT
+50` trước đó **chỉ có double-click** và không có dấu hiệu nào cho biết điều đó
+tồn tại. Menu gọi tên hành động và vẫn hiện phím tắt bên cạnh, kèm *Focus in
+ERD*, *Copy table name*, *Re-index schema*.
+
+Dòng profile có *Move to folder* (submenu), *Connection options*, *Copy
+connection target*, *Delete connection*. Các nút hover **giữ nguyên** dù menu
+đã bao trọn chúng: gán profile vào folder là tính năng vừa mới có, biến nó
+thành right-click-only là giấu nó đi lần nữa. Toolbar cộng chuột phải cùng làm
+một việc là chuẩn mực, không phải trùng lặp thừa.
+
+Dòng folder có *Edit folder*, *New folder*, *Delete folder*.
 
 ### Sửa folder: đổi tên, đổi icon, xoá
 
