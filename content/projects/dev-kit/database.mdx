@@ -82,8 +82,8 @@ profile tồn tại với đường kết nối sai — đúng thứ `ErrSSHProf
 | `DBTestConnection` | `db:query` | `profile:<id>` | profile đã lưu |
 | `DBTestNewConnection` | `db:query` | `profile:new` | thử **trước khi lưu** — nhận nguyên input, không có id |
 | `DBQuery` | `db:query` | `profile:<id>` | |
-| `DBSetActiveProfile` (design) | `db:query` | `profile:<id>` | |
-| `DBActiveProfile` (design) | `db:query` | `profile:active` | |
+| `DBSetActiveProfile` | `db:query` | `profile:<id>` | |
+| `DBActiveProfile` | `db:query` | `profile:active` | |
 | `DBUpdateProfileOptions` | `db:query` | `profile:<id>` | metadata-only, đổi `env`/`ssh_profile_id`/`read_only` không cần tạo lại profile |
 | `DBListQueryHistory` | `db:query` | `profile:<id>` | 50 query gần nhất, tự động log |
 | `DBSaveQuery` | `db:query` | `profile:<id>` | user đặt tên, không bị prune |
@@ -97,11 +97,11 @@ profile tồn tại với đường kết nối sai — đúng thứ `ErrSSHProf
 | `DBListSchemas` | `db:query` | `profile:<id>` | catalog qua driver, không phải SQL cứng |
 | `DBListTables` | `db:query` | `profile:<id>` | |
 | `DBListColumns` | `db:query` | `profile:<id>` | |
-| `DBListActivity` (design) | `db:query` | `profile:<id>` | snapshot session đang chạy, không phải time-series |
-| `DBCancelQuery` (design) | `db:query` | `session:<pid>` | huỷ statement của 1 pid — human-only |
-| `DBTerminateSession` (design) | `db:query` | `session:<pid>` | đóng connection của 1 pid — human-only |
-| `DBExplain` (design) | `db:query` | `profile:<id>` | lấy kế hoạch, **không** chạy câu lệnh |
-| `DBExplainAnalyze` (design) | `db:query` | `profile:<id>` | **chạy thật** trong transaction rồi rollback — theo policy env tag |
+| `DBListActivity` | `db:query` | `profile:<id>` | snapshot session đang chạy, không phải time-series |
+| `DBCancelQuery` | `db:query` | `session:<pid>` | huỷ statement của 1 pid — human-only |
+| `DBTerminateSession` | `db:query` | `session:<pid>` | đóng connection của 1 pid — human-only |
+| `DBExplain` | `db:query` | `profile:<id>` | lấy kế hoạch, **không** chạy câu lệnh |
+| `DBExplainAnalyze` | `db:query` | `profile:<id>` | **chạy thật** trong transaction rồi rollback — theo policy env tag |
 
 Subject luôn `builtin.database`. Packages: `internal/database/{database,pool}.go`,
 `internal/bridge/database.go`, `frontend/src/modules/database/DatabaseView.tsx`,
