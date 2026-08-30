@@ -89,15 +89,14 @@ profile tồn tại với đường kết nối sai — đúng thứ `ErrSSHProf
 | `DBSaveQuery` | `db:query` | `profile:<id>` | user đặt tên, không bị prune |
 | `DBListSavedQueries` | `db:query` | `profile:<id>` | |
 | `DBDeleteSavedQuery` | `db:query` | `query:<id>` | |
-| `DBListForeignKeys` | `db:query` | `profile:<id>` | FK thật từ DB catalog, cho ERD |
+| `DBListForeignKeys` | `db:query` | `profile:<id>` | FK khai báo thật từ catalog, không kèm quan hệ suy đoán |
+| `DBListIndexes` | `db:query` | `profile:<id>` | index của cả schema — phân biệt 1-1 với 1-N, và tìm bảng nối |
+| `DBSaveExportFile` | `db:query` | `profile:<id>` | ghi file export ở Go với quyền `0o600`; webview không có API ghi file |
 | `DBIndexSchema` | `db:query` | `profile:<id>` | full introspect + ghi cache, cho console autocomplete + ERD |
 | `DBGetSchemaCache` | `db:query` | `profile:<id>` | đọc cache đã index, không đụng DB thật |
 | `DBListSchemas` | `db:query` | `profile:<id>` | catalog qua driver, không phải SQL cứng |
 | `DBListTables` | `db:query` | `profile:<id>` | |
 | `DBListColumns` | `db:query` | `profile:<id>` | |
-| `DBListForeignKeys` | `db:query` | `profile:<id>` | FK khai báo thật, không kèm quan hệ suy đoán |
-| `DBIndexSchema` | `db:query` | `profile:<id>` | full introspect + ghi cache |
-| `DBGetSchemaCache` | `db:query` | `profile:<id>` | đọc cache; rỗng thì index một lần |
 | `DBListActivity` (design) | `db:query` | `profile:<id>` | snapshot session đang chạy, không phải time-series |
 | `DBCancelQuery` (design) | `db:query` | `session:<pid>` | huỷ statement của 1 pid — human-only |
 | `DBTerminateSession` (design) | `db:query` | `session:<pid>` | đóng connection của 1 pid — human-only |
@@ -711,14 +710,15 @@ retention — thuộc module Database, không phải Monitor.
 
 ## Sơ đồ quan hệ (ERD)
 
-Backend only ở lượt này — UI vẽ diagram để sau. Cần 3 nguồn dữ liệu:
-`ListTables`/`ListColumns` (đã thiết kế ở mục multi-engine, cho bảng+cột+kiểu)
-+ `DBListForeignKeys` (mới, FK thật) + 1 pass suy đoán quan hệ ngầm (không
-query thêm).
+Đã dựng cả hai đầu. View ở `frontend/src/modules/database/components/ERDView.tsx`,
+vẽ bằng React Flow — cùng thư viện với CodeGraph, không thêm dependency. Bốn
+nguồn dữ liệu: `ListTables`/`ListColumns` (đã thiết kế ở mục multi-engine, cho
+bảng+cột+kiểu) + `DBListForeignKeys` (FK thật) + `DBListIndexes` (chiều quan
+hệ, xem mục dưới) + 1 pass suy đoán quan hệ ngầm không tốn query nào.
 
 ```mermaid
 sequenceDiagram
-  participant UI as ERD view thiết kế sau
+  participant UI as ERDView
   participant SVC as database.Service
   participant Conn as Driver.Conn
 
@@ -729,6 +729,8 @@ sequenceDiagram
   end
   SVC->>Conn: ListForeignKeys(schema)
   Conn-->>SVC: FK thật from_table.from_col to to_table.to_col
+  SVC->>Conn: ListIndexes(schema) - nếu driver implement IndexLister
+  Conn-->>SVC: unique + primary, cho chiều quan hệ
 
   SVC->>SVC: suy đoán quan hệ ngầm trên dữ liệu vừa có, không query thêm
   SVC-->>UI: bảng, cột+kiểu, FK thật, quan hệ suy đoán - 2 danh sách tách biệt
@@ -759,10 +761,16 @@ báo FK constraint thật trong DB — heuristic đặt tên chạy **sau khi** 
 liệu ERD thật, không tốn thêm query nào:
 
 1. Với mỗi cột **chưa** có trong danh sách FK thật, khớp pattern `<x>_id`.
-2. Tìm bảng tên `<x>` hoặc `<x>s` (pluralize đơn giản, +s) trong schema.
-3. Nếu tìm thấy bảng, và bảng đó có cột khoá chính (`id`) cùng họ kiểu dữ
-   liệu (int/uuid) với cột đang xét → ghi nhận **quan hệ suy đoán**
-   `<table>.<x>_id ⇢ <x(s)>.id`.
+2. Tìm bảng đích theo thứ tự: `<prefix>_<x>`, `<prefix>_<x>s`, rồi mới `<x>`,
+   `<x>s` — trong đó `<prefix>` là tiền tố của **chính bảng nguồn**. Schema
+   thật thường đặt tên theo module (`crm_leads`, `his_billing_statements`,
+   `ba_user`) và khi đó `crm_leads.customer_id` trỏ tới `crm_customers`, không
+   phải `customers`. Bỏ bước này thì heuristic gần như không tìm được gì: trên
+   schema thử nghiệm 161 bảng nó nhận ra 2 quan hệ, có tiền tố thì 183.
+3. Nếu tìm thấy bảng, bảng đó **không phải chính nó**, và có cột khoá chính
+   (`id`) cùng họ kiểu dữ liệu (int/uuid) với cột đang xét → ghi nhận **quan
+   hệ suy đoán**. Điều kiện "không phải chính nó" sinh ra từ chính bước tiền
+   tố: `crm_customers.customer_id` khớp đúng tên bảng chứa nó.
 4. Trả về **danh sách tách biệt** với FK thật — UI (thiết kế sau) vẽ nét đứt
    + nhãn "suy đoán", không trộn chung 1 kiểu đường với FK thật.
 
@@ -772,14 +780,116 @@ không theo convention `<x>_id`, và có thể suy đoán nhầm nếu tên cộ
 ngẫu nhiên với 1 bảng không liên quan. Chỉ hỗ trợ khớp **khoá chính 1 cột**
 (`id`) — bảng có composite primary key không được heuristic này xét tới, bỏ
 qua hoàn toàn (không suy đoán sai còn hơn suy đoán ẩu với composite key).
+Composite key **có** được đọc, nhưng cho việc khác: nhận diện bảng nối ở mục
+chiều quan hệ bên dưới.
 </Callout>
+
+### Chiều quan hệ (1-1, 1-N, N-N) — `IndexLister`
+
+Mũi tên không nói gì về chiều. Ba mức độ chắc chắn khác hẳn nhau, và doc này
+tách chúng ra thay vì gộp thành "vẽ chân quạ cho đẹp".
+
+**Đọc được ngay, không tốn gì.** Quan hệ bắt buộc hay tuỳ chọn — `0..N` hay
+`1..N` — chính là `NOT NULL` trên cột khoá. `ColumnInfo.Nullable` đã có sẵn
+trong `internal/database/driver.go` và đã qua bridge từ lâu mà không ai đọc.
+Đây là điều schema **nói**, không phải suy đoán.
+
+**Cần metadata thật.** Phân biệt 1-1 với 1-N chỉ có đúng một cách: cột khoá
+ngoại có UNIQUE index hay không. Không có cách nào khác, và đoán theo tên là
+bịa. Phát hiện N-N cũng cần khoá chính thật — bảng nối là bảng có PK gồm đúng
+tập cột tham chiếu của nó. Cả hai lấy từ cùng một nguồn: `pg_index` bên
+Postgres, `information_schema.STATISTICS` bên MySQL.
+
+**Không bao giờ chắc.** Bảng nối mang thêm cột dữ liệu riêng (ngày tạo, trạng
+thái, số lượng) là bảng nối hay là thực thể? Ranh giới này con người cũng cãi
+nhau, nên bảng nối vẫn ở lại sơ đồ như một node riêng, chỉ gắn nhãn `N–N`.
+Gộp nó thành một đường sẽ giấu mất một bảng thường có dữ liệu riêng.
+
+#### Lại là interface tuỳ chọn — `Conn` vẫn 7 method
+
+`IndexLister` ở `internal/database/indexes.go`, đứng cạnh `SessionInspector`
+và `QueryPlanner`, không phải method thứ 8 của `Conn`. Driver nào không trả
+lời được thì nói thẳng bằng `ErrEngineHasNoIndexes`, và ERD lùi về đọc mọi
+quan hệ là một-nhiều — đúng như trước khi có mục này. Thanh điều khiển hiện
+cảnh báo "no index data" để người đọc biết mình đang nhìn giới hạn của công
+cụ, không phải sự thật về schema.
+
+<Callout type="warn" title="Index đọc thiếu thì bỏ hẳn, không dùng một nửa">
+Cả hai driver **từ chối báo cáo** index chúng không đọc trọn vẹn. Index biểu
+thức bên Postgres (`indkey` chứa `0`) và functional index bên MySQL
+(`COLUMN_NAME` null) trả về thiếu cột; một unique index hai cột mà đọc thành
+một cột sẽ khẳng định một tính duy nhất database chưa từng hứa, và ERD vẽ ra
+quan hệ 1-1 sai hoàn toàn. Postgres còn bỏ qua partial index — nó chỉ duy
+nhất trong phạm vi predicate của nó. Cùng nguyên tắc với heuristic đặt tên:
+thiếu một cạnh vẫn hơn sai một cạnh.
+</Callout>
+
+Có index thật kéo theo một sửa lỗi: dấu **PK** trên node giờ lấy từ khoá
+chính thật, thay vì giả định cột tên `id` là khoá chính. Và vì index là sự
+thật database trả về, độc lập với việc FK có được khai báo hay không, nó **nâng
+chất lượng của chính phần suy đoán** — trên schema 0 FK khai báo, một unique
+index trên `invoice_id` vẫn là bằng chứng thật rằng quan hệ đó là 1-1.
+
+### Đọc được ở quy mô schema thật
+
+Một schema 161 bảng vẽ hết ra là một búi tóc rối, và bảng trung tâm là ca tệ
+nhất — `his_patient_reception` có 16 bảng nối vào ở 1 hop. Bốn cơ chế, xếp
+theo mức độ ăn thua:
+
+**Layout biết focus.** Thuật toán xếp cũ đóng gói theo cột ngắn nhất và không
+quan tâm bảng nào là tâm, nên bảng focus rơi vào đâu tuỳ may và mọi đường phải
+cắt ngang canvas để tới nó. Một focus **là hình sao**; vẽ hình sao thành lưới
+thì chắc chắn rối. Giờ mỗi hop một cột, quan hệ chạy trái sang phải; trong mỗi
+cột thứ tự bám theo vị trí hàng xóm ở cột trước để đường giữa hai cột không
+bện vào nhau. Tách ra thành `placeByHop()` trong `ERDView.tsx` để test được
+độc lập với React.
+
+**Ẩn cạnh cùng hop.** Phần lớn đường quanh một bảng trung tâm **không** chạm
+vào nó — chúng nối các hàng xóm với nhau. Quy tắc: ẩn cạnh nối hai bảng cùng
+khoảng cách hop. Ở 1 hop nghĩa là giữ mọi thứ chạm bảng focus; ở 2 hop vẫn giữ
+cạnh 1↔2 nên không node nào bị mồ côi. Mặc định bật, có nút tắt.
+
+**Gập cột.** Node chỉ hiện những cột có cạnh đi vào hoặc ra. Có một cái bẫy:
+ẩn cột là ẩn luôn `Handle` của nó, và React Flow **lặng lẽ** không vẽ cạnh trỏ
+tới handle không tồn tại — nên tập cột-khoá phải tính từ chính danh sách quan
+hệ, cả hai chiều, chứ không đoán bằng tên. Node đã mở cũng bị chặn chiều cao và
+tự cuộn: một bảng 32 cột nếu để nguyên sẽ cao gấp năm lần node bên cạnh và kéo
+lệch cả cột layout.
+
+**Focus và hover.** Bảng đang focus có viền accent — trước đó phải đọc dropdown
+mới biết là bảng nào. Hover một bảng thì mọi thứ không dính tới nó mờ đi. Phần
+này áp ở bước cuối trước khi đưa vào React Flow, **không** nằm trong memo
+layout: hover không được phép gây xếp lại.
+
+<Callout type="warn" title="Animation tắt trên 30 bảng">
+Cạnh có animation chạy bằng `stroke-dashoffset`, thứ compositor không tăng tốc
+được — mỗi cạnh động là một lần repaint mỗi khung hình. Dưới một focus thì đó
+là vài cạnh và đáng; trên toàn schema là 183. Ngưỡng đặt theo số node đang
+hiện; chi phí thật nằm ở số cạnh, hai đại lượng này đi cùng nhau ở schema đã
+thử nhưng không phải luôn luôn.
+</Callout>
+
+Ký hiệu: chân quạ = nhiều, gạch = một, vòng tròn = tuỳ chọn. Cạnh FK khai báo
+đặc và đậm hơn cạnh suy đoán — một phỏng đoán theo tên cột không được trông
+như ràng buộc database thực sự cưỡng chế. Đường đi gãy vuông chứ không phải
+bezier, và **không có nhãn**: nhãn kiểu `employee_id → his_employees.id` trôi
+lơ lửng giữa khoảng trống và lặp lại đúng thứ đã có ở dòng cột nó xuất phát và
+header node nó đi tới.
 
 ## Query console: gợi ý cú pháp / bảng / cột
 
-Console hiện tại là 1 `<textarea>` trần (`DatabaseView.tsx:182`) — nâng lên
-schema-aware completion kiểu DataGrip/JetBrains: gõ tới đâu gợi ý bảng/cột
-tới đó theo đúng ngữ cảnh con trỏ (sau `FROM` → tên bảng, sau `WHERE` với
-bảng đã chọn → cột của bảng đó).
+Console khởi điểm là 1 `<textarea>` trần — nay là CodeMirror trong
+`frontend/src/modules/database/components/QueryConsole.tsx`, với schema-aware
+completion kiểu DataGrip/JetBrains: gõ tới đâu gợi ý bảng/cột tới đó theo đúng
+ngữ cảnh con trỏ (sau `FROM` → tên bảng, sau `WHERE` với bảng đã chọn → cột
+của bảng đó).
+
+Editor và bảng kết quả chia nhau chiều cao bằng một splitter kéo được, không
+phải một con số cứng: một câu query dài và một tập kết quả rộng cần hai tỉ lệ
+khác nhau. Dùng `components/ui/resizable` — tay cầm là `separator` thật nên
+kéo được cả bằng bàn phím. Tỉ lệ lưu qua `ui_state`, và chỉ ghi khi người dùng
+kéo thật: callback layout của thư viện còn bắn lúc mount và mỗi lần tính lại
+ràng buộc.
 
 <Callout type="info" title="Editor engine: CodeMirror 6 — thiết kế ở trang riêng">
 Console dùng 1 **CodeMirror 6 primitive dùng chung**, không viết riêng cho
