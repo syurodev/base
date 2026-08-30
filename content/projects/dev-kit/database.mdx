@@ -1061,6 +1061,55 @@ hoàn toàn khỏi cách UI hoạt động hôm nay:
 - Timeout cho popup và fallback khi DevKit chạy headless áp dụng y hệt NFR-9
   của Kafka UI.
 
+## Sidebar: nhóm connection theo folder
+
+Folder trong sidebar là **nhóm hiển thị thuần tuý**, không phải một thực thể.
+Nó sống trong `frontend/src/modules/database/databaseStore.ts` dưới dạng
+`folders: Record<tên folder, profileId[]>` cùng `expandedFolders`, và persist
+qua `ui_state` với key `database.folders`. Không có bản ghi nào trong
+`vault_items`, không có method bridge nào cho folder.
+
+Đó là chủ ý, không phải chưa làm tới. `vault_items` **sync-bound by
+construction**: `SQLMutationRepository.Put` ghi mutation intent trong cùng
+transaction, nên mọi thứ đặt vào đó đều sinh sync traffic. Một cách sắp xếp
+cây cho dễ nhìn trên **máy này** không phải dữ liệu người dùng cần mang sang
+máy khác — và nếu ép vào, nó còn cần một item type mới chỉ để chứa một
+preference, đi kèm validator riêng vì `decodeMetadataObject` chạy
+`DisallowUnknownFields`.
+
+### Icon cho folder (design — chưa implement)
+
+Hiện mọi folder dùng chung một cặp icon `Folder`/`FolderOpen`
+(`DatabaseSidebar.tsx`), nên "Production" và "Development" chỉ khác nhau ở
+chữ. Với người có nhiều nhóm — theo khách hàng, theo môi trường, theo dự án —
+icon là thứ mắt bắt được trước chữ. Figma có màn hình picker cho việc này.
+
+Hợp đồng:
+
+1. Icon lưu **tên**, không lưu ảnh: thêm `folderIcons: Record<tên folder,
+   string>` vào đúng slice `database.folders` đang persist, giá trị là tên một
+   icon Lucide. Không phải SVG inline, không phải đường dẫn file, không phải
+   emoji. Lý do là nguyên tắc 04 của chính design system — *"Lucide for
+   familiar actions"* — và vì tên icon giữ `ui_state` nhỏ, đồng thời để icon
+   ăn màu theo theme thay vì đóng cứng màu vào ảnh.
+2. Picker mở từ **allowlist đóng**, không phải ô nhập tự do. Giá trị trong
+   `ui_state` sẽ được dùng để tra một component; một chuỗi lạ — do sửa tay,
+   do bản cũ, do đổi tên icon ở lần nâng Lucide — phải rơi về `Folder` mặc
+   định chứ không được làm vỡ render.
+3. Danh sách icon nằm ở frontend, không qua bridge. Đây là preference hiển
+   thị, Go không cần biết folder tồn tại.
+4. Icon **không** mang ngữ nghĩa an toàn. Env tag `prod` mới là thứ gác
+   always-ask và safe-mode; một folder gắn icon khiên không được phép trông
+   như một đảm bảo nào cả.
+
+<Callout type="warn" title="Đổi tên folder làm mất icon">
+Cả `folders`, `expandedFolders` và `folderIcons` đều khoá theo **tên folder**.
+Đổi tên là tạo khoá mới — icon, danh sách profile và trạng thái gập đều rơi về
+mặc định. Sửa đúng thì phải cho folder một id ổn định và tên chỉ là nhãn; đó
+là một migration của `ui_state`, đáng làm cùng lúc nếu tính đến việc kéo thả
+sắp xếp folder, chưa đáng làm chỉ vì icon.
+</Callout>
+
 ## Non-goals (MVP)
 
 - Multi-engine query builder / ORM layer trong DevKit.
