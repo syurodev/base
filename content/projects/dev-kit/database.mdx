@@ -1200,6 +1200,44 @@ mariadb. Icon là nhãn cosmetic nên không mâu thuẫn — một folder có t
 "SQLite" và rỗng — nhưng đừng đọc lưới này như danh sách engine được hỗ trợ.
 </Callout>
 
+## Trạng thái lỗi có thiết kế riêng
+
+Bốn tình huống được cho màn hình riêng thay vì một dòng lỗi đỏ, vì mỗi cái có
+một bước tiếp theo rõ ràng mà thông báo của driver không nói ra. Component ở
+`frontend/src/modules/database/components/DatabaseStates.tsx` và
+`DeleteProfileDialog.tsx`.
+
+**Xoá profile.** Trước đây xoá xảy ra ngay ở cú bấm đầu tiên vào icon thùng rác,
+không xác nhận ở UI và cũng không có cổng nào phía sau: `DBDeleteProfile` dùng
+đúng capability và scope như chạy một query bình thường. Việc của dialog **không
+phải** thêm một cú bấm, mà là **gọi tên những gì mất theo** — mật khẩu đã seal,
+history cục bộ, saved query, và tư cách thành viên folder. Không thứ nào trong
+đó nhìn thấy được từ một dòng sidebar, nên trước đó không ai cân nhắc được cái
+giá. Số lượng history/saved là best-effort: vault khoá thì đọc không ra, và điều
+đó **không được phép** chặn việc xoá — nên để trống thay vì đoán.
+
+**Vault khoá** tách làm hai như thiết kế. Khi không đọc được gì thì thay cả vùng
+nội dung. Khi vault khoá **giữa phiên** thì chỉ là một banner, vì các dòng đang
+trên màn hình đã ra khỏi database **trước khi** khoá và đang nằm trong bộ nhớ —
+xoá chúng đi là phá mất công việc mà cái khoá không có quyền đụng tới.
+
+Nút *Unlock vault* dùng lại `VaultGate`: nó vốn đã biết cách mở khoá và vốn đã
+đọc lại trạng thái vault, chỉ là không có lý do đọc lại sau khi mount. Module
+phát một event xin nó kiểm tra lại, thay vì dựng form mở khoá thứ hai phải giữ
+đồng bộ với form thứ nhất.
+
+**TLS bị từ chối** có màn riêng vì kết nối bị chặn **trước khi** được thử —
+`ErrInsecureTLSForRemoteHost`. Một lỗi driver mà người đọc không làm gì được là
+sai hình dạng cho tình huống đó.
+
+<Callout type="warn" title="Nhận diện bằng chuỗi, không phải kiểu lỗi">
+Bridge trả về **thông báo**, không phải lỗi có kiểu, nên việc phân loại là so
+chuỗi — gom về `errorStates.ts` với test riêng. Trước đó hai view tự so chuỗi
+inline với cách viết hơi khác nhau, nên đổi một câu chữ bên Go sẽ làm mất trạng
+thái ở một nửa module mà không ai biết. Nếu muốn chắc chắn hơn, đúng hướng là
+cho bridge trả mã lỗi ổn định.
+</Callout>
+
 ## Non-goals (MVP)
 
 - Multi-engine query builder / ORM layer trong DevKit.
