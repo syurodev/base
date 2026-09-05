@@ -41,7 +41,12 @@ Capability Gateway và dialog permission chỉ mediate hành động đi qua Dev
 ACP. Agent CLI vẫn có bash/fs trong process của nó — cùng user với DevKit — nên
 cần OS jail riêng. Sandbox **không thay** consent Gateway/UI; hai lớp bổ sung
 nhau. Claude Code (`/sandbox`) và Codex có sandbox first-party nhưng không đủ
-cho Hub multi-vendor.
+cho Hub multi-vendor — và **không lồng được** với jail DevKit trên macOS:
+`sandbox-exec` trong jail fail `sandbox_apply: Operation not permitted` (đo
+2026-09-05, không có SBPL operation nào mở). Sandbox vendor là lựa chọn *thay
+thế*, không phải lớp *bổ sung*; adapter phải đảm bảo nó tắt khi spawn qua
+DevKit, nếu không mọi lệnh bash của agent fail ngầm. Chi tiết và lý do chọn
+lớp DevKit: [ADR-009](/dev-kit/architecture-decisions#adr-009-os-primitive-sandbox-for-agent-hub-vendor-processes).
 
 ## Principles
 
@@ -68,7 +73,7 @@ Hai cách chạy, cùng nhận `Policy` + `Cmd`:
 
 | Type / func | Role |
 |---|---|
-| `Policy` | WorkDir (abs), RO/RW binds, DenyReadPaths, Env, Network, PrivateHome |
+| `Policy` | WorkDir (abs), RO/RW binds, DenyReadPaths, Env, Network, PrivateHome; **Design:** `AllowUnixSockets` — socket MCP riêng của session (xem dưới) |
 | `Cmd` | Path + Args; optional Dir under WorkDir |
 | `Runner.Start` | Validate → defaults → Backend.Start — **capture helpers** |
 | `Runner.StartPiped` | Same policy path → Backend.StartPiped — **ACP / interactive stdio** |
@@ -81,7 +86,7 @@ Hai cách chạy, cùng nhận `Policy` + `Cmd`:
 | Field | Default |
 |---|---|
 | Empty `Network` | `none` |
-| `PrivateHome` nil | `true` — tmpfs on home, force `HOME` + `TMPDIR=/tmp` |
+| `PrivateHome` nil | `true` — force `HOME` + `TMPDIR=/tmp`; **Linux** thêm `--tmpfs $HOME`. **macOS không có tmpfs**: `HOME` vẫn trỏ home thật, home không đọc được chỉ nhờ `(deny default)` |
 | Sensitive denies | Always on; off only with `DangerousAllowSensitive` (tests) |
 
 ### Errors
@@ -110,9 +115,69 @@ Bind paths are `EvalSymlinks`'d; resolve into a deny path → `ErrInvalidPolicy`
 ## macOS (Seatbelt)
 
 `buildSeatbeltProfile` emits SBPL (unit-tested on Linux CI). Runtime:
-`sandbox-exec -f <profile> -- <cmd>…` (`//go:build darwin`). Read surface is
-wider than bwrap (dyld/system needs); network and sensitive paths still denied
-per policy. Integration tests run on Darwin only.
+`sandbox-exec -p <profile> -- <cmd>…` (`//go:build darwin`) — profile đi trên
+argv, **không** qua temp file: `sandbox-exec` đọc file sau `exec`, nên unlink
+ngay sau `Start` từng race với child. Read surface rộng hơn bwrap (dyld/system
+needs). Integration tests chạy trên Darwin only.
+
+Bốn điểm Seatbelt **khác** bwrap, đều đã đo trên máy thật và có test. Đối
+chiếu chéo với `codex-rs/sandboxing/src/seatbelt.rs` + `seatbelt_tests.rs` của
+Codex CLI (cùng bài toán, cùng OS): test của họ cũng cấm dòng
+`(allow network-outbound)` trần và cũng chặn rename tổ tiên.
+
+- **Rule sau thắng rule trước.** SBPL không có "deny luôn thắng"; rule khớp
+  cuối cùng quyết định. Vì vậy block `(deny …)` cho sensitive path luôn được
+  phát **sau** mọi `(allow …)` — `seatbelt_profile_test.go` khoá thứ tự này.
+- **`file-read*` và `file-write*` là hai lớp operation độc lập.** Deny một lớp
+  không đụng lớp kia. Khi `WorkDir` (hoặc một RW path) là *tổ tiên* của
+  `~/.ssh` — ví dụ `cwd=$HOME` — deny read-only để `~/.ssh/authorized_keys`
+  **ghi được**. Block deny vì thế phủ cả `file-read* file-write*`
+  (`TestSeatbeltDeniesWriteToDenyPathUnderRWAncestor`). bwrap không có vấn đề
+  này vì `--tmpfs` che cả hai chiều.
+- **`network-outbound` trần bao gồm cả AF_UNIX.** `(allow network-outbound)`
+  không filter cho process với tới *mọi* unix socket trên host —
+  `/var/run/docker.sock` (= host root qua container privileged), listener của
+  ssh-agent, v.v. bwrap không dính vì không bind `/var/run`. `NetworkHost` vì
+  thế chỉ allow `(remote ip "*:*")` cộng đúng một unix socket theo literal path
+  là `/private/var/run/mDNSResponder` (getaddrinfo đi qua nó) — cùng cách các
+  profile trong `/System/Library/Sandbox/Profiles/*.sb` của Apple làm
+  (`TestSeatbeltNetworkHostDeniesUnixSockets`, smoke test HTTPS vẫn 200).
+
+- **`(subpath X)` mất tác dụng khi tổ tiên của X bị đổi tên.** Với
+  `WorkDir=/Users`, `mv /Users/me /Users/x` rồi ghi `/Users/x/.ssh/…` — deny
+  không còn khớp (đo được: `authorized_keys` nhận "pwned"). Vì vậy mỗi tổ tiên
+  của một deny path (trừ `/`) nhận thêm
+  `(deny file-write-unlink (require-all (vnode-type DIRECTORY) (literal …)))`
+  — cùng rule Codex dùng cho protected path
+  (`TestSeatbeltDeniesAncestorRenameBypass`). Rename bình thường trong WorkDir
+  không bị ảnh hưởng.
+
+Ngoài ra profile allow `/dev/null` (read+write, guard `vnode-type
+CHARACTER-DEVICE` như Codex): thiếu nó thì `2>/dev/null` — có trong gần như
+mọi lệnh shell agent chạy — và `ssh-add` fail với `Operation not permitted`.
+
+**Còn mở, có chủ đích:** loopback TCP (`127.0.0.1:5432`, dev server) vẫn với
+tới được dưới `NetworkHost` — agent có thể nói chuyện thẳng với DB local, bỏ
+qua gate của `db.query`. Đóng cái này cần egress proxy (mục Out of scope), không
+phải một rule profile.
+
+### `AllowUnixSockets` (Implemented)
+
+Đã triển khai trong `internal/sandbox/policy.go`, `internal/sandbox/seatbelt_profile.go`, `internal/sandbox/backend_bwrap.go` và kiểm chứng qua `internal/sandbox/backend_seatbelt_test.go` (`TestSeatbeltAllowUnixSocketsConnects`). Sau khi `NetworkHost` chỉ còn IP, agent **không nối được** socket MCP của DevKit nữa — đúng ý cho `mcp.sock` chung, nhưng agent cần một đường về DevKit. Field `Policy.AllowUnixSockets` (đường dẫn tuyệt đối, đi qua `validateBindPaths`) mở đúng socket của session đó, và đó cũng chính là cách identity được cưỡng chế ở kernel (xem [Agent Hub § Agent identity](/dev-kit/agent-hub#agent-identity--ranh-giới-giữa-các-session-implemented)).
+
+- **Seatbelt:** mỗi entry phát `(allow network-outbound (literal <path>))` +
+  `(allow file-read* (literal <path>))`, **sau** block network và **độc lập
+  `NetworkMode`** — đây là IPC cục bộ, agent `NetworkNone` vẫn phải gọi được
+  DevKit; vì rule sau thắng, đặt sau `(deny network-outbound)` là đủ. Chưa chắc
+  Seatbelt có đòi quyền metadata trên thư mục cha khi lookup path socket
+  (comment về `/var` gợi ý có) — test live quyết định, thiếu thì thêm
+  `file-read-metadata` đúng chuỗi cha, không hơn.
+- **bubblewrap:** socket nằm dưới `$HOME` mà `PrivateHome` phủ tmpfs → phát
+  `--bind <path> <path>` sau tmpfs home, cùng slot re-bind WorkDir. Chưa đo trên
+  Linux — cùng trạng thái với thứ tự RO/RW ghi ở [Workspace](/dev-kit/workspace).
+- Proxy `devkit-mcp` vào `ReadOnlyPaths` theo đường dẫn tuyệt đối từ
+  `install.ResolveCommand()`; không tìm thấy → `CreateSession` fail rõ
+  (`ErrProxyNotFound`) thay vì spawn một agent không gọi được DevKit.
 
 ## Ops / tests
 
@@ -121,6 +186,9 @@ go test ./internal/sandbox/ ./internal/arch/ -count=1
 
 go test ./internal/sandbox/ \
   -run 'TestSmokeAgentShapedProcess|TestBwrapCanWriteWorkDirUnderHome|TestStartPiped' -v
+
+# macOS: live Seatbelt invariants (unix socket, write-deny, ancestor rename) + DNS smoke
+DEVKIT_SANDBOX_SMOKE=1 go test ./internal/sandbox/ -run 'Seatbelt|Smoke' -v
 ```
 
 | Host package | Platform |

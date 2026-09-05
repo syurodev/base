@@ -208,10 +208,10 @@ Kết luận thiết kế: **core layer chỉ nên cam kết với phần schema
 | Tool | Effect | Mô tả |
 |---|---|---|
 | `agenthub.listAgents` | `read` | Liệt kê session đang mở (tab), kèm `status` |
-| `agenthub.createAgentSession` | `execute` | Spawn 1 agent CLI mới (`agentType`, `cwd`); nếu gọi từ trong 1 session khác, `depth = parent.depth + 1` |
+| `agenthub.createAgentSession` | `execute` | Spawn 1 agent CLI mới (`agentType`, `cwd`); nếu gọi từ trong 1 session khác, `depth = parent.depth + 1`. Parent lấy từ identity của caller, không từ tham số; `cwd` phải nằm trong `projectPath` của cha (xem [Agent identity](#agent-identity--ranh-giới-giữa-các-session-implemented)) |
 | `agenthub.invokeAgent` | `execute` | Gửi prompt vào 1 session, chờ turn xong hoặc timeout (blocking ở v1), trả kết quả |
 | `agenthub.getSessionStatus` | `read` | Poll trạng thái 1 session |
-| `agenthub.cancelAgent` | `execute` | `session/cancel` cho turn đang chạy trong 1 session |
+| `agenthub.cancelAgent` | `execute` | `session/cancel` cho turn đang chạy trong 1 session. **Design:** chỉ với tới cây con của caller |
 
 `invokeAgent` là **blocking/sync ở v1** (giữ đúng semantics mà agent CLI vốn đã quen khi tự gọi subagent nội bộ, không bơm thêm concept job/polling mới); chuyển sang async job pattern là việc mở sau nếu blocking call thực sự gây nghẽn, không phải build sẵn.
 
@@ -234,6 +234,58 @@ nguyên cho audit.
 - `session/request_permission` không có phản hồi kịp thời → mặc định **reject** (fail closed), không phải allow — khác hẳn hành vi auto-approve của dev tool dùng lúc research.
 - Query `invokeAgent` vào session không tồn tại / đã đóng → `agenthub.sessionNotFound`, không trả kết quả rỗng ngầm định.
 - Vượt depth limit → `agenthub.depthLimitExceeded`, chặn trước khi spawn thêm session.
+- **Design:** target ngoài cây con của caller → `ErrNotDescendant` (bridge map
+  permission denied); `cwd` ngoài `projectPath` cha → `ErrCwdOutsideParent`;
+  `callerSessionId` khác identity thật → `ErrCallerMismatch` (cả hai map
+  validation_failed); không tìm thấy proxy `devkit-mcp` → `ErrProxyNotFound`
+  (unavailable). Mọi lỗi này xảy ra **trước khi spawn** — không để lại process
+  hay socket mồ côi.
+
+### Agent identity & ranh giới giữa các session (Implemented)
+
+Đã triển khai trong `internal/identity`, `internal/mcp/session_host.go` và kiểm chứng qua `internal/agenthub/service_identity_test.go`, `internal/mcp/identity_test.go`. Cơ chế này giải quyết lỗ hổng được chỉ ra trong đợt review 2026-09-05 (xem [Security controls](/dev-kit/security-controls)): trước đây runtime không phân biệt agent nào đang gọi, 56 MCP handler bỏ qua session, `PermissionWaiter` và `interaction.Hub` chỉ giữ một pending cho cả app, và `createAgentSession` không kiểm soát `cwd`. Hệ thống đóng toàn bộ nhóm vấn đề này bằng một cơ chế thống nhất.
+
+**Identity = socket.** Mỗi hub session được một unix socket riêng
+`<UserConfigDir>/DevKit/agents/<16 hex đầu session id>.sock` (rút gọn vì
+`sun_path` macOS giới hạn 104 byte; vượt là lỗi rõ, không cắt ngầm). DevKit
+gắn `Caller{agent, sessionID}` ngay lúc `Accept`, không có bước xác thực nào,
+vì **chỉ sandbox của đúng agent đó** được nối vào socket đó
+(`Policy.AllowUnixSockets`, xem [Sandbox](/dev-kit/sandbox)). Kẻ giả mạo phải
+thắng kernel, không phải thắng code. Socket chung `mcp.sock` giữ nguyên cho
+terminal của người dùng với identity `user-terminal`. Chi tiết phía MCP:
+[MCP / Agent § Caller identity](/dev-kit/mcp-agent#caller-identity--socket-riêng-cho-từng-agent-hub-session-implemented).
+
+**Thứ tự tạo session đảo lại.** `CreateSession` hiện `adapter.Open` trước rồi
+mới sinh UUID (`service.go:70-110`); phải sinh id trước → mở socket cho id đó
+→ `Open` với `cwd` + socket được phép + `mcpServers` → persist. `agenthub`
+không import được `mcp` (chiều ngược đã có) nên khai báo một interface nhỏ
+"mở endpoint MCP cho session id, trả cấu hình `mcpServers` + đường dẫn socket
++ hàm đóng"; `mcp` cung cấp implementation, nối ở `main.go` — cùng pattern
+`EnvLookup`. `VendorAdapter.Open(ctx, cwd)` thành `Open(ctx, spec)` với
+`cwd`, socket được phép, `mcpServers`; Codex/Gemini sau này nhận cùng spec.
+
+**Quy tắc hậu duệ.** Service đọc caller từ `ctx`:
+- Caller **agent**: `CreateSession` ép parent = caller (tham số
+  `callerSessionId` lệch → `ErrCallerMismatch`); depth luôn tính từ row của
+  caller nên `CheckDepth` không còn đường né; `Invoke` / `Cancel` / `Get` /
+  `List` chỉ với tới **cây con** của caller (`ancestorContains` đã có). Session
+  người tạo từ UI không thuộc cây con của agent nào.
+- Caller **ui / user-terminal**: như hôm nay; `CheckCycle` giữ cho đường này.
+
+**`cwd`.** Caller agent: rỗng → kế thừa `projectPath` cha; có giá trị →
+`EvalSymlinks` rồi phải là subpath của `projectPath` cha. Mọi caller: từ chối
+`/` và đúng thư mục home — không cái nào là project, và đây là tiền đề của
+chuỗi tấn công trong review. Khi có Workspace registry, nới thành "path đã
+đăng ký trong workspace của cha".
+
+**Pending không còn single-slot.** `PermissionWaiter` giữ map theo pending id,
+một pending mỗi caller; `Complete(id, …)` giữ hợp đồng. `PendingPermission`
+mang caller; bridge làm giàu title + depth để dialog hiện *"Agent «…» (depth
+2) xin: …"*. Session đóng → hook `OnSessionClosed(id)` (set ở `main.go`) để
+`interaction.Hub` quên `allow_always` của session đó.
+
+**Không đổi trong spec này:** `invokeAgent` vẫn blocking; `MaxDepth = 3`;
+`codegraph.*` vẫn `project:active` (cần [Workspace](/dev-kit/workspace)).
 
 ### Known ceiling (v1)
 
@@ -243,6 +295,11 @@ nguyên cho audit.
 - Router tự động chọn agent theo intent chưa có — v1 chỉ gọi tường minh theo `sessionId`.
 - Chưa có multi-client đồng bộ xem 1 session (kiểu AHP) — ngoài scope v1.
 - Claude adapter chưa được claim production-verified trong CI với Claude Code thật.
+- **Sandbox vendor phải tắt khi spawn qua DevKit.** Trên macOS sandbox không
+  lồng được (`sandbox_apply: Operation not permitted`, đo 2026-09-05); Claude
+  Code `/sandbox` / Codex sandbox bật bên trong jail DevKit làm mọi lệnh bash
+  của agent fail ngầm. Adapter chịu trách nhiệm đảm bảo điều này — xem
+  [Sandbox](/dev-kit/sandbox) và ADR-009.
 
 ## Open questions
 

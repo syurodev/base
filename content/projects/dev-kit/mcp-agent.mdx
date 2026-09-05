@@ -157,7 +157,7 @@ Dialog xác nhận cho gated tool hỗ trợ ba lựa chọn khi env **không** 
 | Choice | Nghĩa |
 |---|---|
 | `allow` | Cho phép **một lần** call này |
-| `allow_always` | Cho phép call này và **nhớ theo tool** trong process DevKit (tới khi restart) — chỉ khi `requiresConfirmation(env) = false` |
+| `allow_always` | Cho phép call này và **nhớ theo tool** trong process DevKit (tới khi restart) — chỉ khi `requiresConfirmation(env) = false`. Key thành `(caller, tool, profile)`, mất khi session agent đóng — xem [Caller identity](#caller-identity--socket-riêng-cho-từng-agent-hub-session-implemented) |
 | `deny` | Từ chối → `permission_denied` |
 
 **Env luôn thắng:** nếu `requiresConfirmation(env) = true` (gồm `prod` và fail-closed):
@@ -184,6 +184,51 @@ Lý do: `allow_always` tiện trên `dev`/`stg`, nhưng không được phép �
 - Call từ UI (`origin` ≠ `"mcp"`) không bị luật này.
 - Đổi `requiresConfirmation` của tag (trừ `prod`) là human-only — xem
   [Environments](/dev-kit/environments).
+
+### Caller identity — socket riêng cho từng Agent Hub session (Implemented)
+
+Đã triển khai trong `internal/mcp/session_host.go`, `internal/identity`, `internal/audit/sqlsink.go` và kiểm chứng qua `internal/mcp/identity_test.go`, `internal/interaction/hub_identity_test.go`. Cơ chế này giải quyết triệt để vấn đề trước đây khi `internal/mcp` chỉ dùng một socket duy nhất không phân biệt ai gọi (dẫn tới nguy cơ agent đọc trộm, ghi đè plan, huỷ turn hoặc dùng ké quyền `allow_always` của agent khác).
+
+**Thiết kế.** Hai loại endpoint:
+- `mcp.sock` chung — như hôm nay, dành cho `claude` / `codex` người dùng tự mở
+  ở terminal (qua auto-install `global`). Identity `user-terminal`; chạy ngoài
+  sandbox với quyền user, không phải đe doạ *thêm*, nhưng cũng chỉ là một
+  caller.
+- Socket riêng theo session — `agents/<id>.sock`, do `mcp.SessionHost` mở khi
+  Agent Hub tạo session; đưa vào agent qua ACP `session/new.mcpServers`
+  (`internal/acp/types_v1.go:26` đã có field, đang để trống) dưới dạng stdio
+  `devkit-mcp --socket <path>` với đường dẫn tuyệt đối. Không cần
+  `~/.claude.json` cho agent DevKit spawn.
+
+**Gắn identity một chỗ.** Mỗi kết nối đi qua `Server.Connect` của go-sdk trả về
+`*ServerSession`; DevKit ghi `ServerSession → Caller` vào map lúc `Accept`. Một
+`ReceivingMiddleware` (go-sdk v1.7.0) đọc `req.GetSession()`, tra map, gắn
+`Caller` vào `ctx`. **56 handler không đổi.** Session không có trong map → mọi
+tool call bị từ chối (fail closed). Package leaf mới `internal/identity` giữ
+`Caller{Kind: agent | user-terminal | ui, SessionID}` + hàm gắn/đọc `ctx`.
+
+**Gateway & audit.** `capabilities.Gateway.Call` đọc `Caller` từ `ctx`; chữ ký
+`Caller.Call` không đổi. `SubjectID` vẫn `builtin.*` ("module nào sở hữu"),
+`Caller` là "ai xin" — hai khái niệm, không gộp. Bridge gắn `ui` ở điểm vào
+chung; không có gì trong `ctx` → ghi `unknown`, **không từ chối** (fail-closed
+ở đây làm gãy caller nội bộ hợp lệ; mọi đường ngoài đã được gắn nhãn).
+`audit.Event` thêm `Caller`, `At`; `audit.SQLSink` ghi bảng `audit_events`
+(migration mới), gom theo lô qua channel có đệm — channel đầy thì ghi **đồng
+bộ**, không rơi; SQLite ghi lỗi thì rơi về `MemorySink` và log to. Retention
+30 ngày, prune lúc khởi động và mỗi giờ. Chưa có UI đọc audit.
+
+**Confirmation.** `interaction.Hub` giữ map pending (một pending mỗi caller);
+`Pending` mang `Caller`; `allow_always` key `(caller, tool, profile)` —
+`GateActiveMCP` đã có `id` profile, chỉ chưa truyền xuống. Mọi terminal của
+người dùng tính là một caller `user-terminal`. Env `requiresConfirmation` vẫn
+luôn thắng. Bridge `InteractionPending` trả **danh sách**; `InteractionHost.tsx`
+render hàng đợi.
+
+**Vì sao socket chứ không phải token.** Token là chuỗi: nằm trong env, lọt vào
+transcript, agent B có token của A thì nối socket chung rồi giả A. Socket riêng
++ `AllowUnixSockets` đặt ranh giới ở kernel. `getpeereid`/pid bị loại vì
+`npx → node → claude → devkit-mcp` là bốn tầng spawn và bwrap có pid namespace
+riêng.
 
 ### Auto-install MCP vào agent (`global` | `project`)
 
@@ -245,6 +290,8 @@ Nhóm thứ hai — tạo profile kèm secret, SSH forwarding, sync mutation —
 - Danh sách tool cố định theo bảng trên — module mới (SSH forwarding, Sync mutation, vault lifecycle) cần thiết kế riêng, không tự động "mở hết" theo effect.
 - Per-tool enable/disable Settings UI cho agent vẫn để sau — v1 dựa grant tĩnh trong `internal/app/container.go`, cộng auto-install config theo agent/scope.
 - Auto-install v1: Claude Code + Codex; Cursor IDE để phase sau.
+- **Single-slot pending / không có caller identity** — Đã giải quyết:
+  [Caller identity (Implemented)](#caller-identity--socket-riêng-cho-từng-agent-hub-session-implemented).
 
 ## Open questions
 

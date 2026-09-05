@@ -333,6 +333,15 @@ sandbox first-party nhưng không đủ cho Hub multi-vendor và spawn ACP.
 - Positive: một `Runner` dùng lại cho mọi vendor; fail-closed khi thiếu `bwrap`.
 - Negative: phụ thuộc package host (`bubblewrap`); macOS dựa API `sandbox-exec`
   deprecated nhưng vẫn là thực tế ngành.
+- Negative (đo 2026-09-05): **sandbox không lồng được trên macOS.** `sandbox-exec`
+  gọi bên trong jail DevKit fail `sandbox_apply: Operation not permitted`; không
+  có SBPL operation nào mở được. Sandbox first-party của vendor (Claude Code
+  `/sandbox`, Codex, Gemini) vì thế là **lựa chọn thay thế, không phải lớp bổ
+  sung** — bật nó bên trong DevKit làm mọi lệnh bash của agent fail ngầm. Vendor
+  adapter phải đảm bảo sandbox first-party tắt khi spawn qua DevKit. Lý do giữ
+  lớp DevKit thay vì lớp vendor: công tắc của vendor nằm trong
+  `.claude/settings.json` / `.codex/config.toml` — file trong thư mục agent
+  ghi được; jail DevKit nằm ở process khác, agent không với tới.
 - Neutral: điều kiện "Agent Hub chỉ ship khi vendor adapter spawn qua sandbox"
   **đã thoả** — Phase 4 v1 (Claude-only) đóng với Claude adapter spawn qua
   `sandbox.DefaultRunner().StartPiped` (biến thể interactive ACP stdio của
