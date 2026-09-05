@@ -73,7 +73,7 @@ Hai cách chạy, cùng nhận `Policy` + `Cmd`:
 
 | Type / func | Role |
 |---|---|
-| `Policy` | WorkDir (abs), RO/RW binds, DenyReadPaths, Env, Network, PrivateHome; **Design:** `AllowUnixSockets` — socket MCP riêng của session (xem dưới) |
+| `Policy` | WorkDir (abs), RO/RW binds, DenyReadPaths, Env, Network, PrivateHome, `AllowUnixSockets`, `AllowKeychain` |
 | `Cmd` | Path + Args; optional Dir under WorkDir |
 | `Runner.Start` | Validate → defaults → Backend.Start — **capture helpers** |
 | `Runner.StartPiped` | Same policy path → Backend.StartPiped — **ACP / interactive stdio** |
@@ -86,7 +86,7 @@ Hai cách chạy, cùng nhận `Policy` + `Cmd`:
 | Field | Default |
 |---|---|
 | Empty `Network` | `none` |
-| `PrivateHome` nil | `true` — force `HOME` + `TMPDIR=/tmp`; **Linux** thêm `--tmpfs $HOME`. **macOS không có tmpfs**: `HOME` vẫn trỏ home thật, home không đọc được chỉ nhờ `(deny default)` |
+| `PrivateHome` nil | `true` — force `HOME` + `TMPDIR=/tmp`; **Linux** thêm `--tmpfs $HOME`. **macOS không có tmpfs**: `HOME` vẫn trỏ home thật, home không đọc được chỉ nhờ `(deny default)`. Không tuyệt đối: caller vẫn khoan được lỗ vào home qua `ReadWritePaths` — Claude adapter làm vậy cho `~/.claude*` (xem [Agent Hub](/dev-kit/agent-hub)) |
 | Sensitive denies | Always on; off only with `DangerousAllowSensitive` (tests) |
 
 ### Errors
@@ -165,19 +165,56 @@ phải một rule profile.
 
 Đã triển khai trong `internal/sandbox/policy.go`, `internal/sandbox/seatbelt_profile.go`, `internal/sandbox/backend_bwrap.go` và kiểm chứng qua `internal/sandbox/backend_seatbelt_test.go` (`TestSeatbeltAllowUnixSocketsConnects`). Sau khi `NetworkHost` chỉ còn IP, agent **không nối được** socket MCP của DevKit nữa — đúng ý cho `mcp.sock` chung, nhưng agent cần một đường về DevKit. Field `Policy.AllowUnixSockets` (đường dẫn tuyệt đối, đi qua `validateBindPaths`) mở đúng socket của session đó, và đó cũng chính là cách identity được cưỡng chế ở kernel (xem [Agent Hub § Agent identity](/dev-kit/agent-hub#agent-identity--ranh-giới-giữa-các-session-implemented)).
 
-- **Seatbelt:** mỗi entry phát `(allow network-outbound (literal <path>))` +
-  `(allow file-read* (literal <path>))`, **sau** block network và **độc lập
-  `NetworkMode`** — đây là IPC cục bộ, agent `NetworkNone` vẫn phải gọi được
-  DevKit; vì rule sau thắng, đặt sau `(deny network-outbound)` là đủ. Chưa chắc
-  Seatbelt có đòi quyền metadata trên thư mục cha khi lookup path socket
-  (comment về `/var` gợi ý có) — test live quyết định, thiếu thì thêm
-  `file-read-metadata` đúng chuỗi cha, không hơn.
+- **Seatbelt:** mỗi entry phát đúng **một** dòng
+  `(allow network-outbound (literal <path đã resolve>))`, **sau** block network
+  và **độc lập `NetworkMode`** — đây là IPC cục bộ, agent `NetworkNone` vẫn
+  phải gọi được DevKit; vì rule sau thắng, đặt sau `(deny network-outbound)` là
+  đủ. Đo được: chỉ cần quyền connect, **không** cần `file-read*` trên socket
+  lẫn quyền metadata trên thư mục cha (câu hỏi để mở trước đây đã có đáp án).
+  Nhưng path **phải** đã resolve symlink — xem mục dưới.
 - **bubblewrap:** socket nằm dưới `$HOME` mà `PrivateHome` phủ tmpfs → phát
   `--bind <path> <path>` sau tmpfs home, cùng slot re-bind WorkDir. Chưa đo trên
   Linux — cùng trạng thái với thứ tự RO/RW ghi ở [Workspace](/dev-kit/workspace).
 - Proxy `devkit-mcp` vào `ReadOnlyPaths` theo đường dẫn tuyệt đối từ
   `install.ResolveCommand()`; không tìm thấy → `CreateSession` fail rõ
   (`ErrProxyNotFound`) thay vì spawn một agent không gọi được DevKit.
+
+### Symlink: allow và deny đều phải resolve (Implemented)
+
+Seatbelt so khớp **path đã resolve**, còn generator từng emit **nguyên văn**.
+Hệ quả là một grant trên symlink không bao giờ khớp: `nvm` cài
+`bin/npx -> ../lib/node_modules/npm/bin/npx-cli.js`, và trong jail node chết
+với `Cannot find module '.../bin/npx'`; project nằm dưới thư mục cha là symlink
+thì âm thầm thành read-only.
+
+Nguy hiểm hơn là **chiều ngược lại**: block `deny` cũng không resolve. Trước
+đây cả hai phía đều không khớp nên không ai đọc được gì — `TestSeatbeltDeniesDotSSH`
+pass **do vô tình**. Sửa xong phía allow là `~/.ssh/id_rsa` đọc được ngay, và
+chính test đó bắt được. Giờ `writeSBPLPath` phát **cả hai** cách viết cho mọi
+allow *và* deny; `validateBindPaths` vẫn resolve rồi từ chối bind nào rơi vào
+deny path, nên việc resolve không nới thêm phạm vi.
+
+**Quyền lookup tổ tiên.** `(subpath X)` không cho process `stat` thư mục cha
+của X, mà resolve một path thì phải đi qua từng cấp: node thoát với
+`EPERM: lstat '/Users'` trước khi đọc nổi file nó đã được cấp. Mỗi tổ tiên của
+mọi path được grant vì thế nhận `(allow file-read-metadata (literal …))` —
+chỉ metadata, không bao giờ mở/đọc thư mục.
+
+Tests: `TestSeatbeltProfileEmitsResolvedFormOfSymlinkedPaths`,
+`TestSeatbeltProfileDenyIsResolvedToo`,
+`TestSeatbeltExecutesThroughSymlinkedReadOnlyPath`,
+`TestSeatbeltProfileDoesNotDuplicatePlainPaths`.
+
+### `AllowKeychain` (Implemented)
+
+Agent xác thực bằng subscription giữ OAuth token trong **macOS Keychain**
+(service `Claude Code-credentials-*`), không phải file lẫn env var —
+`~/.claude.json` chỉ chứa metadata `oauthAccount`. `Policy.AllowKeychain` phát
+đúng tập tối thiểu **đã đo**: `(allow mach-lookup (global-name
+"com.apple.SecurityServer"))` cộng `file-read*` trên `~/Library/Keychains`.
+Thử riêng từng cái đều fail; phải có cả hai. No-op ngoài darwin.
+
+Read-only là đủ: agent tra token của chính nó, không phải ghi lại.
 
 ## Ops / tests
 

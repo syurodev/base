@@ -287,6 +287,38 @@ mang caller; bridge làm giàu title + depth để dialog hiện *"Agent «…»
 **Không đổi trong spec này:** `invokeAgent` vẫn blocking; `MaxDepth = 3`;
 `codegraph.*` vẫn `project:active` (cần [Workspace](/dev-kit/workspace)).
 
+**Đã kiểm chứng end-to-end (2026-09-05).** Một session Claude thật, spawn
+trong sandbox, gọi được `env.listTags` của DevKit: dòng audit
+`caller = agent:<uuid>` / `env:read` / `tag:list` / `allowed` join đúng vào
+`agent_sessions`. Đó là bằng chứng cho cả chuỗi — socket riêng theo session,
+middleware đóng dấu caller, gateway kiểm capability, SQLite lưu kèm caller và
+timestamp.
+
+### Vendor agent cần gì để xác thực (Implemented)
+
+Jail giấu `$HOME`, và thiết kế ban đầu **giả định agent dùng API key**. Đăng
+nhập bằng subscription thì không: agent bắt tay ACP xong rồi chết ở lượt prompt
+đầu tiên với `-32000 Authentication required` (đo được: ~70ms, session sang
+`error`, không turn nào). Bốn thứ phải có, mỗi thứ tìm ra bằng cách đo lỗi kế
+tiếp — không cái nào suy ra được từ đọc code:
+
+| Cần | Vì sao | Biểu hiện khi thiếu |
+|---|---|---|
+| `~/.claude` + `~/.claude.json` read-write | config và session state của Claude Code | không đọc được settings |
+| Keychain | OAuth token thật nằm ở đó — xem [Sandbox § AllowKeychain](/dev-kit/sandbox#allowkeychain-implemented) | `Authentication required` |
+| `USER` (+ `LOGNAME`) trong env allowlist | auth subscription resolve tài khoản qua đây | `Authentication required` **dù keychain đọc được** |
+| `mcpServers` luôn có mặt trong `session/new` | schema v1 bắt buộc, `omitempty` làm nó biến mất | `-32602 Invalid params` |
+
+Grant là **đúng hai path**, không bao giờ cả `$HOME` — có test khoá điều đó.
+Đây là nhượng bộ có chủ ý: bất cứ thứ gì chạy trong jail đó đọc được credential
+của agent. Đổi lại, agent do DevKit spawn mới hoạt động được với tài khoản
+subscription.
+
+`ClaudeOptions.Command` ưu tiên binary `claude-agent-acp` đã cài; `npx -y` chỉ
+là fallback kèm cảnh báo, vì npx cần `~/.npm` ghi được — thứ jail không có.
+Binary Node còn cần cả cây `node_modules` của nó trong `ReadOnlyPaths`, nếu
+không sẽ `ERR_MODULE_NOT_FOUND` ở import đầu tiên.
+
 ### Known ceiling (v1)
 
 - Chỉ target ACP protocol version 1; agent nào chỉ hỗ trợ v2 chưa dùng được.

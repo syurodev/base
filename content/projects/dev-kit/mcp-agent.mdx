@@ -230,6 +230,25 @@ transcript, agent B có token của A thì nối socket chung rồi giả A. Soc
 `npx → node → claude → devkit-mcp` là bốn tầng spawn và bwrap có pid namespace
 riêng.
 
+### `structuredContent` phải là JSON object (Implemented)
+
+go-sdk marshal thẳng giá trị handler trả về vào `structuredContent`, còn spec
+MCP đòi field đó là **object**. Mọi tool trả về mảng, chuỗi hay số vì thế sinh
+ra response bị client vứt trước khi agent nhìn thấy:
+
+> `Invalid result for tools/call: path ["structuredContent"], expected "record", received "array"`
+
+Đó là phần lớn bề mặt tool — `env.listTags`, `notes.list`/`search`,
+`listProfiles` của ssh/db/kafka, `codegraph.listEndpoints`/`readFile`/
+`getBlastRadius`/`waitForIndexReady`, `agenthub.listAgents`. Bug tồn tại từ
+lâu và chỉ lộ khi có agent đầu tiên gọi được tool, sau khi identity xong.
+
+`structured()` (`internal/mcp/result.go`) cho object đi thẳng, bọc thứ khác
+dưới key `result`. Áp ở toàn bộ 56 điểm return của handler.
+
+**Quy ước cho tool mới:** hoặc trả về struct/map, hoặc đi qua `structured()`.
+`TestEveryToolResultIsAnObject` khoá bất biến này.
+
 ### Auto-install MCP vào agent (`global` | `project`)
 
 DevKit cung cấp thao tác **cài / gỡ** entry MCP server tên cố định `devkit` vào
