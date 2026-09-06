@@ -492,12 +492,20 @@ Không cái nào bị protocol bắt buộc; thêm khi có nhu cầu thật.
 
 Agent tự khai (`agentCapabilities`) những thứ DevKit chưa dùng: `loadSession`, `promptCapabilities.image`, `promptCapabilities.embeddedContext`, `mcpCapabilities.http`/`sse`, `auth.logout`, và `sessionCapabilities` gồm `close`, `delete`, `fork`, `list`, `resume`, `subagents`, `additionalDirectories`.
 
-### T0 — Đo trước, đừng xây
+### T0 — Đo trước, đừng xây (Đã đo 2026-09-06)
 
-Hai phép đo rẻ, không cam kết thiết kế nào, và cả hai đều nhằm tránh lặp lại việc suy ra hành vi từ việc đọc bundle của vendor.
+Kết quả, trên `claude-agent-acp` 0.74.0. Cách đo: dựng client ACP tối thiểu, khai capability, chạy turn thật, đếm method agent gọi ngược.
 
-- **Log `UnknownMethod`.** `claudeConnHandler.UnknownMethod` trong `internal/agenthub/adapter_claude.go` hiện trả lỗi và **không ghi gì** — comment của `internal/acp/handler.go` còn lấy đúng `fs/*` làm ví dụ cho method chưa hỗ trợ. Nghĩa là nếu agent từng gọi `fs/read_text_file`, DevKit đã âm thầm trả lỗi mà không ai biết. Thêm hook báo cáo giống `OnUnknownUpdate`, rồi chạy vài session thật. Đây là câu trả lời dứt điểm cho câu hỏi `fs/*` bên dưới, tốn vài dòng.
-- **Capture session có subagent.** `TestClaudeACPCapture` đã dựng sẵn để làm việc này; chỉ cần một prompt buộc agent spawn subagent. Kết quả ghi thẳng vào `testdata/`, và là input cho T2.
+- **`fs/*` và `terminal/*`: agent không dùng.** Khai đủ `fs.readTextFile`, `fs.writeTextFile`, `terminal: true`, rồi chạy ba ca — đọc file trong cwd, ghi file **ngoài** cwd, chạy lệnh Bash. Agent gọi ngược đúng `session/request_permission` (2 lần) và **không một lần** `fs/*` hay `terminal/*`; nó tự đọc/ghi trong process của mình. Kết luận: **Capability Gateway không mediate được file access của agent qua ACP với vendor này** — cửa duy nhất là `session/request_permission` (đã có) và `PreToolUse` hook (đã có). Bỏ mục `fs/*` khỏi T2; giữ log ở `UnknownMethod` để biết nếu điều này đổi.
+- **`clientCapabilities` rỗng đang làm mất dữ liệu.** Cùng một prompt spawn hai subagent, chỉ khác một field: khai `subagents: {}` làm `agent_message_chunk` nhảy từ **2 lên 13**. Đó là `forwardSubagentText` trong adapter bật lên. Nghĩa là **hôm nay DevKit đang mất toàn bộ text của subagent**, không phải vì chưa render mà vì chưa hỏi. Đây là bug, không phải tính năng thiếu.
+- **Kind `subagent_*` cần thêm gì đó nữa.** Khai `subagents: {}` mở được text nhưng vẫn chưa thấy `subagent_spawned` / `subagent_state_update`. Đường còn lại trong adapter là "air extension": `clientCapabilities._meta` phải mang version + danh sách capability, với `nativeSubagentSessions` (hoặc `_meta["subagent-transcript"] = true` cho bản transcript). Chưa xác minh — **đừng implement theo suy đoán**, đo tiếp trước.
+
+### T0 — công cụ để đo lại
+
+Kết luận ở trên đúng với một version của một vendor, nên hai công cụ dưới ở lại trong repo để đo lại khi nghi ngờ, thay vì phải dựng client tạm lần nữa.
+
+- `ClaudeOptions.OnUnknownMethod` (`internal/agenthub/adapter_claude.go`) báo mỗi method agent→client chưa implement, một lần mỗi process; `main.go` ghi ra log kèm 300 ký tự params. Trước đó `UnknownMethod` trả lỗi cho agent và **không ghi gì** — comment của `internal/acp/handler.go` lấy đúng `fs/*` làm ví dụ, nên một `fs/read_text_file` gọi vào mỗi turn từ Phase 4 tới giờ cũng sẽ không để lại dấu vết nào. Đây là thứ sẽ báo nếu kết luận "agent không dùng `fs/*`" hết đúng.
+- `DEVKIT_CLAUDE_CAPTURE_PROMPT` mở khoá prompt của `TestClaudeACPCapture`, vốn hardcode một kịch bản read/edit/shell. Kind chưa model chỉ xuất hiện khi turn làm việc khác, và sửa test mỗi lần đổi câu hỏi thì câu hỏi sau lại phải sửa nữa.
 
 ### T1 — Đã đặc tả, agent hỗ trợ, vá bug đang tồn tại
 
