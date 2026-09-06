@@ -507,10 +507,12 @@ Kết luận ở trên đúng với một version của một vendor, nên hai c
 - `ClaudeOptions.OnUnknownMethod` (`internal/agenthub/adapter_claude.go`) báo mỗi method agent→client chưa implement, một lần mỗi process; `main.go` ghi ra log kèm 300 ký tự params. Trước đó `UnknownMethod` trả lỗi cho agent và **không ghi gì** — comment của `internal/acp/handler.go` lấy đúng `fs/*` làm ví dụ, nên một `fs/read_text_file` gọi vào mỗi turn từ Phase 4 tới giờ cũng sẽ không để lại dấu vết nào. Đây là thứ sẽ báo nếu kết luận "agent không dùng `fs/*`" hết đúng.
 - `DEVKIT_CLAUDE_CAPTURE_PROMPT` mở khoá prompt của `TestClaudeACPCapture`, vốn hardcode một kịch bản read/edit/shell. Kind chưa model chỉ xuất hiện khi turn làm việc khác, và sửa test mỗi lần đổi câu hỏi thì câu hỏi sau lại phải sửa nữa.
 
-### T1 — Đã đặc tả, agent hỗ trợ, vá bug đang tồn tại
+### T1 — Đã đặc tả, agent hỗ trợ, vá bug đang tồn tại (Implemented 2026-09-06)
 
-- **Khai báo `clientCapabilities` trong `initialize`.** Điều kiện tiên quyết cho mọi mục còn lại: agent quyết định gọi `fs/*`, gửi ảnh, hay dùng terminal dựa trên đúng field này. Hiện DevKit im lặng nên agent không bao giờ thử.
-- **`session/load`.** Agent khai `loadSession: true`. `internal/agenthub/service.go` đã tự ghi lỗi mà method này vá: sau khi process khởi động lại, row trong store sống lâu hơn runtime trong memory, và `Invoke`/`Cancel` trả `ErrUnavailable` cho những session mồ côi đó. Đây là mục có căn cứ chắc nhất — doc yêu cầu, agent hỗ trợ, và nó sửa một khiếm khuyết đã biết chứ không thêm tính năng.
+- **`clientCapabilities`** — `devkitClientCapabilities()` trong `internal/agenthub/adapter_claude.go`. Khai `subagents`; **không** khai `fs`/`terminal` vì `ClientHandler` không implement chúng và `UnknownMethod` từ chối — khai thứ mình từ chối phục vụ là mời một request để trả lỗi. Đo qua chính adapter, cùng prompt spawn hai subagent: `agent_message_chunk` **7 → 20**. Cơ chế là `forwardSubagentText` trong adapter của vendor, gate đúng vào field này; số lượng dao động theo lượt, chiều thì không.
+- **`session/load`** — `acp.SessionLoadRequest`/`SessionLoadResult`, `SessionLoader` (optional interface, vì `loadSession` là sự thật về từng vendor chứ không phải mọi vendor), `ClaudeAdapter.Load`, và `Service.resumeRuntime` gọi khi `Invoke` gặp session không còn runtime. Vendor replay lịch sử trong lúc load; DevKit **bỏ** phần replay đó vì handler còn `nil` cho tới khi Service cài — transcript đã nằm trong SQLite, resume mà ghi lại là mỗi lần khởi động cuộc hội thoại dài thêm một lần.
+
+  Vendor không có `SessionLoader` vẫn trả `ErrUnavailable` y như cũ: hành vi cũ là sàn, không phải thứ bị thay. Bằng chứng end-to-end ở `TestClaudeACPResumeAcrossProcesses` — giết process, load lại, agent nhớ được codeword đặt trước đó.
 
 ### T2 — Mở rộng theo đúng thứ agent quảng cáo
 
