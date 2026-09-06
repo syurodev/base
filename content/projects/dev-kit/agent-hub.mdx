@@ -73,8 +73,8 @@ Dev dùng nhiều agent CLI khác nhau (Claude Code, Codex, Gemini CLI...) nhưn
 
 | ID | Requirement |
 |---|---|
-| FR-1 | User mở được 1 agent session mới (chọn `agentType` + working directory) → xuất hiện thành 1 tab. |
-| FR-2 | Mỗi tab là 1 tiến trình con ACP độc lập (agent CLI/adapter chạy qua stdio), không chia sẻ state với tab khác. |
+| FR-1 | User mở được 1 agent session mới (chọn `agentType` + working directory). *Hình thái "1 tab mỗi agent" đã được thay bằng swarm tree — xem [UI](#ui--ba-bề-mặt-design).* |
+| FR-2 | Mỗi session là 1 tiến trình con ACP độc lập (agent CLI/adapter chạy qua stdio), không chia sẻ state với session khác. |
 | FR-3 | UI hiển thị real-time các `session/update` (text chunk, tool call + status, plan) khi agent đang chạy turn. |
 | FR-4 | Mọi `session/request_permission` từ agent con **phải** qua Capability Gateway để quyết định — không có chế độ auto-approve mặc định (khác hẳn dev tool tham khảo dùng khi research, vốn auto-approve mọi request). |
 | FR-5 | Expose MCP tool `agenthub.invokeAgent` (+ `listAgents`/`createAgentSession`/`getSessionStatus`/`cancelAgent`) để 1 agent (đang chạy trong 1 tab) gọi sang agent khác. |
@@ -319,6 +319,146 @@ là fallback kèm cảnh báo, vì npx cần `~/.npm` ghi được — thứ jai
 Binary Node còn cần cả cây `node_modules` của nó trong `ReadOnlyPaths`, nếu
 không sẽ `ERR_MODULE_NOT_FOUND` ở import đầu tiên.
 
+### UI — ba bề mặt (Design)
+
+Thiết kế: [Figma page 17 · Agent Hub](https://www.figma.com/design/3dOzSZBYY7QtzANFTCfEe8/DevKit?node-id=904-2).
+
+**Thay cho mô hình "mỗi agent một tab".** Tab hợp lý khi có hai ba agent và bạn
+ngồi trong module Agent Hub. Nó hỏng ở hai điểm khi swarm lớn: tab strip không
+diễn tả được quan hệ cha→con mà `authorizeTarget` cưỡng chế, và tab **giam agent
+bên trong module** — trong khi cả điểm của swarm là chúng chạy tiếp lúc bạn làm
+việc ở Notes hay CodeGraph. Per-session tab chưa từng được implement (xem
+[Implementation status](/dev-kit/implementation-status)), nên đây là thay một kế
+hoạch, không phải thay một thứ đang chạy.
+
+Ba bề mặt, mỗi cái phủ một thời điểm khác nhau:
+
+| Bề mặt | Kích thước | Lúc nào | Việc |
+|---|---|---|---|
+| `Agent / Rail` | 320×856, khớp `panel-surface` | panel mở, ở bất kỳ module nào | Hội thoại với agent đang chọn + strip chuyển bầy; permission hiện **inline** |
+| `Agent / Permission Toast` | 420, nổi góc dưới-phải | panel đóng, hoặc đang ở module khác | Xin quyền kèm đủ danh tính |
+| `Agent / Dock Badge` | 16 (count) / 8 (dot) | không có gì khác trên màn hình | Tồn đọng: có N agent đang chờ bạn |
+
+Toast là **sự kiện**, badge là **trạng thái**. Thiếu badge thì một request đến
+lúc bạn rời máy sẽ không để lại dấu vết nào — mà gate fail-closed sau 60 giây,
+nên "không dấu vết" nghĩa là lượt của agent đã bị từ chối và không ai biết vì sao.
+
+**Permission không bao giờ là modal.** Request chặn *agent*, không chặn *người*.
+Modal cướp mất module đang làm dở, đúng thứ swarm sinh ra để tránh. Thẻ nằm
+inline trong rail; khi rail đóng thì thành toast.
+
+**Mọi thẻ permission nêu agent nào đang xin**, kèm depth và working directory.
+Với một agent đó là trang trí; với N agent nó là khác biệt giữa duyệt có cơ sở và
+duyệt mù. Đây chính là dữ liệu mà [caller identity](#agent-identity--ranh-giới-giữa-các-session-implemented)
+mới bắt đầu cung cấp.
+
+**Toast cố ý không có "Allow always".** Đó là bề mặt ít ngữ cảnh nhất — bạn đang
+ở module khác, không thấy transcript. Một grant sống lâu hơn cả lượt phải được
+cấp từ rail, nơi nhìn được đủ. Toast có nút "Open rail" cho đúng việc đó.
+
+**Toast hiện deadline chứ không giấu.** `interaction.DefaultTimeout` là 60 giây và
+fail-closed; một toast tự tắt sẽ từ chối lượt của agent trong im lặng.
+
+Trong module Agent Hub: `Agent Hub / Sidebar Content` (264×836) là bầy dưới dạng
+**cây** — thụt lề chính là chuỗi cha→con, cũng là ranh giới một agent được phép
+với tới; `Agent Hub / Content` (1136×804 — bằng `content-slot`, tức
+`content-surface` 852 trừ 48 của tab strip) là bản đọc rộng: header có chuỗi
+cha, transcript đầy đủ, composer ở đáy. Cả hai không tự tô nền — slot của shell
+sở hữu surface, xem [Shell primitives](/dev-kit/shell-primitives).
+
+**Chi phí hiện ngay trên ô nhập, không ở sidebar.** `Agent / Composer`
+(1096×172 ở content, 280×144 ở rail) là **một khung viền bao đúng ô nhập** —
+không bao transcript — và dải meta nằm bên trong khung đó, ngay trên field:
+số lượt + chi phí luỹ kế bên trái, vendor + phiên bản agent bên phải. Đó là dữ
+liệu **agent tự báo** (`usage_update` và `_meta._claude/rateLimit` của lượt),
+nên nó thuộc về chỗ sinh ra nó — cái lượt bạn đang sắp gửi — chứ không phải một
+cột tiền trong danh sách agent, nơi nó sẽ bị đọc thành bảng xếp hạng. Không có
+đường phân cách giữa composer và transcript: viền của composer **chính là** ranh
+giới đó.
+
+Composer **biến mất** ở `State=Error` và `State=Empty` của cả hai bề mặt: phiên
+chết hoặc chưa có phiên thì không có gì để gửi tới, và một ô nhập vô hiệu vẫn
+mời người ta gõ vào.
+
+**Chat dùng anatomy của shadcn `Message`.** Tên layer trong Figma trùng tên slot
+để map 1:1: `MessageAvatar`, `MessageContent`, `MessageHeader`, `Bubble` →
+`BubbleContent`, `MessageFooter`; `align` start cho agent, end cho người dùng.
+
+Một lưu ý chỉ đúng cho Figma, **không** mang sang code: bubble ở đó phải có
+variant `Width` (Rail / Wide) vì Figma không cho override `maxWidth` lẫn chiều
+rộng text bên trong instance. Trong React thì `max-w-[…]` là đủ — đừng sinh hai
+biến thể component chỉ vì hạn chế của công cụ thiết kế.
+
+**Transcript render đúng những gì ACP phát ra, không hơn.** Một `ToolCall` mang
+`content` ở **ba dạng** (`content` với content block, `diff` với `path`/`oldText`/
+`newText`, `terminal` với `terminalId`), thêm `kind` (9 giá trị, từ `read` tới
+`execute`) và `locations` (`path` + `line`) mà spec nói client nên render để làm
+follow-along. Content block thì có `text`, `image`, `audio`, `resource_link`,
+`resource`. Mỗi khối dưới đây tồn tại vì một trong những thứ đó, không phải vì
+chat nào cũng có.
+
+Component có sẵn trên page 17 (số trong ngoặc là số variant):
+
+| Component | Kích thước | Phủ việc gì |
+|---|---|---|
+| `Agent / State` (5) | 34–61×16 | `Status` Idle / Running / Awaiting / Error / Closed |
+| `Agent / Row` (3) | 264×56 | một agent trong cây bầy — `State` Rest / Hover / Selected |
+| `Agent / Message` (4) | 272–720×72–136 | bubble chat, `Align` Start/End × `Width` Rail/Wide |
+| `Agent / Message Rich` (1) | 720×436 | mẫu chốt ngôn ngữ markdown của câu trả lời — xem dưới |
+| `Agent / Image` (1) | 400×257 | content block `image`: khung 16:9 + tên file + kích thước |
+| `Agent / Code Block` (2) | 536×136 | code trong câu trả lời — `State` Default / Collapsed |
+| `Agent / File Chip` (1) | 178×24 | `resource_link` và `locations` — `path` + `:line` |
+| `Agent / Thinking` (2) | 536×32–88 | khối reasoning — `State` Collapsed / Expanded |
+| `Agent / Tool Call` (5) | 536×72–96 | `State` Pending / Running / Awaiting / Done / Failed, kèm icon `kind` và hàng `locations` |
+| `Agent / Tool Diff` (1) | 536×168 | `ToolCallContent` `diff` — dùng lại `Diff / Line` của page 08 |
+| `Agent / Tool Terminal` (3) | 536×96–112 | `ToolCallContent` `terminal` — `State` Running / Exited / Failed |
+| `Agent / Plan` (1) | 536×180 | `session/update` kind `plan` |
+| `Agent / Invoke Result` (1) | 536×220 | kết quả `invokeAgent` (`summary`, `filesChanged`) |
+| `Agent / Rate Limit` (2) | 536×40 | `_meta._claude/rateLimit` — `Level` Warning / Exhausted |
+| `Agent / Session Error` (2) | 536×124 | `Cause` Crashed / Denied — banner kèm mã lỗi DevKit |
+| `Agent / Permission Request` (2) | 272×180–208 | thẻ inline trong rail — `Env` Open / Locked |
+| `Agent / Permission Toast` (2) | 420×220–248 | `Env` Open / Locked, khi rail đóng hoặc ở module khác |
+| `Agent / Dock Badge` (2) | 16 / 8 | `State` Waiting (count) / Running (dot) |
+| `Agent / New Session` (2) | 440×304–352 | tạo phiên — `State` Default / Error |
+| `Agent / Meta Inspector` (1) | 544×444 | `_meta` thô của một `session/update` |
+| `Agent / Menu` (2) | 320×168 | popover của composer — `Mode` Commands (`available_commands_update`) / Context |
+| `Agent / Jump To Latest` (1) | 128×24 | pill nổi khi transcript đã cuộn lên |
+| `Agent / Composer` (6) | 1096×164–200 / 280×146–182 | `Size` Wide/Rail × `State` Idle / Streaming / Attached |
+| `Agent / Rail` (2) | 320×856 | bề mặt panel — `State` Conversation / Empty |
+| `Agent Hub / Sidebar Content` (1) | 264×836 | cây bầy trong module |
+| `Agent Hub / Content` (3) | 1136×804 | bản đọc rộng — `State` Conversation / Empty / Error |
+
+**Composer có ba trạng thái, không phải bốn.** `Idle` gửi, `Streaming` biến nút
+gửi thành **stop** (`session/cancel`), `Attached` hiện hàng file đính kèm bên
+trong khung nhập. "Streaming + có đính kèm" không phải trạng thái có thật —
+đính kèm biến mất khi gửi — nên đây là **một trục ba giá trị**, không phải hai
+trục nhân nhau.
+
+**Markdown của agent nói cùng ngôn ngữ với phần còn lại của app.** `Agent /
+Message Rich` là **một** mẫu chốt toàn bộ các dạng thay vì tách component cho
+từng loại: heading dùng `Title/16` (thang không có 14/15, bậc trên 13 là 16),
+đoạn văn `Body/13`, list có marker `text/tertiary` thụt treo, inline code là chip
+`surface/base` chữ `Code/12` (mono nhỏ hơn sans 1px), link `status/info` gạch
+chân, blockquote có vạch trái 2px, bảng header `Label/12` trên `surface/base`.
+Đoạn chứa inline code dùng auto-layout **WRAP** giống `para-with-links` của
+[Notes](/dev-kit/notes) — cùng một cách giải, không phát minh lại.
+
+**Code không bao giờ xuống dòng.** Ở rail 288px, mono 12 mà wrap thì không đọc
+được; `Agent / Code Block` và `Agent / Tool Terminal` để phần thân hug chiều
+rộng tự nhiên và cho khung cắt — tức là một vùng **cuộn ngang**. Đường dẫn trong
+header thì truncate một dòng, không wrap.
+
+Bốn màn hình lắp sẵn trong `App Shell` để đọc cùng lúc: **A** trong module Agent
+Hub (rail đóng), **B** rail mở đè lên module khác, **C** rail đóng và permission
+đến bằng toast, **D** một phiên crash. Toàn bộ page 17 đã bind 100% text style,
+spacing và radius theo [Design system](/dev-kit/design-system).
+
+<Callout type="info" title="Chưa vẽ, có chủ đích">
+Con trỏ đang stream trong bubble (là override nội dung, không phải component),
+vạch phân cách lượt và timestamp trong transcript, nút xoá trên chip đính kèm.
+Không cái nào bị protocol bắt buộc; thêm khi có nhu cầu thật.
+</Callout>
+
 ### Known ceiling (v1)
 
 - Chỉ target ACP protocol version 1; agent nào chỉ hỗ trợ v2 chưa dùng được.
@@ -327,6 +467,9 @@ không sẽ `ERR_MODULE_NOT_FOUND` ở import đầu tiên.
 - Router tự động chọn agent theo intent chưa có — v1 chỉ gọi tường minh theo `sessionId`.
 - Chưa có multi-client đồng bộ xem 1 session (kiểu AHP) — ngoài scope v1.
 - Claude adapter chưa được claim production-verified trong CI với Claude Code thật.
+- UI mới là **Design**: chưa có code nào của `Agent / Rail`, toast hay dock badge.
+  `frontend/src/workbench/AgentCompanion.tsx` là bản một-agent đi trước, chưa có
+  strip chuyển bầy lẫn cây cha→con.
 - **Sandbox vendor phải tắt khi spawn qua DevKit.** Trên macOS sandbox không
   lồng được (`sandbox_apply: Operation not permitted`, đo 2026-09-05); Claude
   Code `/sandbox` / Codex sandbox bật bên trong jail DevKit làm mọi lệnh bash
