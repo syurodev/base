@@ -482,11 +482,53 @@ Không cái nào bị protocol bắt buộc; thêm khi có nhu cầu thật.
   của agent fail ngầm. Adapter chịu trách nhiệm đảm bảo điều này — xem
   [Sandbox](/dev-kit/sandbox) và ADR-009.
 
+## Kế hoạch ACP — phần surface còn thiếu
+
+Đo ngày 2026-09-06 trên `claude-agent-acp` 0.74.0. Ba con số định hình toàn bộ phần dưới:
+
+- `initialize` của DevKit (`internal/agenthub/adapter_claude.go`) gửi **duy nhất `clientInfo`** — không khai báo `clientCapabilities` nào. Agent vì thế không biết DevKit hỗ trợ gì, và mặc định coi như không hỗ trợ gì cả.
+- Doc này (§ Technical design) đặc tả 13 mục cho ACP core types; `internal/acp/types_v1.go` hiện có **6**. Thiếu: `session/load`, `fs/*`, `terminal/*`, và các struct tool call / plan / session mode.
+- Agent phát **15** `sessionUpdate` kind; `internal/agenthub/update.go` parse **6**. Chín kind còn lại rơi vào `UpdateUnknown` (nay đã có `OnUnknownUpdate` báo mỗi kind một lần/session — chính nó tìm ra `session_info_update` mang title).
+
+Agent tự khai (`agentCapabilities`) những thứ DevKit chưa dùng: `loadSession`, `promptCapabilities.image`, `promptCapabilities.embeddedContext`, `mcpCapabilities.http`/`sse`, `auth.logout`, và `sessionCapabilities` gồm `close`, `delete`, `fork`, `list`, `resume`, `subagents`, `additionalDirectories`.
+
+### T0 — Đo trước, đừng xây
+
+Hai phép đo rẻ, không cam kết thiết kế nào, và cả hai đều nhằm tránh lặp lại việc suy ra hành vi từ việc đọc bundle của vendor.
+
+- **Log `UnknownMethod`.** `claudeConnHandler.UnknownMethod` trong `internal/agenthub/adapter_claude.go` hiện trả lỗi và **không ghi gì** — comment của `internal/acp/handler.go` còn lấy đúng `fs/*` làm ví dụ cho method chưa hỗ trợ. Nghĩa là nếu agent từng gọi `fs/read_text_file`, DevKit đã âm thầm trả lỗi mà không ai biết. Thêm hook báo cáo giống `OnUnknownUpdate`, rồi chạy vài session thật. Đây là câu trả lời dứt điểm cho câu hỏi `fs/*` bên dưới, tốn vài dòng.
+- **Capture session có subagent.** `TestClaudeACPCapture` đã dựng sẵn để làm việc này; chỉ cần một prompt buộc agent spawn subagent. Kết quả ghi thẳng vào `testdata/`, và là input cho T2.
+
+### T1 — Đã đặc tả, agent hỗ trợ, vá bug đang tồn tại
+
+- **Khai báo `clientCapabilities` trong `initialize`.** Điều kiện tiên quyết cho mọi mục còn lại: agent quyết định gọi `fs/*`, gửi ảnh, hay dùng terminal dựa trên đúng field này. Hiện DevKit im lặng nên agent không bao giờ thử.
+- **`session/load`.** Agent khai `loadSession: true`. `internal/agenthub/service.go` đã tự ghi lỗi mà method này vá: sau khi process khởi động lại, row trong store sống lâu hơn runtime trong memory, và `Invoke`/`Cancel` trả `ErrUnavailable` cho những session mồ côi đó. Đây là mục có căn cứ chắc nhất — doc yêu cầu, agent hỗ trợ, và nó sửa một khiếm khuyết đã biết chứ không thêm tính năng.
+
+### T2 — Mở rộng theo đúng thứ agent quảng cáo
+
+- **Subagent.** `sessionCapabilities.subagents` cộng hai kind `subagent_spawned` / `subagent_state_update` chưa model. Cây swarm ở `_Slot / Sidebar Content` tồn tại chính là để hiển thị dữ liệu này; hiện nó chỉ vẽ được session do người tạo. Phụ thuộc capture ở T0.
+- **Prompt không chỉ có text.** `acp.PromptRequest` đã model `[]ContentBlock` đúng chuẩn, nhưng `SessionRuntime.Prompt` trong `internal/agenthub/adapter.go` nhận `string`, bóp mất chỗ đó. Hệ quả nhìn thấy được: nút "Add context" trên `AgentComposer` và component `AgentImage` (dựng theo Figma) không có đường nào nhận đính kèm. Đổi chữ ký là mở khoá cả `promptCapabilities.image` lẫn `embeddedContext`.
+- **`fs/*` và `terminal/*`.** NFR-1 gọi đây là client-side surface để Gateway mediate — tức mọi file access của agent lẽ ra đi qua Capability Gateway. Hiện agent dùng tool Read/Write riêng, ghi thẳng vào đĩa trong sandbox, Gateway không thấy gì; cùng loại điểm mù với cổng permission. **Nhưng chưa chứng minh được agent sẽ dùng**: trong bundle có plumbing (`readTextFile`/`writeTextFile` proxy qua `methods.client.fs.*`) mà không tìm ra call site. Gate mục này sau kết quả T0.
+- **`fork` / `list` / `delete` / `resume`.** Đáng chú ý `delete`: `Service.DeleteSession` hiện chỉ xoá row phía DevKit, agent có `delete` riêng — cần biết hai bên có phải cùng một thứ không trước khi coi là đã xong.
+
+### T3 — Dọn tầng
+
+Struct tool call, plan, session mode: doc đặt ở `internal/acp`, code thực tế nằm trong `internal/agenthub/update.go`. Chọn một — dời code, hoặc sửa doc — nhưng không để hai bên nói khác nhau, vì đó là cách một đặc tả trở nên vô dụng.
+
+### Hoãn có chủ đích
+
+Protocol v2 (đã ghi out-of-scope ở [roadmap](/dev-kit/roadmap) Phase 4). Codegen struct từ `schema/v1` — vẫn là câu hỏi mở bên dưới, và T1 không đợi nó.
+
+### Thứ tự đề nghị
+
+T0 trước vì nó rẻ và nó quyết định `fs/*` có đáng làm không. Rồi `clientCapabilities` + `session/load` (T1) vì cả hai đã có căn cứ và không phụ thuộc phép đo nào. Subagent và prompt content block sau đó, theo thứ tự capture về trước.
+
 ## Open questions
 
 - Chuẩn hóa Go struct bằng codegen từ JSON schema chính thức (`schema/v1`) hay viết tay? Codegen giảm rủi ro lệch field khi upstream cập nhật, nhưng thêm bước build phụ thuộc vào việc theo dõi release của `agentclientprotocol` org.
 - Session data (transcript, cost) có nên cho phép opt-in sync không, hay tuyệt đối local-only như NFR-5 đề ra? (liên quan tới câu hỏi sync đã có ở [Open questions](/dev-kit/open-questions))
 - Vendor thứ 2 nên ưu tiên viết adapter là Codex hay Gemini CLI — cần biết cả hai có ACP-compatible adapter chính thức/community ở mức trưởng thành tương đương `claude-agent-acp` không trước khi cam kết.
+- `fs/*` và `terminal/*` có thực sự được `claude-agent-acp` gọi không, hay chỉ là plumbing chưa dùng? Quyết định cả việc Capability Gateway có mediate được file access của agent hay không — đo bằng T0 trước khi cam kết.
 - Ai chịu trách nhiệm theo dõi version bump từ `agentclientprotocol` org theo thời gian — nên có ADR riêng ghi rõ (giống ADR-002) thay vì để ngầm định.
 
 import { Cards, Card } from 'fumadocs-ui/components/card';

@@ -65,6 +65,10 @@ trang kiểm chứng.
   (non-mock) qua `sandbox.DefaultRunner()`**; audit `origin=mcp|ui`; không bypass
   Capability Gateway. Codex/Gemini **không** bắt buộc để đóng Phase 4.
 - Dependencies: Phase 0–2; MCP Implemented; **sandbox Implemented**.
+- Còn nợ trên chính lớp ACP: Phase 4 đóng với 6/13 mục core types mà § Technical
+  design đặc tả, và `initialize` chưa khai `clientCapabilities` nào — kế hoạch
+  lấp phần còn lại ở [`/dev-kit/agent-hub`](/dev-kit/agent-hub) § Kế hoạch ACP.
+  Không mở lại Phase 4; đây là việc của Phase 5 trở đi.
 - Out of scope (v1): Codex/Gemini adapters; external plugins; marketplace; ACP v2;
   Windows sandbox parity; microVM-per-tab; production CI smoke vs real Claude Code
   (desktop smoke recommended).
