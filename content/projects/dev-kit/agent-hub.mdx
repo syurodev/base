@@ -188,7 +188,11 @@ sequenceDiagram
   > Phụ thuộc còn sâu hơn "spawn binary của họ": cách ly permission của DevKit đi qua `session/new` `_meta.claudeCode.options` — **extension riêng của package đó, không thuộc spec ACP**. Hai thứ bám vào đó: `settingSources: []` (chặn `~/.claude/settings.json` của người dùng cấp allow rule vượt cổng) và `settings.hooks.PreToolUse` (chặn tool đọc credential mà jail buộc phải bind RW). Package đổi đường là cả hai lặng lẽ mất, agent vẫn chạy bình thường.
   >
   > Chốt lại bằng test, không bằng niềm tin: `TestClaudeACPMetaChannelStillWorks` chạy agent thật và assert hook thực sự chặn. Hook được cài qua đúng kênh với `settingSources`, nên một assert phủ cả hai. Đã verify chiều ngược lại — đổi tên option làm test đỏ.
-- **ACP core types (protocol v1)** — struct Go cho request/response/notification theo schema v1 chính thức (`initialize`, `session/new`, `session/load`, `session/prompt`, `session/cancel`, `session/update`, `session/request_permission`, `fs/*`, `terminal/*`, content block, tool call, plan, session mode). Mọi field `_meta` trên các struct này khai báo kiểu `json.RawMessage` — **core không bao giờ parse cứng nội dung `_meta`**.
+- **ACP core types (protocol v1)** — `internal/acp/types_v1.go`: struct Go cho request/response/notification theo schema v1 chính thức (`initialize`, `session/new`, `session/load`, `session/delete`, `session/prompt`, `session/cancel`, `session/update`, `session/request_permission`, `fs/*`, `terminal/*`, content block). Mọi field `_meta` trên các struct này khai báo kiểu `json.RawMessage` — **core không bao giờ parse cứng nội dung `_meta`**.
+
+  **Ranh giới: `internal/acp` giữ hình dạng dây, `internal/agenthub` giữ hình dạng DevKit đọc.** `session/update` là polymorphic — transport để nguyên nó là blob (`acp.SessionUpdateParams.Update`), và struct tool call, plan, session mode, subagent, usage nằm ở `internal/agenthub/update.go` vì chúng là dạng **đã chuẩn hoá**: chúng có tag JSON được ghi thẳng vào SQLite và được `frontend/src/modules/agenthub/types.ts` soi gương từng field. Đưa chúng xuống `internal/acp` là bắt tầng protocol gánh luôn schema lưu trữ và hợp đồng UI của DevKit.
+
+  **Ngoại lệ có chủ đích: content block chỉ có một.** Nó là hình dạng dây, không phải bản dịch của hình dạng dây — cùng object cho cả prompt gửi đi lẫn chunk nhận về. `agenthub.ContentBlock` vì thế là alias tới `acp.ContentBlock`, không phải bản sao. Trước đó nó là bản sao, và bản sao đã lệch thật: `acp.ContentBlock` mọc thêm `resource` khi prompt biết mang nội dung file, bản sao thì không — một embedded resource agent gửi về sẽ mất phần thân trên đường ra UI. `TestParseSessionUpdateKeepsAnEmbeddedResource` là cái đỏ lên nếu bản sao quay lại.
 - **Vendor adapter registry** — `map[AgentType]VendorAdapter`. Mỗi adapter chịu trách nhiệm:
   1. Biết cách spawn agent tương ứng qua `sandbox.DefaultRunner().StartPiped`
      (binary path hoặc `npx <package>`, biến môi trường auth cần thiết) — **không**
@@ -487,7 +491,7 @@ Không cái nào bị protocol bắt buộc; thêm khi có nhu cầu thật.
 Đo ngày 2026-09-06 trên `claude-agent-acp` 0.74.0. Ba con số định hình toàn bộ phần dưới:
 
 - `initialize` của DevKit (`internal/agenthub/adapter_claude.go`) gửi **duy nhất `clientInfo`** — không khai báo `clientCapabilities` nào. Agent vì thế không biết DevKit hỗ trợ gì, và mặc định coi như không hỗ trợ gì cả.
-- Doc này (§ Technical design) đặc tả 13 mục cho ACP core types; `internal/acp/types_v1.go` hiện có **6**. Thiếu: `session/load`, `fs/*`, `terminal/*`, và các struct tool call / plan / session mode.
+- Doc này (§ Technical design) đặc tả 13 mục cho ACP core types; `internal/acp/types_v1.go` hiện có **6**. Thiếu: `session/load`, `fs/*`, `terminal/*`. (Tool call / plan / session mode cũng đếm là thiếu ở phép đo này — sai: chúng nằm ở `internal/agenthub/update.go` theo đúng thiết kế. T3 sửa lại doc chứ không dời code.)
 - Agent phát **15** `sessionUpdate` kind; `internal/agenthub/update.go` parse **6**. Chín kind còn lại rơi vào `UpdateUnknown` (nay đã có `OnUnknownUpdate` báo mỗi kind một lần/session — chính nó tìm ra `session_info_update` mang title).
 
 Agent tự khai (`agentCapabilities`) những thứ DevKit chưa dùng: `loadSession`, `promptCapabilities.image`, `promptCapabilities.embeddedContext`, `mcpCapabilities.http`/`sse`, `auth.logout`, và `sessionCapabilities` gồm `close`, `delete`, `fork`, `list`, `resume`, `subagents`, `additionalDirectories`.
@@ -530,9 +534,11 @@ Kết luận ở trên đúng với một version của một vendor, nên hai c
 
   **Chốt an toàn, và đây là phần đáng đọc kỹ.** `Invoke` cũng là đường một agent gọi agent khác (`invokeAgent`), nên ở đó đường dẫn đến từ model. DevKit đọc file bằng quyền của **chính nó**, ngoài sandbox vốn sinh ra để chặn đúng việc này — nên attachment do agent cung cấp bị giới hạn trong project của session, so sánh sau khi `EvalSymlinks` để symlink cắm trong project không trỏ ra ngoài được. Người dùng chọn file qua composer thì không bị giới hạn đó: họ là một actor khác. Trần 8 MiB mỗi file.
 
-### T3 — Dọn tầng
+### T3 — Dọn tầng (Đã làm 2026-09-07)
 
-Struct tool call, plan, session mode: doc đặt ở `internal/acp`, code thực tế nằm trong `internal/agenthub/update.go`. Chọn một — dời code, hoặc sửa doc — nhưng không để hai bên nói khác nhau, vì đó là cách một đặc tả trở nên vô dụng.
+Doc sai, không phải code. Doc liệt kê struct tool call / plan / session mode dưới ACP core types ở `internal/acp`; code để chúng ở `internal/agenthub/update.go`, và chỗ đó mới đúng: chúng là dạng đã chuẩn hoá, có tag JSON ghi vào SQLite và được `frontend/src/modules/agenthub/types.ts` soi gương. Dời xuống `internal/acp` là bắt tầng protocol gánh schema lưu trữ và hợp đồng UI. § Technical design đã viết lại ranh giới đó.
+
+Một thứ thì đúng là code sai, và nó không phải chuyện xếp chỗ: `agenthub.ContentBlock` là **bản sao** của `acp.ContentBlock`. Bản sao đã lệch — `acp.ContentBlock` mọc thêm `resource` ở lát prompt, bản sao thì không, nên một embedded resource agent gửi về mất phần thân trước khi tới UI. Nay là alias, một hình dạng một chỗ nới. Kiểm chứng hai chiều: `TestParseSessionUpdateKeepsAnEmbeddedResource` xanh với alias, và dựng lại bản sao thì nó **không compile được** chứ không chỉ đỏ.
 
 ### Hoãn có chủ đích
 
