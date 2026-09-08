@@ -156,6 +156,15 @@ trước, rồi nắn phần lệch, rồi gán text style.
 Vì mọi page dùng chung `App Shell`, sửa component đó nâng luôn chrome của
 07/12/13/14/15/16/17 trong một lượt — đây là điểm đòn bẩy lớn nhất của file.
 
+Phía code có ratchet riêng: `frontend/src/designSystemConformance.test.ts`
+đếm theo surface ba thứ không được tăng — text size mặc định của Tailwind
+(`text-sm`…), giá trị `[Npx]` tuỳ ý, hex thô — và **báo đỏ khi baseline cũ
+hơn code** để buộc hạ số. Tính đến 2026-09-09: agenthub, codegraph, kafka,
+notes, ssh, sync, tools về 0/0/0; database 0/15/0; settings 0/9/0; workbench
+0/35/1; `components/` (132 file) chưa vào bảng. Ngoại lệ hex có chủ đích:
+`font-color-toolbar-button`, `code-block-node-static`,
+`database/icons/engineMarks` (mark thương hiệu vendor).
+
 ## Hạn chế của Figma đã đo được
 
 Ghi lại vì mỗi cái đã tốn một lượt sửa lại, và không cái nào thấy được bằng

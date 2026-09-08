@@ -75,16 +75,22 @@ trang kiểm chứng.
 
 ## Phase 5 — Workbench UI
 
-- Status: Design only (**next** sau Phase 4)
-- Goal: Áp design system toàn app theo `dev-kit-app/DESIGN.md` (Raycast-like dark
-  canvas: surface ladder, Inter + ss03, hairline borders, command-palette chrome).
-  Polish shell + mọi module đã Implemented; deferred Sync conflict 3-pane và
-  device-management UI nằm trong phase này.
-- Evidence (target): `dev-kit-app/DESIGN.md`; frontend tokens/components; pages
-  under `frontend/src/workbench/` và `frontend/src/modules/*`.
-- Done when: Token/component surface khớp DESIGN.md; Workbench + modules nhìn
-  nhất quán; **UI đủ flex** để thêm vendor Agent Hub (Codex/Gemini), tab/session,
-  Sync conflict panes, và device list **không đập layout**. Không ship plugins.
+- Status: **In progress** (nhánh `phase-5-workbench-ui`, 2026-09-09) — shell,
+  tab ownership, Notes, Settings, Database, CodeGraph, Sync (3-pane merge),
+  Vault gate và Agent Hub đã đối chiếu với Figma; còn device-management UI.
+- Goal: Áp design system toàn app theo [Design system](/dev-kit/design-system)
+  và Figma `3dOzSZBYY7QtzANFTCfEe8` (page 01 Foundations là nguồn sự thật —
+  Geist/Geist Mono, 18 text style, thang radius/control/space). Polish shell +
+  mọi module đã Implemented; deferred Sync conflict 3-pane và
+  device-management UI nằm trong phase này. `dev-kit-app/frontend/DESIGN.md`
+  là phân tích marketing Raycast, **không phải** spec.
+- Evidence: `frontend/src/index.css` (token + `@utility text-*`),
+  `frontend/src/designSystemConformance.test.ts` (ratchet theo surface),
+  pages under `frontend/src/workbench/` và `frontend/src/modules/*`.
+- Done when: Ratchet về 0 cho mọi surface kể cả `components/`; Workbench +
+  modules nhìn nhất quán; **UI đủ flex** để thêm vendor Agent Hub (Codex/Gemini),
+  tab/session, Sync conflict panes, và device list **không đập layout**. Không
+  ship plugins.
 - Dependencies: Phase 0–4 core runtime ổn định (Agent Hub Claude-only closed).
 - Out of scope: External plugin runtime, marketplace, redesign marketing site
   ngoài product chrome trừ khi DESIGN.md yêu cầu.
@@ -139,7 +145,8 @@ trang kiểm chứng.
 10. ✅ **Phase 4 Agent Hub v1 (Claude-only) đóng**: ACP + mock/Claude + sandbox
     `StartPiped` + bridge/UI/MCP `agenthub.*`. Codex/Gemini deferred. Chi tiết:
     [`/dev-kit/agent-hub`](/dev-kit/agent-hub).
-11. **Tiếp theo (ưu tiên)**: **Phase 5 Workbench UI** — áp
-    `dev-kit-app/DESIGN.md` toàn app; UI đủ flex cho vendor/tab/conflict/device.
-    Plugins → Phase 6; marketplace → Phase 7. Spec:
+11. 🔄 **Phase 5 Workbench UI đang chạy** (nhánh `phase-5-workbench-ui`):
+    design system + Figma đã áp cho shell, tab ownership và mọi module; còn
+    device-management UI và ratchet cho `components/`. Plugins → Phase 6;
+    marketplace → Phase 7. Spec:
     `docs/superpowers/specs/2026-08-12-roadmap-ui-before-plugins-design.md`.

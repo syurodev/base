@@ -1,34 +1,36 @@
 ---
 title: Module tabs
-description: Tab strip — cơ chế mở/đóng/focus nhiều tab, kéo-thả, preview/pin kiểu VS Code. Hôm nay 1 store toàn cục trong title bar; Phase 5 chuyển mỗi module tự quản tab riêng trong content area.
+description: Tab strip — cơ chế mở/đóng/focus nhiều tab, kéo-thả, preview/pin kiểu VS Code. Phase 5 đã xong — một store chia partition theo module, strip opt-in theo module, render trong content card.
 ---
 
 # Module tabs
 
 Cơ chế mở/đóng/focus nhiều tab cùng lúc: kéo-thả sắp xếp, preview tab kiểu VS
-Code (single-click, thay double-click mới ghim), nút đóng. Hôm nay
-(`frontend/src/workbench/Workbench.tsx`) đây vẫn là **1 tab strip toàn cục**
-trộn tab của mọi module vào 1 mảng phẳng — nhưng nó **không còn nằm trong
-title bar**. `TabStrip` render ở mép trên của **content card** (`h-12` = 48px,
-khớp Figma `116:1346` content-surface: `tab-strip` 0..48 rồi `content-slot`
-bên dưới, cùng một surface). Title bar 40px chỉ còn ba vùng icon. Nói cách
-khác, **nửa đầu của cuộc migrate Phase 5 đã xảy ra** (đổi nơi render); nửa
-sau (store theo module, opt-in theo module) là phần bên dưới mô tả.
+Code (single-click, thay double-click mới ghim), nút đóng. Từ 2026-09-09
+(nhánh `phase-5-workbench-ui`, commit `e11eebb`) tab **thuộc về module**:
+`frontend/src/stores/workbenchTabs.ts` giữ một `modules: Record<moduleId,
+ModuleTabs>` — mỗi partition có `openTabs`/`activeTabId`/`tabMru` riêng,
+`moduleOfTab(id)` suy module từ tiền tố id — và `activeModuleId` chọn
+partition đang hiện. `Workbench.tsx` chỉ vẽ `TabStrip` khi
+`ModuleManifest.tabs === true` (hôm nay chỉ Notes bật); module khác không có
+strip nào cả. Strip render ở mép trên **content card** (`h-12` = 48px, khớp
+Figma `116:1346`), title bar 40px chỉ còn ba vùng icon. Chuyển module qua Dock
+giữ nguyên partition cũ; quay lại thì `focusModule` sticky theo `activeTabId`
+gần nhất, chưa có tab mới mở preview "home" của module.
 
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
-<Callout type="warn" title="Design — Phase 5 chuyển sang per-module ownership">
-[Title bar](/dev-kit/title-bar) đã bỏ tab-strip khỏi title bar (chỉ còn 3
-vùng icon+tooltip: status / module quick action / app quick action) — **phần
-này đã implement**, strip giờ ở content card. Phần **chưa** implement: tab
-chuyển thành của module — mỗi module tự quản store tab riêng thay vì 1
-`useWorkbenchTabsStore` toàn cục, và module không cần tab thì không có strip. Chi tiết ở mục
-[Design: per-module ownership](#design-per-module-ownership-phase-5) cuối
-trang. Chưa có runtime — toàn bộ nội dung bên dưới (`TabStrip`, `Reorder`,
-`openTab`/`pinTab`/`preview`) mô tả đúng checkout hiện tại cho tới khi
-migrate; cơ chế tương tác được **kế thừa nguyên trạng** sang model mới, chỉ
-đổi nơi render và nơi giữ state.
+<Callout type="info" title="Phase 5 per-module ownership — đã implement">
+[Title bar](/dev-kit/title-bar) chỉ còn 3 vùng icon+tooltip; strip ở content
+card; store chia partition theo module và strip opt-in qua
+`ModuleManifest.tabs`. Một khác biệt so với bản design ở cuối trang: thay vì
+N store riêng, đây là **một** store Zustand chia partition — cùng cô lập
+(partition A không biết partition B), nhưng `AgentSessionsSubscriber` và
+`TabSwitcher` vẫn đọc được qua `moduleTabs(modules, id)` /
+`selectActiveModuleTabs`. Guard: `frontend/src/stores/workbenchTabs.test.ts`.
+Cơ chế tương tác (`TabStrip`, `Reorder`, `openTab`/`pinTab`/`preview`) giữ
+nguyên.
 </Callout>
 
 <Callout type="info" title="Implemented — module tabs + Notes per-note tabs (preview/pin)">
@@ -266,10 +268,11 @@ Về nhà (nút back trong `NoteEditor`) gọi lại
 
 ## Design: per-module ownership (Phase 5)
 
-<Callout type="warn" title="Chưa có runtime">
-Mục này mô tả hướng thiết kế mới, đi cùng [Title bar](/dev-kit/title-bar).
-Mọi API/behavior ở trên (`useWorkbenchTabsStore`, `openTab`, `TabStrip`) là
-checkout hiện tại — mục này là đích đến, chưa implement.
+<Callout type="info" title="Đã implement (2026-09-09)">
+Mục này là bản design gốc, giữ lại để đọc lý do. Runtime: một store chia
+partition theo module (`modules` + `activeModuleId`, xem đầu trang) thay vì
+N store riêng; opt-in qua `ModuleManifest.tabs`; sticky-per-module trong
+`Workbench.tsx` `focusModule`. Điều hướng chéo module vẫn là non-goal.
 </Callout>
 
 - **Opt-in theo module** — module nào có khái niệm "nhiều item mở cùng lúc"
