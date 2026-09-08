@@ -20,7 +20,7 @@ Chưa claim production-tested end-to-end với Claude Code thật trong CI — v
 flowchart LR
   AGENT[AI Agent - Claude Code/Codex] -->|stdio JSON-RPC| PROXY[cmd/devkit-mcp]
   PROXY -->|unix socket| MCPSRV["internal/mcp tools"]
-  MCPSRV -->|AppService.Call origin=mcp| GW[Capability Gateway]
+  MCPSRV -->|bridge.NewCaller origin=mcp| GW[Capability Gateway]
   GW --> NOTES[notes]
   GW --> VAULT[vault status / search]
   GW --> SSH[ssh]

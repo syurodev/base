@@ -47,6 +47,14 @@ Boundary này được thể hiện ở:
   generated binding từ feature module.
 - Bridge Go là choke point public duy nhất cho built-in module hiện tại.
 - Capability Gateway kiểm tra quyền và audit trước khi handler thật chạy.
+- **Chỉ method đã cổng hoá mới được export trên `AppService`.** Wails bind *mọi*
+  method exported của service bằng reflection, nên export là hành động công bố
+  ra frontend, không phải chuyện tầm nhìn trong Go. Entrypoint chung của gateway
+  vì thế là `AppService.call` (unexported); `internal/mcp` với tới nó qua
+  `bridge.NewCaller`, không phải qua một method trên service. Có test canh:
+  `TestBoundSurfaceCarriesNoFuncs` (`internal/bridge/bound_surface_test.go`) đỏ
+  nếu một method exported mang tham số hoặc kết quả kiểu func — dấu hiệu rõ nhất
+  của thứ lọt lên bound surface mà JSON không chở nổi.
 - Core service chỉ thấy interface như `Repository`, `Vault`, `commands.Registry`;
   service không biết UI hoặc component render.
 - `ListModules` là bridge read-only public helper, không phải capability-gated
