@@ -7,18 +7,23 @@ description: Tab strip — cơ chế mở/đóng/focus nhiều tab, kéo-thả, 
 
 Cơ chế mở/đóng/focus nhiều tab cùng lúc: kéo-thả sắp xếp, preview tab kiểu VS
 Code (single-click, thay double-click mới ghim), nút đóng. Hôm nay
-(`frontend/src/workbench/Workbench.tsx`) đây là **1 tab strip toàn cục**,
-hiển thị trong dải `<header>` cao 30px ngay cạnh 3 nút đèn giao thông macOS,
-trộn tab của mọi module vào 1 mảng phẳng.
+(`frontend/src/workbench/Workbench.tsx`) đây vẫn là **1 tab strip toàn cục**
+trộn tab của mọi module vào 1 mảng phẳng — nhưng nó **không còn nằm trong
+title bar**. `TabStrip` render ở mép trên của **content card** (`h-12` = 48px,
+khớp Figma `116:1346` content-surface: `tab-strip` 0..48 rồi `content-slot`
+bên dưới, cùng một surface). Title bar 40px chỉ còn ba vùng icon. Nói cách
+khác, **nửa đầu của cuộc migrate Phase 5 đã xảy ra** (đổi nơi render); nửa
+sau (store theo module, opt-in theo module) là phần bên dưới mô tả.
 
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Callout type="warn" title="Design — Phase 5 chuyển sang per-module ownership">
-[Title bar](/dev-kit/title-bar) bỏ hẳn tab-strip khỏi title bar (chỉ còn 3
-vùng icon+tooltip: status / module quick action / app quick action). Tab
-**không biến mất** — chuyển xuống content area của module, mỗi module tự quản
-store tab riêng thay vì 1 `useWorkbenchTabsStore` toàn cục. Chi tiết ở mục
+[Title bar](/dev-kit/title-bar) đã bỏ tab-strip khỏi title bar (chỉ còn 3
+vùng icon+tooltip: status / module quick action / app quick action) — **phần
+này đã implement**, strip giờ ở content card. Phần **chưa** implement: tab
+chuyển thành của module — mỗi module tự quản store tab riêng thay vì 1
+`useWorkbenchTabsStore` toàn cục, và module không cần tab thì không có strip. Chi tiết ở mục
 [Design: per-module ownership](#design-per-module-ownership-phase-5) cuối
 trang. Chưa có runtime — toàn bộ nội dung bên dưới (`TabStrip`, `Reorder`,
 `openTab`/`pinTab`/`preview`) mô tả đúng checkout hiện tại cho tới khi
