@@ -262,7 +262,35 @@ DevKit tương ứng — nếu chưa có trong mục 2–8 thì đây là nơi n
 - [Optimize CLS — web.dev](https://web.dev/articles/optimize-cls)
 - [Migrating VS Code to process sandboxing](https://code.visualstudio.com/blogs/2022/11/28/vscode-sandbox)
 
-## 11. Thứ tự làm
+## 11. Công cụ — làm ít code hơn
+
+Chốt 2026-09-09. Nguyên tắc chọn: thứ đã nằm trong React hoặc đã cài thì
+dùng trước; chỉ thêm dependency khi nó thay được một máy trạng thái đang tự
+viết ở nhiều nơi. Hai dep mới đã cài (`@tanstack/react-query`,
+`@formkit/auto-animate`), **chưa nối vào code**.
+
+| Công cụ | Trạng thái | Thay cho | Quy tắc áp dụng ở DevKit |
+|---|---|---|---|
+| **TanStack Query** | Đã cài, chưa dùng | Máy trạng thái fetch tự viết trong 10+ view (`useState([])` + `loading` + `error` + effect + refetch tay) — mục 2.1–2.4, 5 | Không phải thư viện mạng; nó là máy trạng thái cho mọi `await`, kể cả bridge 2 ms. Với Go làm nguồn sự thật ngay cạnh, cấu hình **khác web**: `retry: 0`, `refetchOnWindowFocus: false`, `staleTime` dài; làm mới bằng **invalidate sau mutation và theo event từ bridge**, không polling. `placeholderData: keepPreviousData` = stale-while-revalidate; `isPending` là "chưa tải", `data.length === 0` mới là "trống". `AbortSignal` của query nối thẳng `context` cancel phía Go. `useMutation` + `onMutate` cho optimistic update (tạo/xoá profile, tag, saved query). Một `QueryClient` ở `App.tsx`; key theo `[module, resource, profileId]`. |
+| **`<Activity>`** (React 19.2) | Có sẵn, chưa dùng | Keep-alive tay: `contents`/`hidden` ở WorkbenchViews, `visited` set ở DatabaseView — mục 2.2 | `mode="hidden"` giữ state, tạm dừng effect và **pre-render ở ưu tiên thấp** → quay lại tab là hiện ngay. Dùng cho Database, Kafka, Tools, Sync, SSH. **Chưa** dùng cho Notes (autosave trong cleanup) và Agent Hub (listener trong view) cho tới khi lifecycle đó tách ra service — xem [Frontend performance](/dev-kit/frontend-performance#tab-lifecycle-và-background-work). ERD vẫn mount-on-demand. |
+| **`useShallow`** (zustand) | Có sẵn, 0 chỗ dùng | Render theo mọi thay đổi store do `const { a, b } = useStore()` — mục 6.1 | 16 file đang destructure cả store đổi sang selector `useShallow`; không đổi kiến trúc store. Thêm vào ratchet: số file destructure cả store chỉ được giảm. |
+| **`tw-animate-css`** | Đã cài, import ở `index.css`, 21 file dùng | Dialog/popover/tooltip/dropdown/toast trong catalogue 4.4 — không cần framer hay `@starting-style` tự viết | Class `data-[state=open]:animate-in fade-in-0 zoom-in-95` / `data-[state=closed]:animate-out` trên Radix. Rà 21 chỗ về token `--motion-*` (đóng nhanh hơn mở); Dialog và DropdownMenu chưa có thì thêm. |
+| **`@formkit/auto-animate`** | Đã cài, chưa dùng | Bọc từng item bằng `AnimatePresence` cho list thêm/xoá/sắp xếp — mục 4.4 | Một `useAutoAnimate()` trên `ul`/`tbody`; dùng cho peek, history, saved, groups, notes list. Không dùng cho tree (đã có motion riêng) và bảng virtualize. |
+| **framer-motion** | Đang dùng (shell + tabs + tree indicator) | — | Chỉ cho slide/`layoutId`/spring cần ngắt được. `layout` ở mức section, không rải lên từng phần tử. Số dùng chung trong `frontend/src/lib/motion.ts`. |
+| **`@tanstack/react-virtual`** | Đã cài, chỉ `codegraph/FileTree` dùng | Bảng > 100 dòng — mục 6.3 | Áp cho QueryConsole result, Kafka messages, LiveActivity. |
+| **`startTransition` / `useDeferredValue`** | Có sẵn, 1 chỗ dùng | Việc nặng sau click chặn frame — mục 6.2, 6.5 | Mount module nặng, set bảng lớn: `startTransition`; ô search rail: `useDeferredValue` cho phần lọc, input cập nhật ngay. |
+| React Compiler | Đang bật | memo tay | Không thêm `memo`/`useMemo` tay khi chưa có profiler. |
+| `react-resizable-panels`, `sonner` | Đã cài, đang dùng | — | Toast đã có motion; panel resize có sẵn. |
+
+**Không thêm**: thư viện View Transition / React `<ViewTransition>` (còn
+canary, và khoá tương tác 200 ms), thư viện đo web-vitals (20 dòng
+`PerformanceObserver` đủ cho desktop), state library mới.
+
+Thứ tự nối vào code khi bắt đầu: `useShallow` + `tw-animate-css` (không đổi
+kiến trúc) → TanStack Query cho 10 view fetch, lấy 3 view Database làm mẫu →
+`<Activity>` thay keep-alive tay → `auto-animate` cho list → virtualize bảng.
+
+## 12. Thứ tự làm
 
 1. **Quét mẫu 2.1 + 2.2 + 6.1** trên 10 file còn lại và 16 file destructure —
    rẻ nhất, cắt nhiều "nháy" nhất. Kèm ratchet.
