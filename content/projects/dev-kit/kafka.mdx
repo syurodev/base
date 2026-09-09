@@ -15,8 +15,16 @@ topics, peek, consumer groups, và publish đi qua capability gateway (`kafka:co
 `kafka:produce`). MCP tool surface `kafka.*` cũng đã Implemented
 (`internal/mcp/tools_kafka.go` + `active_kafka.go`), gồm cluster-selection và env
 confirmation gate qua `internal/interaction` — headless thì **fail-fast**, không
-auto-approve. Xem [MCP / Agent](/dev-kit/mcp-agent) và
+auto-approve. UI đối chiếu Figma page 18 (2026-09-09): rail 1 cây, tab
+Topics/Publish/Consumer groups, inspector message, dialog New cluster
+(`frontend/src/modules/kafka/`). Xem [MCP / Agent](/dev-kit/mcp-agent) và
 [Implementation status](/dev-kit/implementation-status).
+
+**Phạm vi Implemented là v1 = FR-1…FR-9.** FR-10…FR-18 (nhiều connection,
+Avro, reset offset, batch, topic admin, member breakdown, auto-refresh) mới ở
+mức **Designed** — có màn hình trong Figma (section design-only, page 18),
+**chưa có bridge/Go**; runtime hiện giữ đúng 1 connection sống. Các mục
+dưới đây ghi cả 2 tầng, phần Designed được đánh dấu rõ.
 </Callout>
 
 ```mermaid
@@ -56,6 +64,9 @@ Khi debug 1 consumer bị lag, muốn xem message thật trong topic, hoặc c�
 | Người triển khai module | Biết rõ capability nào gate read, capability nào gate publish, để cấp quyền tách bạch |
 
 ### Functional requirements
+
+FR-1…FR-9: Implemented. FR-10…FR-18: Designed — mô tả dưới là thiết kế đích,
+không phải hành vi hiện tại (FR-2 hiện chỉ giữ 1 connection; connect B đóng A).
 
 | ID | Requirement |
 |---|---|
@@ -346,7 +357,11 @@ sequenceDiagram
 
 Hai tầng tách riêng: **lưu trữ** nhiều profile cùng lúc (giống SSH/Database, vì dev thường có nhiều cluster cố định dev/staging/prod cần cấu hình sẵn), và từ FR-10 **kết nối** cũng nhiều cùng lúc được — không còn giới hạn "1 active" ở tầng connection nữa (khác Code Graph, vẫn giữ đúng 1 project active).
 
-### Bridge & capability (Implemented — cập nhật theo FR-10..FR-18)
+### Bridge & capability (Implemented — v1, 12 method)
+
+Đúng như `internal/bridge/kafka.go` hiện tại. 7 method thao tác trên cluster
+đang online dùng scope cố định `connection` — không nhận `profileId`, vì chỉ có
+1 connection sống; `KafkaDisconnect` vì thế không có tham số.
 
 | Method | Capability | Scope |
 |---|---|---|
@@ -355,28 +370,41 @@ Hai tầng tách riêng: **lưu trữ** nhiều profile cùng lúc (giống SSH/
 | `KafkaDeleteProfile` | `kafka:connect` | `profile:<id>` |
 | `KafkaTestConnection` | `kafka:connect` | `profile:<id>` |
 | `KafkaConnect` | `kafka:connect` | `profile:<id>` |
-| `KafkaDisconnect` | `kafka:connect` | `profile:<id>` |
-| `KafkaConnectionStatus` | `kafka:connect` | `profile:<id>` |
-| `KafkaListTopics` | `kafka:connect` | `profile:<id>` |
-| `KafkaDescribeTopic` | `kafka:connect` | `profile:<id>` |
-| `KafkaPeekMessages` | `kafka:connect` | `profile:<id>` |
-| `KafkaListConsumerGroups` | `kafka:connect` | `profile:<id>` |
-| `KafkaPublishMessage` | `kafka:produce` | `profile:<id>` |
+| `KafkaDisconnect` | `kafka:connect` | `connection` |
+| `KafkaConnectionStatus` | `kafka:connect` | `connection` |
+| `KafkaListTopics` | `kafka:connect` | `connection` |
+| `KafkaDescribeTopic` | `kafka:connect` | `connection` |
+| `KafkaPeekMessages` | `kafka:connect` | `connection` |
+| `KafkaListConsumerGroups` | `kafka:connect` | `connection` |
+| `KafkaPublishMessage` | `kafka:produce` | `connection` |
+
+Dữ liệu trả về cũng ở mức v1: `TopicDetail` chỉ có tên, replication factor và
+danh sách partition ID; `ConsumerGroupInfo` chỉ có group ID + tổng lag;
+`PublishRequest` chưa có `headers` (`internal/kafka/broker.go`). UI vì thế
+không vẽ số liệu mà bridge không trả (không có state/member của group, không
+có retention).
+
+**Designed — chưa có trong bridge (FR-10…FR-18):**
+
+| Method | Capability | Scope |
+|---|---|---|
 | `KafkaPublishBatch` | `kafka:produce` | `profile:<id>` |
 | `KafkaCreateTopic` | `kafka:admin` | `profile:<id>` |
 | `KafkaDeleteTopic` | `kafka:admin` | `profile:<id>` |
 | `KafkaAlterTopicConfig` | `kafka:admin` | `profile:<id>` |
 | `KafkaResetConsumerGroupOffset` | `kafka:admin` | `profile:<id>` |
 
-3 capability tách riêng: `kafka:connect` (quản lý profile + vòng đời connection + đọc dữ liệu cluster), `kafka:produce` (publish, kể cả batch), và `kafka:admin` **mới** (topic CRUD + reset offset — hành động thay đổi cấu trúc/state cluster, khác hẳn publish 1 message hay chỉ đọc). Tách riêng để có thể cấp `kafka:connect`+`kafka:produce` mà **không** cấp `kafka:admin` — dev thường xuyên publish message test nhưng hiếm khi cần tạo/xoá topic.
+Khi FR-10 vào code, capability tách thành 3: `kafka:connect` (quản lý profile + vòng đời connection + đọc dữ liệu cluster), `kafka:produce` (publish, kể cả batch), và `kafka:admin` **mới** (topic CRUD + reset offset — hành động thay đổi cấu trúc/state cluster, khác hẳn publish 1 message hay chỉ đọc). Tách riêng để có thể cấp `kafka:connect`+`kafka:produce` mà **không** cấp `kafka:admin` — dev thường xuyên publish message test nhưng hiếm khi cần tạo/xoá topic.
 
-**Đổi từ v1**: mọi method (trừ `KafkaListProfiles`/`KafkaCreateProfile`/`KafkaDeleteProfile`/`KafkaTestConnection`) giờ nhận `profileId` tường minh, scope `profile:<id>` thay vì scope cố định `connection` — vì FR-10 cho nhiều connection sống cùng lúc, không còn 1 "connection đang online" duy nhất để ngầm định.
+**Sẽ đổi so với v1** (theo FR-10): mọi method (trừ `KafkaListProfiles`/`KafkaCreateProfile`/`KafkaDeleteProfile`/`KafkaTestConnection`) nhận `profileId` tường minh, scope `profile:<id>` thay vì scope cố định `connection` — vì nhiều connection sống cùng lúc thì không còn 1 "connection đang online" duy nhất để ngầm định.
 
-`KafkaConnect`/`KafkaDisconnect` **là bridge method, chỉ UI gọi được** (từ KafkaView hoặc sidebar, hoặc gián tiếp từ popup ở flow "Agent gọi khi chưa có cluster active"). Agent không tự chọn cluster. `KafkaCreateTopic`/`KafkaDeleteTopic`/`KafkaAlterTopicConfig`/`KafkaResetConsumerGroupOffset` — xem quyết định MCP exposure ở mục dưới.
+`KafkaConnect`/`KafkaDisconnect` **là bridge method, chỉ UI gọi được** (từ KafkaView hoặc sidebar, hoặc gián tiếp từ popup ở flow "Agent gọi khi chưa có cluster active"). Agent không tự chọn cluster. `KafkaCreateTopic`/`KafkaDeleteTopic`/`KafkaAlterTopicConfig`/`KafkaResetConsumerGroupOffset` (Designed) — xem quyết định MCP exposure ở mục dưới.
 
 ### MCP tool surface
 
-Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
+Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent). 7 tool đầu
+là Implemented (`internal/mcp/tools_kafka.go`); `kafka.publishBatch` và
+`kafka.createTopic` là Designed, cùng đợt với bridge ở trên.
 
 | MCP tool | Effect | Map sang | Ghi chú |
 |---|---|---|---|
@@ -384,11 +412,11 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 | `kafka.connectionStatus` | `read` | `builtin.kafka` / `kafka:connect` / `profile:active` | Trả `{connected: bool, profileId?}` — agent chỉ đọc được cluster nào đang active, không tự đổi |
 | `kafka.listTopics` | `read` | `builtin.kafka` / `kafka:connect` / `profile:active` | Thao tác trên cluster đang active; nếu chưa có → trigger popup chọn, xem flow ở trên. Hỏi quyền theo policy env tag (xem dưới) |
 | `kafka.describeTopic` | `read` | `builtin.kafka` / `kafka:connect` / `profile:active` | Input: `topic`. Hỏi quyền theo policy env tag (xem dưới) |
-| `kafka.peekMessages` | `read` | `builtin.kafka` / `kafka:connect` / `profile:active` | Input: `topic`, `partition`, `limit?`. Giới hạn số message mặc định (NFR-4). Auto-decode Avro nếu profile có Schema Registry (FR-12) — agent nhận JSON đã decode, không cần tự xử lý wire format. Hỏi quyền theo policy env tag (xem dưới) |
-| `kafka.listConsumerGroups` | `read` | `builtin.kafka` / `kafka:connect` / `profile:active` | Kèm breakdown member (FR-17). Hỏi quyền theo policy env tag (xem dưới) |
-| `kafka.publishMessage` | `execute` (`destructiveHint`) | `builtin.kafka` / `kafka:produce` / `profile:active` | Input: `topic`, `key?`, `payload`, `headers?`, `partition?`. Output: `{partition, offset, timestamp}`. Cluster đích luôn là cluster đang active — agent không truyền `profileId`. Hỏi quyền theo policy env tag (xem dưới) |
-| `kafka.publishBatch` | `execute` (`destructiveHint`) | `builtin.kafka` / `kafka:produce` / `profile:active` | Input: `topic`, `messages[]`. Output: mảng kết quả best-effort (FR-15). Hỏi quyền theo policy env tag (xem dưới) |
-| `kafka.createTopic` | `execute` | `builtin.kafka` / `kafka:admin` / `profile:active` | Additive, không phá dữ liệu có sẵn — expose được. Hỏi quyền theo policy env tag (xem dưới) |
+| `kafka.peekMessages` | `read` | `builtin.kafka` / `kafka:connect` / `profile:active` | Input: `topic`, `partition`, `limit?`. Giới hạn số message mặc định (NFR-4). Payload trả raw/JSON; auto-decode Avro (FR-12) là Designed. Hỏi quyền theo policy env tag (xem dưới) |
+| `kafka.listConsumerGroups` | `read` | `builtin.kafka` / `kafka:connect` / `profile:active` | Group ID + tổng lag; breakdown member (FR-17) là Designed. Hỏi quyền theo policy env tag (xem dưới) |
+| `kafka.publishMessage` | `execute` (`destructiveHint`) | `builtin.kafka` / `kafka:produce` / `profile:active` | Input: `topic`, `key?`, `payload`, `partition?` (`headers?` Designed). Output: `{partition, offset, timestamp}`. Cluster đích luôn là cluster đang active — agent không truyền `profileId`. Hỏi quyền theo policy env tag (xem dưới) |
+| `kafka.publishBatch` **(Designed)** | `execute` (`destructiveHint`) | `builtin.kafka` / `kafka:produce` / `profile:active` | Input: `topic`, `messages[]`. Output: mảng kết quả best-effort (FR-15). Hỏi quyền theo policy env tag (xem dưới) |
+| `kafka.createTopic` **(Designed)** | `execute` | `builtin.kafka` / `kafka:admin` / `profile:active` | Additive, không phá dữ liệu có sẵn — expose được. Hỏi quyền theo policy env tag (xem dưới) |
 
 `kafka.connect`/`kafka.disconnect` **không phải MCP tool** — cùng lý do "human-only action" đã ghi ở mục Bridge & capability. Cũng **không expose `KafkaCreateProfile`/`KafkaDeleteProfile`** qua MCP — nhận secret trực tiếp qua tham số, cùng lý do đã áp cho SSH/Database.
 
@@ -414,7 +442,7 @@ Xem cơ chế chung + rationale ở [MCP / Agent](/dev-kit/mcp-agent).
 
 ### Known ceiling (v1)
 
-- **Protobuf chưa hỗ trợ** — chỉ Avro (FR-12/13); publish/peek message Protobuf vẫn hiển thị raw bytes như trước nâng cấp.
+- **Chưa decode schema nào** — peek/publish luôn raw/JSON. Avro là Designed (FR-12/13); Protobuf ngoài phạm vi cả ở bản thiết kế.
 - Không ACL management, không multi-cluster mirroring view.
 - Giới hạn peek mặc định nhỏ (ví dụ 50 message/lần) để tránh treo UI với topic lớn — số cụ thể cần chốt khi implement.
 - Reset offset **yêu cầu group không còn active member** (NFR-11) — không có đường "force reset" bất chấp consumer đang chạy, đúng theo semantics thật của Kafka offset commit (dễ bị consumer đang sống ghi đè ngay).
