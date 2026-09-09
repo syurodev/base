@@ -184,7 +184,85 @@ virtualization và batching; đây là phần chạm tới cảm giác:
   ms tới frame có nội dung thật; thao tác chậm — trạng thái chờ xuất hiện
   trong frame kế tiếp sau click.
 
-## 10. Thứ tự làm
+## 10. Bài học từ Apple và các app "cảm giác nhanh"
+
+Tổng hợp 2026-09-09 từ tài liệu gốc (link ở cuối mục). Cột phải là quy tắc
+DevKit tương ứng — nếu chưa có trong mục 2–8 thì đây là nơi nó được thêm.
+
+### Apple — Designing Fluid Interfaces (WWDC18) và HIG Motion
+
+| Nguyên tắc Apple | Ý nghĩa | Áp vào DevKit |
+|---|---|---|
+| **Instant response** — "bất kỳ độ trễ nào cũng làm mọi thứ rơi khỏi vách" | Phản hồi thị giác phải nằm trong frame của thao tác | Mục 1 (lớp tức thì) và 2.8: click → frame kế tiếp đã là trạng thái mới |
+| **Interruptible & redirectable** | Người dùng đổi ý giữa chừng, motion phải đi theo ngay, mang theo vận tốc đang có | 4.5; spring của framer retarget tự nhiên; không dùng View Transition cho lớp có tương tác |
+| **Spatial consistency** — vào và ra theo đường đối xứng | Cái đi ra bên trái thì quay lại từ bên trái | Slide tab (4.4) đọc hướng từ thứ tự thanh tab; panel mở từ phải thì đóng về phải |
+| **Hint in the direction** — chuyển động gợi ý trạng thái đích | Mở panel thì nội dung nghiêng về hướng sẽ tới | Panel/inspector: nội dung fade theo sau container 60 ms |
+| **Springs, not durations** — hai tham số damping/response | Motion là hệ vật lý, không phải đường cong cố định | `lib/motion.ts` dùng đúng mô hình `duration + bounce` của SwiftUI |
+| **Bắt đầu ở 100 % damping**; bounce chỉ khi có động lượng hoặc để gợi ý chức năng ẩn | Không nảy cho dữ liệu | `bounce: 0` mặc định; chỉ dock được dùng `--ease-house-spring` |
+| **Cohesive character** — một "gia đình" chuyển động | Người dùng học một lần, hiểu mọi nơi | 3 token thời gian + 1 easing, dùng chung (4.1) |
+| **Smooth frames** — không đổi hướng đột ngột giữa hai trạng thái | Chuyển từ animation này sang animation khác không được giật | Không xếp hàng animation; cái mới thay cái cũ với vận tốc hiện tại |
+| HIG: **tránh motion ở thao tác lặp lại thường xuyên** | Hover, gõ phím, chọn dòng: nhỏ hoặc không có | Row hover chỉ `transition-colors` 120 ms; không animate khi gõ |
+| HIG: motion để **truyền trạng thái và phản hồi**, không trang trí; tôn trọng Reduce Motion | | 4 (mở đầu), reduced-motion một chỗ |
+
+### Apple — Animate with springs (WWDC23)
+
+- Chỉ hai tham số: **duration** (cảm nhận) và **bounce** (−1…1). SwiftUI mặc
+  định là spring, không phải ease. Framer có cùng API → DevKit dùng nguyên.
+- Bounce **0** là "spring đa dụng tốt nhất"; ~0.15 gần như không thấy; ~0.3
+  thấy rõ; **≥ 0.4 là quá tay cho UI**.
+- **Perceptual duration ≠ settling duration**: không chờ spring "tắt hẳn" để đổi
+  UI; hành động kế tiếp chạy theo thời gian cảm nhận. Với DevKit: unmount panel
+  rời đi theo `--motion-*`, không chờ animation-end event.
+- Khi bị ngắt, spring **giữ vận tốc** làm vận tốc đầu cho đích mới — lý do
+  chọn spring thay vì CSS easing cho mọi thứ có thể bị bấm chồng.
+
+### Linear — "tại sao Linear nhanh"
+
+| Linear | DevKit |
+|---|---|
+| UI đọc từ **database cục bộ** (IndexedDB), server chỉ là sync target | Bridge Go + SQLite trên cùng máy — đã là mô hình này; nên **không có cớ** cho spinner ở thao tác đọc |
+| **Optimistic update**: đổi state trước, đồng bộ sau, rollback nếu lỗi | Áp cho tạo/xoá profile, đổi tag, lưu query: cập nhật store ngay, bridge chạy sau |
+| **Observable theo từng field** — đổi một field chỉ render component đọc field đó | 6.1: selector hẹp, bỏ destructure cả store |
+| Chỉ animate `transform`/`opacity`; **100–250 ms**, dưới ngưỡng 300 ms thấy chậm | 4.1/4.2 — token của DevKit nằm đúng dải này |
+| `modulepreload` chunk quan trọng, precache toàn bộ asset sau đăng nhập | 2.6: idle-preload module đã dùng gần đây |
+| Shell CSS inline để vẽ khung ngay | 8.1: vault gate → workbench một chuyển cảnh |
+| Keyboard-first, ⌘K tìm trên dữ liệu cục bộ | Đã có palette; phím tắt phải phản hồi trong frame (6.6) |
+
+### Figma — Keeping Figma Fast
+
+- Chạy perf test **trên mỗi PR** (VM có GPU, headless Chromium) với biên 20 %
+  để bắt regression thô; regression tinh thì `git bisect` trên máy thật.
+- Đo FPS ở **p50 và p90**, không chỉ trung bình.
+- **Time-slicing**: ưu tiên thao tác cục bộ của người dùng trước thay đổi từ xa
+  — với DevKit là: gõ phím/click luôn thắng stream agent, progress index, poll.
+- Mọi kiểm tra perf phải xong trong 10 phút để không chặn tốc độ dev → ratchet
+  và test frame-đầu của DevKit (mục 9) đi đúng tinh thần này.
+
+### VS Code, Notion, web.dev
+
+- VS Code: startup theo **pha** (chỉ workbench core trước, extension kích hoạt
+  lazy theo sự kiện), tách process để một phần chậm không kéo UI → DevKit: chunk
+  module lazy đã có; việc nặng ở Go, không ở WebView.
+- Notion: chuyển client storage sang **SQLite** làm load/navigate nhanh 50 %;
+  case study cũ chỉ ra **9 API call tuần tự** trước paint đầu → DevKit 8.2:
+  gộp fetch khởi động, không để module xếp hàng gọi bridge.
+- web.dev (CLS): **đặt chỗ trước** cho nội dung tới muộn (`min-height`,
+  `aspect-ratio`, kích thước ảnh), `font-display`/`size-adjust`, chỉ animate
+  `transform`, nội dung chèn thêm đặt *dưới* vùng đang xem, skeleton **phải có
+  đúng chiều cao** nếu không nó chỉ là bước đệm trước một cú nhảy → mục 3.
+
+### Nguồn
+
+- [Designing Fluid Interfaces — WWDC18](https://developer.apple.com/videos/play/wwdc2018/803/) · [transcript](https://asciiwwdc.com/2018/sessions/803)
+- [Motion — Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/motion)
+- [Animate with springs — WWDC23](https://developer.apple.com/videos/play/wwdc2023/10158/) · [notes](https://wwdcnotes.com/documentation/wwdc23-10158-animate-with-springs/)
+- [How's Linear so fast? — performance.dev](https://performance.dev/how-is-linear-so-fast-a-technical-breakdown)
+- [Keeping Figma Fast — Figma blog](https://www.figma.com/blog/keeping-figma-fast/)
+- [Notion page load and navigation — Notion blog](https://www.notion.com/blog/faster-page-load-navigation) · [Case study: Notion — 3perf](https://3perf.com/blog/notion/)
+- [Optimize CLS — web.dev](https://web.dev/articles/optimize-cls)
+- [Migrating VS Code to process sandboxing](https://code.visualstudio.com/blogs/2022/11/28/vscode-sandbox)
+
+## 11. Thứ tự làm
 
 1. **Quét mẫu 2.1 + 2.2 + 6.1** trên 10 file còn lại và 16 file destructure —
    rẻ nhất, cắt nhiều "nháy" nhất. Kèm ratchet.
