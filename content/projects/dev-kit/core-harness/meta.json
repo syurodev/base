@@ -9,6 +9,7 @@
     "storage-security",
     "tool-system",
     "context-engine",
+    "model-adapter",
     "activation",
     "decisions-and-validation",
     "design-map"

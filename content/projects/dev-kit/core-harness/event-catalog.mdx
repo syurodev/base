@@ -1,11 +1,11 @@
 ---
 title: Event catalog và execution traces
-description: Danh mục command/event v0.8 và ba chuỗi thực thi để review transitions.
+description: Danh mục command/event v0.9 và ba chuỗi thực thi để review transitions.
 ---
 
 # Event catalog và execution traces
 
-Trạng thái: foundation contract v0.8, tên/schema logic để review; chưa là public wire API. Đây là catalog tối thiểu của native execution. Event batch được append bởi coordinator; projection được cập nhật đồng bộ như [storage protocol](/dev-kit/core-harness/event-storage-recovery).
+Trạng thái: foundation contract v0.9, tên/schema logic để review; chưa là public wire API. Đây là catalog tối thiểu của native execution. Event batch được append bởi coordinator; projection được cập nhật đồng bộ như [storage protocol](/dev-kit/core-harness/event-storage-recovery).
 
 ## 1. Quy ước
 
@@ -49,7 +49,7 @@ Ghim input/config phục vụ provenance, không ghim quyền. Admission guards 
 | Event | Fields/control facts chính | Guard / thay đổi projection |
 | --- | --- | --- |
 | `ModelRequestPlanned` | Invocation ID, purpose (`turn` hoặc `compaction`), first attempt ID, model/context/tool declaration refs, budget estimate | Tạo logical model invocation ở step frontier; no side effect |
-| `ModelDispatchStarted` | Attempt ID, executor fence, reservation, selected provider settings ref | Coordinator sở hữu admission; không blocker/stop; chuyển attempt `Requesting` trước handoff |
+| `ModelDispatchStarted` | Attempt ID, executor fence, reservation, selected provider settings ref, account ID và catalog version ([model adapter](/dev-kit/core-harness/model-adapter) §7) | Coordinator sở hữu admission; không blocker/stop; chuyển attempt `Requesting` trước handoff |
 | `ModelStreamStarted` | Attempt ID, first chunk observation ref | Bound worker report; chuyển `Streaming`; các deltas sau không cần domain event từng token |
 | `ModelResponseRecorded` | Complete response ref, selected attempt, usage status | Valid final protocol record; chuyển `Completed`, chọn response và project canonical assistant message |
 | `ModelRequestFailed` | Stage, failure class/code, retry disposition, usage status, partial ref nếu có | Terminal error evidence; không chuyển transport uncertainty thành known failure |

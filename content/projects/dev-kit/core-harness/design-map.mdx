@@ -50,9 +50,9 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
-| H-07 | Model adapter và converter: chuẩn hóa request/stream, phân loại lỗi, retry/backoff, circuit breaker, cấm provider-hosted tools, chuyển đổi history có tool cũ | Một phần | Ràng buộc rải rác ở state machine §4, tool-system §11 | A | H-09 |
-| H-08 | Usage và cost: đối soát usage, bảng giá, `usagemetrics` | Một phần | State machine §9 | A | H-07 |
-| H-09 | Account, credential, rate limit của provider; chọn model và reasoning settings | Một phần | [Agent Hub accounts](https://github.com/syurodev/dev-kit/blob/main/docs/agent-reference/agent-hub-accounts.md) (cho vendor) | A | — |
+| H-07 | Model adapter và converter: chuẩn hóa request/stream, phân loại lỗi, retry/backoff, circuit breaker, cấm provider-hosted tools, chuyển đổi history có tool cũ | Đã chốt | [Model adapter](/dev-kit/core-harness/model-adapter) | A | H-09 |
+| H-08 | Usage và cost: đối soát usage, bảng giá, `usagemetrics` | Đã chốt | [Model adapter](/dev-kit/core-harness/model-adapter) §6 | A | H-07 |
+| H-09 | Account, credential, rate limit của provider; chọn model và reasoning settings | Đã chốt | [Model adapter](/dev-kit/core-harness/model-adapter) §7 | A | — |
 
 ## C. Context và memory
 
@@ -119,7 +119,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 ## Thứ tự thiết kế đề xuất cho giai đoạn A
 
 1. ~~**Context engine và system prompt** (H-10, H-11, H-12, H-13)~~: đã chốt ở [Context engine](/dev-kit/core-harness/context-engine).
-2. **Model adapter, usage, account** (H-07, H-08, H-09).
+2. ~~**Model adapter, usage, account** (H-07, H-08, H-09)~~: đã chốt ở [model adapter](/dev-kit/core-harness/model-adapter).
 3. **Tool file, shell/job, đọc code, hỏi user** (H-17, H-18, H-19, H-20).
 4. **Interaction API, sandbox runtime, nội dung không tin cậy, redact** (H-24, H-25, H-26, H-27).
 5. **Queue/steering và continuation** (H-29, H-31).

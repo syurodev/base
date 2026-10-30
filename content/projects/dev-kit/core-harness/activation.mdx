@@ -5,7 +5,7 @@ description: Quyết định G-07 — opt-in theo session, failure UX, rollback 
 
 # Activation và failure UX (G-07)
 
-Trạng thái: foundation decision v0.8. **Thiết kế G-07 đã chốt**; gate chỉ đóng khi evidence ở [mục 5](#5-evidence-để-bật-giai-đoạn-a) đạt. G-07 vẫn đứng sau G-04 đến G-06: chưa có tool, provider và compatibility path được review thì không có gì để bật.
+Trạng thái: foundation decision v0.9. **Thiết kế G-07 đã chốt**; gate chỉ đóng khi evidence ở [mục 5](#5-evidence-để-bật-giai-đoạn-a) đạt. G-07 vẫn đứng sau G-04 đến G-06: chưa có tool, provider và compatibility path được review thì không có gì để bật.
 
 ## 1. Hai giai đoạn
 
@@ -15,7 +15,7 @@ Quyết định của người dùng: native runtime bật **theo từng session
 | --- | --- | --- |
 | A — Opt-in theo session | Preference `harness.nativeRuntime` (mặc định tắt) chỉ hiện lựa chọn runtime khi tạo session. User chọn native hoặc vendor; vendor vẫn là mặc định | Evidence [mục 5](#5-evidence-để-bật-giai-đoạn-a) |
 | B — Native mặc định | Session mới mặc định native; vendor còn chọn được để so sánh hoặc fallback | Tiêu chí [mục 6](#6-tiêu-chí-chuyển-hẳn-giai-đoạn-b) |
-| C — Chỉ native cho session mới | Không tạo session vendor mới; session vendor cũ vẫn đọc được | Quyết định riêng sau B, kèm kế hoạch gỡ vendor runtime |
+| C — Chỉ native cho session mới | Không tạo session vendor mới; session vendor cũ vẫn đọc được | Quyết định riêng sau B, kèm kế hoạch gỡ vendor runtime. **Không áp dụng cho subscription Claude**: native runtime không được dùng nó ([model adapter](/dev-kit/core-harness/model-adapter) M-03), nên Claude Code vẫn là đường dùng subscription. Với Codex, gói ChatGPT dùng được trong native runtime ([model adapter §11](/dev-kit/core-harness/model-adapter#11-openai-và-sign-in-with-chatgpt)), nên giai đoạn C có thể áp dụng |
 
 Runtime **ghim theo session** từ lúc tạo, không đổi giữa chừng (G-06). Không chuyển session vendor thành native, không phản chiếu vendor history thành native events.
 
@@ -74,7 +74,7 @@ Chuyển từ A sang B khi **tất cả** đạt; con số dưới đây chỉ �
 | Recovery drill | ≥ 20 lần crash hoặc kill có chủ đích ở các điểm: model stream, tool dispatch, chờ approval, commit unknown |
 | An toàn | 0 vi phạm SM-01–SM-12; 0 effect bị dispatch hai lần; 0 lần `Interrupted` mà không giải thích được nguyên nhân |
 | Tool coverage | Mọi tool user dùng thường xuyên trong session vendor đã có version native-compatible |
-| Provider coverage | Mọi loại account đang dùng đã có provider adapter qua G-04 |
+| Provider coverage | Mọi loại account đang dùng **mà điều khoản cho phép dùng trong ứng dụng bên thứ ba** đã có adapter qua G-04; subscription Claude không tính (M-03). Session mới chỉ mặc định native khi user có credential hợp lệ cho model đó, không thì mặc định vendor |
 | Độ trễ | Từ lúc gửi prompt đến lúc model request rời DevKit, p50 không chậm hơn vendor nhanh nhất đã đo (Codex ≈ 2 s; Claude 4–7 s) |
 | Compatibility | Session vendor cũ đọc được sau nâng cấp; rollback ở mục 4 vẫn chạy |
 
