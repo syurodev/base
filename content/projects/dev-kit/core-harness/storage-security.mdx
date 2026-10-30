@@ -1,0 +1,127 @@
+---
+title: Storage và bảo mật payload
+description: Quyết định G-03 cho execution store, protected payload, khóa, retention, codec và vault observation.
+---
+
+# Storage và bảo mật payload (G-03)
+
+Trạng thái: foundation decision v0.6. **Thiết kế G-03 đã chốt**; evidence (migration, tests, fault injection) còn chờ implementation và được liệt kê ở [mục 10](#10-evidence-để-đóng-g-03). Semantics của stream, admission và recovery ở [event storage và recovery](/dev-kit/core-harness/event-storage-recovery); trang này chốt cách lưu và bảo vệ chúng.
+
+## 1. Quyết định của người dùng
+
+| ID | Quyết định | Hệ quả bắt buộc |
+| --- | --- | --- |
+| S-01 | Payload nằm **trong `devkit.db`**, không ở file riêng | Event, payload, projection, receipt và admission row commit trong **một SQLite transaction**; không có ref tới file chưa finalize, không cần GC file mồ côi |
+| S-02 | **Data key riêng cho mỗi session**, wrap bằng vault DEK | Xóa session = hủy wrapped key (crypto-shred); không viết lại event log append-only |
+| S-03 | Retention **giữ đến khi user xóa** | Không có purge theo thời gian ở v1; đơn vị xóa là session |
+| S-04 | Execution store **chỉ local** ở v1 | Bảng `exec_*` không vào sync set; không gửi payload hoặc metadata execution qua sync |
+
+## 2. Database và độ bền
+
+Dùng chung `devkit.db` hiện hữu (`internal/storage.Open`: modernc SQLite, một connection, `journal_mode=DELETE`, file `0600`). Mọi transition của coordinator là `BEGIN IMMEDIATE … COMMIT` trên connection đó; transaction ngắn, không chờ I/O ngoài DB.
+
+- Execution store MUST kiểm tra lúc mở rằng `PRAGMA synchronous` là `FULL` (2) và `journal_mode` là `delete`; khác thì không mở execution writer (fail closed, vendor path không đổi). Commit-before-dispatch dựa vào bảo đảm này.
+- Không đổi sang WAL ở v1: WAL thêm file sidecar ngoài quyền `0600` đã chốt cho database.
+- Bảng `exec_*` thuộc **storage kernel và execution store package** (package chốt ở G-01), khai báo prefix `exec_` trong `tableOwners` của `internal/arch/tables_test.go`. Package khác đọc qua API của owner.
+
+## 3. Logical DDL
+
+Tên cột cuối cùng chốt trong migration; khóa, ràng buộc và ownership bên dưới là MUST. Mọi cột ngoài `exec_payloads.envelope` và `exec_session_keys.wrapped_key` chỉ chứa control metadata đã allowlist (INV-09).
+
+| Bảng | Khóa / cột chính | Ràng buộc |
+| --- | --- | --- |
+| `exec_host` | singleton: `lock_generation`, `incarnation_id`, `acquired_at` | Chỉ cập nhật sau khi giữ data-directory lock; `lock_generation` tăng đơn điệu |
+| `exec_admission` | PK `session_id`; `active_run_id`, `owner_incarnation`, `admission_token`, `revision`, `queue_revision`; context fields `context_epoch`, `context_start_run_id`, `context_revision`, `context_requirement`, `context_cause_run_id`, `context_decided_event_id` | CAS theo `revision`; `admission_token` tăng đơn điệu; `context_requirement` ∈ `none`, `revalidation_required`, `fresh_required` |
+| `exec_runs` | PK `run_id`; `session_id`, `last_sequence`, `revision`, `protocol_version`, lifecycle/phase/wait reasons/outcome projection | Projection rebuild được từ events |
+| `exec_events` | PK (`run_id`, `sequence`); UNIQUE `event_id`; envelope fields của [§4 storage](/dev-kit/core-harness/event-storage-recovery#4-event-envelope-và-provenance); `data` JSON allowlisted; `payload_id` NULL | `sequence` liên tục từ 1; append-only bằng trigger |
+| `exec_invocations`, `exec_attempts` | PK invocation/attempt ID; state, selected attempt, effect class/descriptor version, check generation, exposure, disposition, reservation | Projection; không có writer ngoài transaction append |
+| `exec_timers`, `exec_time_windows` | PK (`timer_id`, `generation`) / `window_id`; purpose, clock domain, deadline, tranche, coverage | Projection; generation cũ không đánh thức execution |
+| `exec_receipts` | PK `command_id`; kind, principal, target, `input_payload_id` hoặc metadata-only fields, kết quả (sequence range hoặc typed rejection) | Dedup; metadata-only commands so sánh được khi vault khóa |
+| `exec_context_decisions` | PK (`session_id`, `context_revision`); `run_id`, `sequence`, `event_id`, `previous_revision` | Chain liên tục, không gap/conflict; rebuild context state không quét tùy ý |
+| `exec_transcript` | PK (`session_id`, `context_epoch`, `position`); `run_id`, role, call ID, source position, `payload_id`, disposition code | Canonical transcript projection; fixed typed dispositions không cần payload |
+| `exec_payloads` | PK `payload_id` (random); `session_id`, `kind`, `key_id`, `size`, `envelope` | Chỉ insert khi sealed xong; không update |
+| `exec_session_keys` | PK `session_id`; `key_id`, `wrapped_key`, `created_at`, `shredded_at` | Một key active mỗi session ở v1 |
+| `exec_purges` | PK `session_id`; `requested_at` | Cửa duy nhất cho phép DELETE trên bảng append-only |
+
+Trigger `BEFORE UPDATE OR DELETE` trên `exec_events` và `exec_payloads` MUST `RAISE(ABORT)` trừ khi `session_id` của row có trong `exec_purges`. Trigger là lớp phòng thủ thứ hai; owner API vẫn là đường ghi duy nhất.
+
+## 4. Protected payload và khóa
+
+**Data key.** Key 256-bit random tạo khi session ghi payload đầu tiên (cần vault mở). Wrap bằng `vault.Service.SealRecord` với `RecordBinding{RecordType: "exec.session_key", RecordID: sessionID, KeyID: "v1"}`; lưu `wrapped_key`. Không thêm KDF hoặc primitive mới: key được wrap bằng chính XChaCha20-Poly1305 V2 của vault.
+
+**Payload.** Mỗi payload seal bằng AEAD của `internal/crypto` dưới session key, associated data = (`payload_id`, `session_id`, `kind`, `key_id`). Nonce random mỗi lần seal, vì vậy equality không bao giờ so ciphertext (D-10).
+
+**Cache key.** Session key đã unwrap chỉ nằm trong memory của execution store. Khi vault owner báo lock, store MUST xóa (zero) mọi cached key **trước khi** lock hoàn tất, theo thứ tự ở [mục 8](#8-vault-observation-owner-api). Master Password không có đường đổi trong code hiện tại; recovery unlock mở cùng DEK, nên không cần re-wrap. Khi sau này có đổi password hoặc xoay DEK, chỉ cần re-wrap `exec_session_keys`.
+
+**Giới hạn kích thước.**
+
+| Giới hạn | Giá trị v1 | Khi vượt |
+| --- | --- | --- |
+| Một payload (plaintext) | 1 MiB, cùng `maxManagedRecordPlaintext` | Tool result phải được result budget rút gọn **trước** khi ghi; còn vượt thì `ToolResultRecorded(failure, result_too_large)`. Model response vượt: `ModelRequestFailed(response_too_large)` |
+| Tổng payload một run | 64 MiB | Run không ghi thêm payload; stop `budget` với lý do `storage` |
+| Tổng payload một session | 1 GiB | Không admit run mới; UI đề nghị xóa session hoặc fresh session |
+
+Kích thước là metadata được phép lưu (đã là chuẩn ở vault records). Không lưu raw output vượt budget ở nơi khác.
+
+## 5. Canonical codec
+
+Command body được decode vào struct typed theo `schemaVersion`. Codec v1:
+
+- Decode: từ chối duplicate key (tokenizer kiểm tra trước khi unmarshal), `DisallowUnknownFields`, UTF-8 hợp lệ.
+- Struct không dùng `omitempty`; mọi default viết tường minh. Không có số thực; số nguyên trong phạm vi int64; giá trị thập phân là string có schema.
+- Encode: `encoding/json` của struct typed (thứ tự field theo khai báo, map key đã sort), không whitespace thừa. Không normalize string, path hoặc query.
+- Canonical bytes lưu thành payload `kind=command_input` kèm `codec_version`. Dedup chỉ so khi cùng `codec_version`; khác version là typed conflict `codec_version_mismatch`, không tự re-canonicalize.
+
+## 6. Atomicity và read-back
+
+Một transition = một transaction: kiểm tra receipt/revision/fence → insert payloads đã seal → append events → cập nhật projections, transcript, context decisions → insert receipt → cập nhật admission row. Seal chạy **trước** `BEGIN` trong memory; transaction chỉ ghi bytes.
+
+Commit unknown (lỗi driver hoặc I/O sau khi gửi `COMMIT`): coordinator dừng dispatch, mở lại connection và đọc `exec_receipts` theo `command_id`. Vì process giữ exclusive data-directory lock, là writer duy nhất và SQLite tự rollback hot journal khi mở lại, kết quả read-back là quyết định: có receipt thì đã commit, không có thì chưa. DB không đọc được thì execution store unavailable; không đoán.
+
+**Active-time tranche.** Mỗi `TimeBudgetWindowOpened` giữ chỗ `min(remaining, 60 s)`. Ranh giới tranche chính là checkpoint: `TimerElapsed(run_deadline)` đóng tranche với elapsed đo được rồi mở tranche tiếp nếu còn budget và vẫn runnable. Không có checkpoint nào khác ở v1. Vì vậy một run dài sinh tối đa một batch mỗi phút, và crash bị charge bảo thủ tối đa 60 s khi user resume (state-machine §7).
+
+## 7. Xóa, export và backup
+
+- **Xóa session**: một owner transaction ghi `exec_purges`, ghi đè `wrapped_key` bằng `zeroblob` cùng độ dài rồi DELETE, đặt `shredded_at`; sau đó xóa payloads, events, projections của session. Ghi đè trước khi xóa để page trong file DB không còn wrapped key. Không bật `secure_delete` toàn DB.
+- **Xóa một run riêng lẻ**: không có ở v1, vì sẽ làm gãy context chain của session.
+- **Export**: v1 chỉ export control metadata để chẩn đoán (không payload). Export payload cần thiết kế scope/redaction riêng.
+- **Backup / phục hồi**: backup của `devkit.db` chứa ciphertext và wrapped key. Phục hồi một backup cũ có thể đưa lại session đã xóa. Crypto-shred không chạm tới backup, snapshot hệ điều hành, phần còn sót của journal đã xóa hoặc vùng nhớ flash; UI xóa session MUST nói rõ giới hạn này.
+
+## 8. Vault observation owner API
+
+Đây là API mới ở `internal/vault`, thay việc bridge tự gọi `Interaction.SetVaultLocked`:
+
+- `Observe()` trả `Snapshot{Incarnation, Revision, State}` và một subscription. Đăng ký subscription và đọc snapshot trong **cùng critical section**, nên không mất transition giữa read và subscribe.
+- `Revision` tăng dưới mutex của vault cho mọi transition: `Setup`, `Unlock`, `UnlockWithRecovery`, `Lock`. Event chỉ chứa state; không key, password hoặc payload.
+- Hai loại listener:
+  - **Guard đồng bộ**: in-memory, không I/O, không block, chạy trong lifecycle của vault trước khi DEK bị zero. Dùng cho interaction (invalidate receipt và scoped approval) và execution store (zero cached session keys). Thứ tự này giữ nguyên hành vi hiện tại của bridge (`SetVaultLocked(true)` trước `Vault.Lock()`).
+  - **Subscriber bất đồng bộ**: coordinators. Channel có buffer; đầy thì subscriber bị đánh dấu lagging và MUST đọc lại snapshot. Vault không bao giờ chờ subscriber khi đang giữ crypto lock.
+- Composition nằm ở `internal/app`, không ở bridge, nên host không dùng Wails cũng nhận đúng lifecycle. Bridge chỉ gọi owner API.
+- Lock-vs-consume: `StartScopedApproval`, claim receipt và mở session key đều kiểm tra trạng thái vault tại owner trong cùng thao tác; guard đồng bộ bảo đảm khi `Lock()` trả về thì không thao tác nào trong số đó còn thành công.
+
+## 9. Data-directory lock
+
+- File `<dataDir>/devkit.lock`, mở `O_RDWR|O_CREATE` quyền `0600`, giữ suốt vòng đời process. Unix: `flock(LOCK_EX|LOCK_NB)`; Windows: `LockFileEx` exclusive, fail immediately.
+- Lock theo inode/file handle, nên mọi alias (symlink, đường dẫn tương đối) trỏ cùng file đều tranh cùng một lock. `dataDir` vẫn được `filepath.EvalSymlinks` + `Abs` trước khi mở để thông báo lỗi đúng đường dẫn.
+- Filesystem mạng (NFS, SMB) không được hỗ trợ: phát hiện được thì execution store không mở; vendor path không đổi.
+- Không có lock thì không có `exec_host` incarnation mới, không admission, không recovery. Wails `SingleInstance` vẫn giữ làm UX.
+
+## 10. Evidence để đóng G-03
+
+Thiết kế ở trên không cần quyết định thêm. G-03 chỉ **đóng** khi các bằng chứng sau có kèm revision cụ thể:
+
+| Evidence | Cách chứng minh |
+| --- | --- |
+| Atomicity | Fault injection giữa từng bước trong transaction (payload, event, projection, receipt, admission); sau mở lại không có trạng thái commit một phần |
+| Read-back | Driver trả lỗi sau COMMIT thành công và sau COMMIT thất bại; read-back phân biệt đúng, không dispatch trùng |
+| Durability pragmas | Test mở store với `synchronous` hoặc `journal_mode` khác bị từ chối |
+| Append-only | UPDATE/DELETE ngoài purge bị trigger chặn; purge xóa đúng session |
+| Crypto-shred | Sau purge, file DB không chứa bytes của wrapped key; payload không mở được kể cả khi vault mở |
+| Codec | Duplicate key, unknown field, field order, codec version khác: đúng conflict/receipt |
+| Vault observation | Unlock trước recovery, lock giữa read/subscribe/commit/consume, subscriber chậm; chạy trên host headless không có bridge |
+| Data-directory lock | Hai process, symlink alias, owner crash rồi acquire, network FS bị từ chối |
+| Giới hạn | Payload 1 MiB, run 64 MiB, session 1 GiB cho đúng typed failure |
+| Active-time tranche | Run dài nhiều tranche, crash giữa tranche, resume charge ≤ 60 s, không charge downtime |
+| Metadata-only path | Dedup cancel và `CloseRunWithoutPayload` khi vault khóa; clear đúng admission |
+| Context chain | Rebuild `exec_context_decisions` sau xóa projection; gap/conflict bị phát hiện |
+| Ownership | `tableOwners` có prefix `exec_`; architecture tests xanh |

@@ -6,6 +6,8 @@
     "state-machine",
     "event-catalog",
     "event-storage-recovery",
+    "storage-security",
+    "activation",
     "decisions-and-validation"
   ]
 }

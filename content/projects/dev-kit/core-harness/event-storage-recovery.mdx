@@ -5,7 +5,7 @@ description: Single-writer protocol, session admission, transcript projection v�
 
 # Event storage và recovery
 
-Trạng thái: foundation contract v0.5. V1 chốt semantics bên dưới; DDL/migration và protected-payload implementation vẫn cần storage/security review. [Event catalog](/dev-kit/core-harness/event-catalog) liệt kê các facts có thể xuất hiện.
+Trạng thái: foundation contract v0.6. V1 chốt semantics bên dưới; DDL/migration và protected-payload implementation vẫn cần storage/security review. [Event catalog](/dev-kit/core-harness/event-catalog) liệt kê các facts có thể xuất hiện.
 
 ## 1. Source of truth và projections
 
@@ -145,7 +145,7 @@ Run đã finished vẫn có thể nhận **reconciliation/accounting commands đ
 
 Event envelope SHOULD đủ để dựng control lifecycle không mở raw payload; **mọi native run muốn tiếp tục sau process start phải chờ người dùng mở vault** vì input, transcript và exact args nằm trong protected store, kể cả tool không dùng credential. Có thể dựng control view hoặc xử lý metadata-only cancellation khi khóa, nhưng không dựng provider context, recheck args hay AcceptUnknown preview. AcceptUnknown(close) thông thường yêu cầu unlock và exact protected preview, không dùng cached plaintext; CloseRunWithoutPayload là đường đóng metadata-only v1 khi không đọc được payload hoặc không mở được vault, theo guards/dispositions ở state-machine §6. Batch đóng không cần protected-store writes; không restore context, cập nhật contextRequirement trên admission row: missing/corrupt -> fresh_required, vault_locked -> revalidation_required; SelectRunContext giải quyết cùng admission run mới và không release external writer/resource ownership. Đây là UX activation gate G-03/G-07, không chỉ chi tiết storage. Không suy ra transcript/outbox hiện hữu đã encrypted: peer outbox có contract transcript-level plaintext riêng, không được nhân bản vào event metadata/logs.
 
-Trước lưu payload thật phải chốt encryption-at-rest, bounded sizes, key lifecycle, deletion/export và backup trong G-03. Append-only không có nghĩa giữ dữ liệu nhạy cảm vĩnh viễn. Deletion có thể làm context replay không khả dụng; không hứa tái tạo model/world state từ metadata.
+Encryption-at-rest, bounded sizes, key lifecycle, deletion/export và backup đã chốt ở [storage và bảo mật payload](/dev-kit/core-harness/storage-security) (G-03). Append-only không có nghĩa giữ dữ liệu nhạy cảm vĩnh viễn. Deletion có thể làm context replay không khả dụng; không hứa tái tạo model/world state từ metadata.
 
 Event schema và execution protocol có version riêng. Unknown required event/protocol làm stream unavailable, không silently skip hoặc dùng projection cũ để chạy. Upcaster phải thuần; upgrade policy chọn drain/compatible resume/interruption. V1 không persisted snapshots; tính tương thích projection rebuild vẫn phải kiểm chứng.
 
