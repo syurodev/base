@@ -1,0 +1,212 @@
+---
+title: Context engine
+description: Lắp prompt cho mỗi model request — bố cục cho prompt cache, tầng rule, context bền của workspace, đo token, pruning và compaction.
+---
+
+# Context engine
+
+Trạng thái: foundation decision v0.8. **Thiết kế đã chốt** cho H-10, H-11, H-12 và tầng context bền của workspace (H-13) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Tham chiếu session cũ (H-15) để giai đoạn B. Các con số mặc định đều cấu hình được và sẽ được tinh chỉnh khi dogfood.
+
+Tham khảo khi thiết kế: pi (compaction, system prompt theo section, cache warmer), deepseek-harness (`context/*`, `compaction/*`), Claude Code (`CLAUDE.md`, rules, auto memory), Cursor (rules), Codex (`AGENTS.md`), opencode, Aider (repo map), context editing của Anthropic API, Mem0, Letta, Graphiti/Zep, LangMem. Đây là nguồn đối chiếu, không thay contract của DevKit.
+
+## 1. Quyết định của người dùng
+
+| ID | Quyết định |
+| --- | --- |
+| C-01 | Context engine chỉ **lắp** context; rule là tầng chỉ dẫn có owner riêng |
+| C-02 | Hai tầng context: **context của session** và **context bền của workspace (W)**; compaction trích dẫn W bằng nhãn để agent không phải dựng lại hiểu biết |
+| C-03 | W giữ **plaintext** trong `workspacememory`, redact bắt buộc |
+| C-04 | Agent chỉ **gợi ý** cho W; user duyệt mới ghi |
+| C-05 | Budget W **10 KiB**, chia **50/50 không cứng** giữa pinned block và chỉ mục; con số sẽ tinh chỉnh |
+| C-06 | Anchor độ tươi dùng **hash nội dung file** |
+| C-07 | Gợi ý sinh **ở nền**; dạng thao tác **ADD / UPDATE / INVALIDATE / NOOP**; **vô hiệu hóa thay vì xóa**; rule học từ những lần user sửa agent |
+| C-08 | **Ưu tiên tiếng Anh** cho nội dung bền; cho xen từ khóa ngôn ngữ khác; từ chối khi **≥ 60%** câu đủ dài không phải tiếng Anh |
+| C-09 | Rule: R1 chỉ local ở v1; có R3; kích hoạt **luôn áp dụng** và **theo path**; lint mỗi lần lưu, audit AI khi bấm; `AGENTS.md` thắng `CLAUDE.md` |
+| C-10 | Compaction **tự động mặc định**; phần giữ nguyên **co giãn theo context window**; model tóm tắt cấu hình được, mặc định là model của session |
+| C-11 | System prompt **không chứa giá trị cụ thể**; thứ đổi giữa session gắn vào cuối |
+| C-12 | View "model đã thấy gì" để giai đoạn B |
+
+## 2. Bố cục prompt
+
+Từ ổn định nhất tới hay đổi nhất. Thứ gì đổi giữa session thì **gắn thêm vào cuối**, không bao giờ sửa tầng phía trước.
+
+| Tầng | Nội dung | Đổi khi nào |
+| --- | --- | --- |
+| L0 | Khai báo tool theo binding revision | Chỉ ở ranh giới step (`ToolBindingRevised`) |
+| L1 | System prompt lõi R0 của DevKit: có version, không chứa đường dẫn, giờ, tên máy | Khi nâng cấp DevKit |
+| L2 | Rule R1, R2, R3 đang luôn áp dụng | Hiếm; đổi thì gửi patch (§2.1) |
+| L3 | Context của session: thông tin workspace, danh mục tool group, mô tả preset, **pinned block W**, **chỉ mục W** | Hiếm; đổi thì gửi patch |
+| L4 | Hội thoại: [bản tóm tắt compaction] + các message canonical giữ lại của epoch hiện tại | Mỗi step |
+| L5 | Runtime context của step, có nhãn: giờ, cwd, job đã xong, preset vừa đổi, env refresh, rule theo path vừa kích hoạt | Mỗi step |
+
+Model adapter đặt điểm cache sau L3 và ở cuối prompt. Request tóm tắt không ghi cache.
+
+### 2.1 Patch và runtime context
+
+- Mỗi khối ở L1–L3 có **tag ổn định** (ví dụ `<rules-user>`, `<workspace-memory-index>`). Khi một khối đổi, một message có nhãn cùng tag được gắn vào L5 với nội dung mới; model được dặn rằng khối mới nhất cùng tag thay khối cũ.
+- Khi compaction dựng lại view, các khối đã patch được gộp về trạng thái hiện hành ở L2–L3, nên prefix mới phản ánh đúng nội dung mới nhất.
+- Mọi patch và runtime context đi vào transcript qua event `ContextInjected`; không có đường ghi riêng.
+
+### 2.2 Lắp context là hàm xác định
+
+View của một model request là hàm thuần từ: transcript đã commit của epoch, cấu hình đã ghim, binding revision, **snapshot của rule và instruction file** (lưu thành payload qua `InstructionsLoaded`), trạng thái W đã đọc, và các event compaction/pruning. Mọi đầu vào ngoài đều có trong journal, nên dựng lại được "model đã thấy gì" để debug (UI ở giai đoạn B).
+
+## 3. Tầng rule
+
+### 3.1 Bốn lớp
+
+Nối từ rộng tới cụ thể; lớp sau đứng sau trong prompt.
+
+| Lớp | Nguồn | Ai sửa | Budget mặc định |
+| --- | --- | --- | --- |
+| R0 | System prompt lõi của DevKit | DevKit; user **xem được** (chỉ đọc) | — |
+| R1 | Rule global của user, lưu trong preferences (**chỉ local** ở v1) | User, trong Settings | 8 KiB |
+| R2 | File của repo: chuỗi từ root workspace xuống cwd, kể cả thư mục con khi agent đụng tới | Team (git) | 32 KiB cho cả chuỗi |
+| R3 | Rule cá nhân theo workspace, không nằm trong repo | User, trong settings của workspace | 8 KiB |
+
+- R2: mỗi thư mục lấy **một** file theo thứ tự `AGENTS.override.md` → `AGENTS.md` → `CLAUDE.md`. `CLAUDE.md` chỉ được nạp khi thư mục đó không có `AGENTS.md`. Hai file cùng nội dung (kể cả symlink) chỉ nạp một lần.
+- Vượt budget của chuỗi: bỏ file rộng trước, file cụ thể nhất bị cắt sau cùng, kèm ghi chú đường dẫn để agent tự đọc phần còn lại.
+- Comment HTML (`<!-- -->`) ngoài code block bị bỏ trước khi đưa vào context.
+- Mỗi khối được gắn nhãn đường dẫn nguồn. **Rule là chỉ dẫn, không phải authority**: không nới được sandbox, preset hay gate. File trong repo có thể chứa prompt injection.
+
+### 3.2 Kích hoạt
+
+| Kiểu | Cách khai báo | Khi nào vào context |
+| --- | --- | --- |
+| Luôn áp dụng | Mặc định | L2, mọi request |
+| Theo path | Frontmatter `paths:` (glob) | Khi agent đọc hoặc ghi file khớp: gắn vào L5 qua `ContextInjected`; sau compaction được gắn lại nếu file khớp vẫn nằm trong phần giữ nguyên |
+
+Kiểu "agent tự quyết dựa trên description" để giai đoạn B.
+
+### 3.3 Review rule
+
+- **Lint mỗi lần lưu**, xác định, không gọi model: kích thước so với budget; dòng trùng hoặc gần trùng với R0 và với các lớp khác; `AGENTS.md` và `CLAUDE.md` cùng nội dung; cảnh báo token cho nội dung không phải tiếng Anh (§6.3).
+- **Audit bằng AI khi user bấm**: tìm phần trùng với R0, mâu thuẫn giữa các lớp, chỉ dẫn mơ hồ không kiểm chứng được, nội dung agent tự suy ra được từ code. Chỉ trả **đề xuất sửa**; user tự áp dụng.
+- R0 hiển thị chỉ đọc trong Settings để user biết cái gì đã có sẵn.
+
+### 3.4 Đoạn bắt buộc trong R0
+
+> Prefer English for durable context — workspace memory, pinned blocks, compaction summaries and memory suggestions. Mixing in terms, names, UI strings or short phrases from other languages is fine; keep them verbatim with their original diacritics. Always reply to the user in the language they are using.
+
+## 4. Context bền của workspace (W)
+
+Owner là `workspacememory` (đã có: `kind`, `title`, `summary`, `body`, `revision`, lịch sử và restore, CAS theo revision). Plaintext, ngoài vault và ngoài sync, cùng tầng với instruction file của workspace.
+
+### 4.1 Hai dạng
+
+| Dạng | Ví dụ | Vào prompt |
+| --- | --- | --- |
+| **Pinned block** | `project-profile` (build, test, run, setup env), `architecture-notes`; mỗi block có `label`, `description`, giới hạn ký tự | L3, toàn bộ nội dung |
+| **Collection** | Sự thật, quyết định, quy ước, cách làm, ghi chú | L3 chỉ có **chỉ mục** (nhãn, một dòng tóm tắt, độ tươi); nội dung lấy bằng `workspace.memory.get` |
+
+Budget tổng 10 KiB, mỗi dạng 50%; dạng nào chưa dùng hết thì dạng kia mượn. Vượt budget: chỉ mục ưu tiên entry `verified`, rồi entry mới cập nhật; phần còn lại được báo "còn N entry, dùng search".
+
+### 4.2 Field bổ sung cho entry
+
+| Field | Ý nghĩa |
+| --- | --- |
+| `author` | `user` hoặc `agent` (qua gợi ý đã duyệt) |
+| `verified` | User đã xác nhận |
+| `validity` | `valid`, `superseded` (trỏ tới entry thay thế), `invalid` (kèm lý do) |
+| `anchors` | Danh sách (đường dẫn, hash nội dung lúc ghi) hoặc revision của codegraph |
+| `provenance` | Session, run, gợi ý đã sinh ra entry |
+
+Độ tươi tính khi đưa vào chỉ mục và khi `get`: `fresh` (mọi anchor khớp), `stale` (có anchor không khớp; agent được nhắc xác minh lại), `unknown` (không có anchor). Entry `superseded`/`invalid` không vào chỉ mục nhưng vẫn xem được trong lịch sử.
+
+### 4.3 Gợi ý ở nền
+
+- **Job tổng kết** chạy nền khi compact, khi run kết thúc và khi session rảnh. Job **không nằm trong execution stream của run**: owner là `workspacememory`, gọi model qua model adapter chung, dùng model cấu hình được, có budget riêng ghi vào usage của session. Job không làm chậm hay chặn run, cancel được, và chỉ đọc transcript khi vault mở. Crash thì job bị bỏ; lần kích hoạt sau chạy lại.
+- Với mỗi hiểu biết bền, job tìm entry W giống nhất rồi đề xuất **ADD**, **UPDATE**(entry, revision), **INVALIDATE**(entry, lý do) hoặc **NOOP**.
+- Khi user lặp lại việc sửa agent ("đừng dùng X", "luôn chạy Y trước"), job đề xuất **thay đổi rule R1 hoặc R3** thay vì entry W; đề xuất đi qua lint của rule.
+- Gợi ý vào **hàng chờ** của `workspacememory`; user duyệt dưới dạng diff. Duyệt UPDATE thì CAS theo revision; revision đã đổi thì gợi ý cần tạo lại.
+- Gần tới ngưỡng compaction, agent chính được nhắc rằng hiểu biết đáng giữ sẽ được job đề xuất; agent không tự ghi W.
+
+### 4.4 An toàn
+
+- **Memory poisoning**: entry do agent viết được gắn nhãn tác giả và provenance; trong prompt, W là ghi chú, không phải authority; user có thể đánh dấu `verified`.
+- **Lộ dữ liệu**: W là plaintext nên gợi ý được redact trước khi vào hàng chờ; cấm chép nguyên văn output hay args của tool; có giới hạn kích thước.
+- Agent và UI đọc W qua owner; không có đường ghi thứ hai.
+
+## 5. Đo token và ngưỡng
+
+- Mốc là số input token provider báo ở response trước, cộng ước lượng cho phần mới, cộng biên an toàn. Không phụ thuộc tokenizer của từng provider.
+- Với context window `W` và phần dành cho output `O` của model đang chạy:
+
+```text
+trigger    = min(0,8 × W, W − O − 16k)
+keepRecent = clamp(0,15 × (W − O), 6k, 30k)
+```
+
+| Ví dụ | W | O | Kích hoạt khi vượt | Giữ nguyên gần nhất |
+| --- | --- | --- | --- | --- |
+| Model local nhỏ | 32k | 4k | ~12k | 6k (sàn) |
+| Tầm trung | 128k | 16k | ~96k | ~16,8k |
+| Opus / Sonnet | 200k | 32k | ~152k | ~25k |
+| Window 1M | 1M | 64k | ~800k | 30k (trần) |
+
+- Tỷ lệ, sàn, trần và biên đều cấu hình được, có override theo model, và được tính lại khi user đổi model giữa session.
+
+## 6. Pruning và compaction
+
+### 6.1 Pruning
+
+- Chỉ chạy khi đã vượt ngưỡng kích hoạt. Tool result trong phần không giữ nguyên dài hơn 8.192 ký tự được thay bằng 4.096 ký tự đầu, một marker, và 1.024 ký tự cuối. Bản gốc vẫn trong protected payload.
+- Chỉ áp dụng khi tiết kiệm được ít nhất **5k token**, để bù việc mất prompt cache.
+- Ghi bằng event `ToolResultsPruned` (vị trí và tham số). Nếu sau pruning đã xuống dưới ngưỡng thì không compact.
+
+### 6.2 Compaction
+
+- Chỉ chạy **ở ranh giới step**: sau khi tool result đã vào, trước model request tiếp theo. Là model invocation có mục đích `compaction`: có attempt, budget, usage; không có side effect nên crash thì retry an toàn và tính vào retry budget.
+- **Điểm cắt**: đi ngược tới khi đủ `keepRecent`; chỉ cắt tại message user hoặc assistant; **không bao giờ** tách tool call khỏi tool result. Turn quá dài thì tóm tắt phần đầu của chính turn đó riêng rồi gộp.
+- **Input**: hội thoại được serialize thành text (không để model tưởng là hội thoại cần tiếp tục), tool result cắt còn 2.000 ký tự, bỏ thinking, kèm bản tóm tắt trước đó.
+- **Định dạng**: Goal, Constraints & Preferences, Progress (Done / In progress / Blocked), Key decisions, Next steps, Critical context, **W references**. Danh sách file đã đọc và đã sửa do DevKit lấy từ tool event, không để model tự liệt kê.
+- **Trích dẫn W**: bản tóm tắt dẫn entry W bằng nhãn và revision (ví dụ `[W:build-system r3]`) thay vì tóm tắt lại nội dung; sau compaction, L3 liệt kê các entry được trích dẫn.
+- Ghi bằng event `ContextCompacted`: payload bản tóm tắt, vị trí giữ nguyên đầu tiên, token trước và sau, model, usage. Transcript gốc giữ nguyên; compaction chỉ đổi view. Lần compact sau tóm tắt từ ranh giới giữ nguyên trước đó.
+- **Epoch**: compaction chỉ trong một epoch. Fresh context bắt đầu epoch mới, không mang bản tóm tắt sang.
+- **Context tràn** (provider từ chối vì quá dài): compact rồi retry **một lần**.
+- **Thất bại**: compaction không làm được hoặc vẫn tràn sau retry thì run kết thúc với failure `context_exhausted`; UI gợi ý chọn fresh context (`SelectRunContext`).
+
+### 6.3 Kiểm tra ngôn ngữ
+
+1. Bỏ khỏi phép đếm: code block, inline code, chuỗi trong ngoặc kép, đường dẫn, URL, tên định danh.
+2. Câu dưới **6 từ** bỏ qua.
+3. Câu được coi là tiếng Anh theo tỷ lệ từ chức năng tiếng Anh; không dựa vào dấu.
+4. Vượt **60%** câu đủ dài không phải tiếng Anh thì:
+
+| Nội dung | Hành vi |
+| --- | --- |
+| Gợi ý W, pinned block do agent đề xuất | Từ chối với error `content_language`, yêu cầu viết lại |
+| Bản tóm tắt compaction | Sinh lại một lần; vẫn vượt thì chấp nhận và ghi cảnh báo (compaction không thất bại vì ngôn ngữ) |
+| Rule do user viết | Chỉ cảnh báo |
+
+Tỷ lệ và độ dài tối thiểu cấu hình được. Không bao giờ tự bỏ dấu.
+
+## 7. UX
+
+- Giai đoạn A: thanh đo context (token đang dùng so với window); compaction và pruning hiện trong timeline; hàng chờ gợi ý W và rule; Settings có R0 chỉ đọc, R1, R3, kết quả lint và nút audit.
+- Giai đoạn B: view "model đã thấy gì" dựng lại từ journal.
+
+## 8. Để sau
+
+| Hạng mục | Giai đoạn |
+| --- | --- |
+| Tham chiếu session cũ do user chủ động (episodic) | B |
+| Rule kiểu agent tự quyết theo description | B |
+| Repo map từ codegraph trong L3 (~1k token) | B |
+| Compaction chạy nền trước khi chạm ngưỡng | B |
+| Cache warmer | B |
+| Thay ảnh cũ bằng placeholder | B |
+| Tìm kiếm W theo ngữ nghĩa (vector) | B |
+| Sync R1 giữa các máy | B |
+
+## 9. Evidence cần có
+
+| Evidence | Cách chứng minh |
+| --- | --- |
+| Lắp context xác định | Cùng journal dựng lại đúng cùng view; đổi rule hay W giữa session chỉ thêm patch, không đổi prefix |
+| Prompt cache | Đo tỷ lệ cache hit qua nhiều step, qua patch và qua binding revision |
+| Compaction | Không tách tool call/result; turn quá dài; tràn context rồi retry; crash giữa compaction; nhiều lần compact liên tiếp |
+| Pruning | Chỉ khi vượt ngưỡng và tiết kiệm ≥ 5k token |
+| Rule | Thứ tự R0–R3; `AGENTS.md` thắng; budget và cắt file; rule theo path được gắn lại sau compaction |
+| W | Độ tươi theo hash; INVALIDATE giữ lịch sử; CAS khi duyệt gợi ý; redact |
+| Ngôn ngữ | Tiếng Việt có dấu, không dấu, trộn từ khóa; câu ngắn; trích dẫn |

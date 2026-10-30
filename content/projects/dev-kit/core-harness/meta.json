@@ -8,7 +8,9 @@
     "event-storage-recovery",
     "storage-security",
     "tool-system",
+    "context-engine",
     "activation",
-    "decisions-and-validation"
+    "decisions-and-validation",
+    "design-map"
   ]
 }

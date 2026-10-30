@@ -1,11 +1,11 @@
 ---
 title: Event catalog và execution traces
-description: Danh mục command/event v0.7 và ba chuỗi thực thi để review transitions.
+description: Danh mục command/event v0.8 và ba chuỗi thực thi để review transitions.
 ---
 
 # Event catalog và execution traces
 
-Trạng thái: foundation contract v0.7, tên/schema logic để review; chưa là public wire API. Đây là catalog tối thiểu của native execution. Event batch được append bởi coordinator; projection được cập nhật đồng bộ như [storage protocol](/dev-kit/core-harness/event-storage-recovery).
+Trạng thái: foundation contract v0.8, tên/schema logic để review; chưa là public wire API. Đây là catalog tối thiểu của native execution. Event batch được append bởi coordinator; projection được cập nhật đồng bộ như [storage protocol](/dev-kit/core-harness/event-storage-recovery).
 
 ## 1. Quy ước
 
@@ -33,6 +33,10 @@ Envelope chung có run/sequence, command/causation, authenticated origin và wri
 | `RunFinished` | Outcome, primary/secondary stop refs, unresolved exposure refs nếu có | Mọi invocation đã có control disposition; cancel timers/dependencies, clear đúng control admission nếu run sở hữu nó; Queued finish không clear admission của run khác |
 | `StepStarted` | Step index, context/config refs | Step trước đã đóng; tạo model frontier, chưa gọi model |
 | `ToolBindingRevised` | Old/new binding revision, groups thêm/bớt, descriptor versions, cause (session_start, user_selection, propose, revoke, upgrade) | Chỉ ở ranh giới step: không có step mở hoặc attempt đang chạy; step kế tiếp dùng binding mới ([tool system §4](/dev-kit/core-harness/tool-system#4-registry-và-nạp-tool)) |
+| `InstructionsLoaded` | Lớp rule (R1/R2/R3), đường dẫn nguồn, payload refs của snapshot, budget và phần bị cắt | Snapshot rule và instruction file dùng để lắp context; nạp lại khi file đổi ([context engine §3](/dev-kit/core-harness/context-engine#3-tầng-rule)) |
+| `ContextInjected` | Tag, nguồn (patch rule/W/preset, runtime context, rule theo path, job đã xong), payload ref | Message có nhãn gắn vào cuối view; không sửa prefix ([context engine §2.1](/dev-kit/core-harness/context-engine#21-patch-và-runtime-context)) |
+| `ToolResultsPruned` | Vị trí các tool result, tham số cắt, token tiết kiệm | Chỉ khi vượt ngưỡng và tiết kiệm đủ; bản gốc giữ nguyên trong payload |
+| `ContextCompacted` | Payload bản tóm tắt, vị trí giữ nguyên đầu tiên, token trước/sau, W references, model invocation ref | Chỉ ở ranh giới step, trong cùng epoch; transcript gốc không đổi ([context engine §6.2](/dev-kit/core-harness/context-engine#62-compaction)) |
 | `StepCompleted` | Response ref, ordered result refs, continuation decision/policy | Canonical response và tool pairs đủ; next action end/continue có budget/stop checks |
 | `StepAborted` | Typed reason và dispositions của batch đã xuất hiện | Dùng khi stop/fatal/unknown close trước normal completion; đóng model invocation còn mở bằng disposition tương ứng (unknown close là abandoned_unknown); không giả response/failure đã biết |
 
@@ -44,7 +48,7 @@ Ghim input/config phục vụ provenance, không ghim quyền. Admission guards 
 
 | Event | Fields/control facts chính | Guard / thay đổi projection |
 | --- | --- | --- |
-| `ModelRequestPlanned` | Invocation ID, first attempt ID, model/context/tool declaration refs, budget estimate | Tạo logical model invocation ở step frontier; no side effect |
+| `ModelRequestPlanned` | Invocation ID, purpose (`turn` hoặc `compaction`), first attempt ID, model/context/tool declaration refs, budget estimate | Tạo logical model invocation ở step frontier; no side effect |
 | `ModelDispatchStarted` | Attempt ID, executor fence, reservation, selected provider settings ref | Coordinator sở hữu admission; không blocker/stop; chuyển attempt `Requesting` trước handoff |
 | `ModelStreamStarted` | Attempt ID, first chunk observation ref | Bound worker report; chuyển `Streaming`; các deltas sau không cần domain event từng token |
 | `ModelResponseRecorded` | Complete response ref, selected attempt, usage status | Valid final protocol record; chuyển `Completed`, chọn response và project canonical assistant message |
