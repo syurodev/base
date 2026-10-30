@@ -5,7 +5,7 @@ description: Ownership, execution kernel và extension contracts của core harn
 
 # Kiến trúc và ranh giới
 
-Trạng thái: foundation design v0.6, chưa implementation. Phạm vi và bất biến chung ở [Core harness](/dev-kit/core-harness).
+Trạng thái: foundation design v0.7, chưa implementation. Phạm vi và bất biến chung ở [Core harness](/dev-kit/core-harness).
 
 ## 1. Mô hình kiến trúc
 
@@ -116,7 +116,7 @@ Tên bên dưới là tên logic, chưa chốt Go interface signatures.
 | --- | --- | --- |
 | Model adapter | Chuyển request chuẩn hóa sang provider; stream và chuẩn hóa completion/error/usage | Giữ khác biệt provider tại adapter; không tự dispatch tool, không bật provider-hosted tools v1 hoặc cập nhật state run |
 | Context builder | Chọn messages, references, compaction và tool declarations | Có budget; đầu vào/phiên bản có thể truy vết; không tự cấp tool/quyền |
-| Tool dispatcher | Resolve declaration, validate input và đi qua đường service/gateway được kiểm soát | Không gọi raw handler để né identity/gate/result budget |
+| Tool dispatcher | Resolve declaration, validate input và đi qua đường service/gateway được kiểm soát; contract chi tiết ở [tool system](/dev-kit/core-harness/tool-system) | Không gọi raw handler để né identity/gate/result budget |
 | Execution repository | Transaction adapter cho coordinator: append có revision/token, dedup, projections và recovery reads | Không tự schedule/claim; chỉ current coordinator ghi execution stream |
 | Interaction port | Kết nối câu hỏi/approval hiện hữu | Fail closed khi không có trusted responder; không tự duyệt |
 | Continuation strategy | Đề xuất tiếp tục/kết thúc sau một step hoàn chỉnh | Kernel vẫn cưỡng chế budget, cancellation và state legality |

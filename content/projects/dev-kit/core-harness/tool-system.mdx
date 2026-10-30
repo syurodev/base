@@ -1,0 +1,242 @@
+---
+title: Tool system
+description: Thiết kế cấp hệ thống cho tool của native runtime — contract, nạp tool, interaction, sandbox, shell, job, snapshot, result và version.
+---
+
+# Tool system
+
+Trạng thái: foundation decision v0.7. **Thiết kế cấp hệ thống đã chốt**; từng tool (file, shell, git, db…) được thiết kế ở trang riêng. Các spike và evidence còn mở ở [mục 12](#12-spike-và-evidence-còn-mở). Trang này cụ thể hóa G-04/G-05 cho phần tool; semantics lifecycle của invocation vẫn ở [state machine §5](/dev-kit/core-harness/state-machine#5-tool-invocation-và-effect-class).
+
+Tham khảo khi thiết kế: [pi](https://github.com/earendil-works/pi) (`pi-durable`, `coding-agent`), [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) (tool pipeline, approval, sandbox escalation, spill, fs observation) và [Agent Harness Engineering Patterns](https://ashishpatel26.github.io/agent-harness-engineering-pattern/) chương 01–06. Đây là nguồn đối chiếu, không thay contract của DevKit.
+
+## 1. Quyết định của người dùng
+
+| ID | Quyết định |
+| --- | --- |
+| T-01 | Native runtime **tự sở hữu** tool file, tìm kiếm, shell và job; không dựa vào tool có sẵn của vendor |
+| T-02 | Trong phạm vi đã cấp quyền thì **tự chạy**; [việc quan trọng](#53-việc-quan-trọng-luôn-hỏi) luôn hỏi |
+| T-03 | Tool native gọi thẳng owner service; **refactor MCP handler về contract chung để sau**, nhưng phải xong trước giai đoạn B |
+| T-04 | Bộ tool cơ bản luôn bật; user **chọn thêm group khi tạo session**; giữa session xin nạp thêm |
+| T-05 | Shell: **lệnh chạy một lần, trong jail sống theo session** |
+| T-06 | Env lấy từ **snapshot login shell** mỗi session; Gradle có thể dùng daemon của host (chấp nhận, ghi rõ) |
+| T-07 | Giai đoạn A dùng network `host`; mở `docker.sock` theo workspace; Docker proxy là hướng dài hạn |
+| T-08 | Mở rộng sandbox có ba lựa chọn: **không cho / cho 1 lần / cho cả session** |
+| T-09 | Interaction request **chỉ giữ trong memory theo incarnation** |
+| T-10 | Preset mặc định: **Chỉ đọc / Workspace / Full access** |
+| T-11 | Quá timeout thì **chuyển thành background job**; có tool cancel |
+| T-12 | Hai loại snapshot (**turn** và **tool**) với hạn mức riêng, cấu hình theo workspace; shadow git trước, store thuần Go là nâng cấp dài hạn |
+| T-13 | Contract result ba kênh, error có kiểu |
+| T-14 | Tool đổi version khi nâng cấp được xử lý theo [mục 11](#11-tool-đổi-version) |
+
+## 2. Contract của một tool
+
+**Descriptor** là dữ liệu có version, được review như code:
+
+| Field | Nội dung |
+| --- | --- |
+| `name`, `version` | Tên duy nhất trong registry; version tăng khi schema, mô tả hoặc semantics đổi |
+| `schema`, `outputSchema` | JSON Schema của args và của `structured` (nếu có) |
+| `description`, `descriptionHash` | Mô tả cho model; hash ghim theo version để mô tả không bị đổi ngầm |
+| `effectClass`, thuộc tính | Xem [mục 3](#3-effect-class-và-thuộc-tính) |
+| `group` | Tool group của harness (W/S) |
+| `resultBudget`, `timeoutCap` | Giới hạn result cho model và timeout tối đa |
+| `prompts` | Loại tương tác có thể cần: confirmation, selection, escalation |
+| `nativeCompatible` | Chỉ `true` khi mọi đường prompt của tool đã tách theo §5; ratchet `prompt_sites_test.go` là baseline |
+
+**Ba pha:**
+
+| Pha | Việc | Cấm | Event tương ứng |
+| --- | --- | --- | --- |
+| `Prepare(args) → Plan` | Validate args, resolve target/profile kèm revision, ghim lựa chọn; kết luận `Ready`, `NeedsSelection`, `NeedsConfirmation` hoặc refusal | Side effect, hỏi user | `ToolCheckStarted` → `ToolReadyRecorded` / `ToolApprovalRequested` |
+| `Execute(plan, receipts)` | Revalidate, claim receipt, chạy effect duy nhất | Hỏi user (hub trả lỗi nếu có prompt trong context execute), retry | `ToolDispatchStarted` → `ToolResultRecorded` |
+| `Reconcile(attempt)` | Tùy chọn; xác định kết quả sau crash | Chạy lại effect | `ToolReconciled` |
+
+**Luật chung:**
+
+- Retry thuộc kernel (attempt mới trong journal). Tool không có decorator retry, fallback hay memoize.
+- Registry chỉ nhận tool do **factory** tạo và đã bọc guard/gateway; không có constructor khác. Factory chọn một "họ" môi trường cho session (sandbox backend, data dir) và inject credential vào tool object; credential không bao giờ nằm trong args, transcript hay journal.
+- Target là tham số tường minh. Không có "active profile" ngầm trong đường tool của native: thiếu target thì `Prepare` trả `NeedsSelection`.
+- Hook không được nới quyền. Nếu hook đổi args, args mới phải qua validate và approval lại vì approval gắn với canonical args.
+
+## 3. Effect class và thuộc tính
+
+Giữ ba class của [state machine §5](/dev-kit/core-harness/state-machine#5-tool-invocation-và-effect-class) (`pure_read`, `idempotent`, `side_effecting`; mặc định `side_effecting`). Thêm thuộc tính phụ để policy và recovery quyết định chính xác hơn:
+
+| Thuộc tính | Ý nghĩa |
+| --- | --- |
+| `needsVault` | Cần secret từ vault; luôn hỏi theo §5.3 |
+| `externalCost` | Gọi dịch vụ tính phí (API, cloud) |
+| `reconcilable` | Có `Reconcile` thật, ví dụ sửa file có hash trước và sau |
+| `touchesWorkspace` | Có thể ghi vào workspace; kích hoạt tool snapshot (§9) |
+| `externalIrreversible` | Tác động ra ngoài không đảo ngược được (gửi, push, ghi DB không phải dev) |
+
+Shell luôn là `side_effecting` + `touchesWorkspace`, không bao giờ `pure_read` theo nội dung lệnh.
+
+## 4. Registry và nạp tool
+
+**Lúc tạo session.** Bộ cơ bản luôn bật, không tắt được: đọc, tìm, sửa và ghi file; shell; nhóm `job.*`; codegraph đọc; `harness.profile.propose`. User chọn thêm group (db, git, ssh, kafka, tasks…) trong picker, xuất phát từ workspace profile W; lựa chọn thành session override S. Picker hiển thị chi phí định nghĩa của mỗi group (đã có ở `harness.profile.get`).
+
+**Danh mục trong system prompt.** Tên mỗi group chưa bật kèm một dòng mô tả, không kèm schema, để agent biết còn gì có thể xin.
+
+**Giữa session.** Agent xin group qua `harness.profile.propose` (owner `harnessconfig.Controls`, không làm cơ chế thứ hai). Group đã được cho phép sẵn trong W thì nạp tự động; chưa thì hỏi user.
+
+**Binding revision.** Danh sách tool chỉ đổi **ở ranh giới step**, ghi bằng `ToolBindingRevised` ([catalog](/dev-kit/core-harness/event-catalog#2-run-và-step)). Không đổi giữa một step. Đây là chỗ nới D-07: binding ghim theo session và đổi qua revision, không ghim cứng theo run.
+
+| Cách đưa tool mới tới model | Quyết định |
+| --- | --- |
+| Đổi danh sách tool ở step kế tiếp | **Mặc định**; mất prompt cache một lần mỗi lần nạp (hiếm) |
+| Cơ chế nạp schema trễ của provider | Tối ưu tùy chọn theo từng model adapter |
+| Meta-tool `invoke(name, args)` | **Không dùng**: mất validate phía provider, khó audit |
+
+Không tự gỡ group giữa session để tiết kiệm token. Chỉ gỡ khi user thu hồi quyền; khi đó binding revision mới loại tool ra. Model gọi tên không có trong binding hiện tại thì nhận error `tool_unavailable`.
+
+## 5. Interaction, approval và preset
+
+### 5.1 Request chỉ trong memory
+
+Interaction owner giữ request **trong memory theo incarnation**, khóa bằng `operationID` (ensure/read-back để không hỏi trùng). Restart hoặc vault lock làm mất mọi request; tool liên quan đi qua `ToolCheckReset`. Không thêm bảng DB: sự thật bền vững là journal (`ToolApprovalRequested/Resolved`) cộng audit sink. Hệ quả chấp nhận: câu hỏi đang chờ biến mất khi restart (kể cả do updater) và được hỏi lại khi resume; grant "cho cả session" mất sau restart.
+
+Kết quả của một request: `allowed_once`, `allowed_session`, `denied`, `cancelled`, `unavailable`, `expired`. Có allow thì owner cấp receipt dùng một lần như [approval protocol](/dev-kit/core-harness/architecture#approval-qua-owning-gateway). Không có answerer tin cậy (headless, server mode, nil responder) thì `unavailable`, fail closed. Mọi request và kết quả vào audit, không chứa args.
+
+Selection (chọn profile, account, scope, trả lời group request) đi đúng luồng này: `Prepare` trả `NeedsSelection`, owner tạo request, lựa chọn được ghim vào Plan kèm revision. Lựa chọn của user không cấp quyền thực thi.
+
+### 5.2 Preset theo workspace
+
+| Preset | Sandbox | Network | Docker | Hỏi user |
+| --- | --- | --- | --- | --- |
+| Chỉ đọc | `read-only` | `none` | Không | Mọi thao tác ghi |
+| **Workspace** (mặc định) | `workspace-write` | `host` (giai đoạn A) | Không | Chỉ việc quan trọng và escalation |
+| Full access | `full-access` | `host` | `docker.sock`, nhãn **host-root** | Chỉ việc quan trọng |
+
+User đổi preset giữa session thì một ghi chú có nhãn được chèn cho model ở ranh giới step kế tiếp.
+
+### 5.3 Việc quan trọng luôn hỏi
+
+Luôn hỏi, và **chỉ có lựa chọn "cho 1 lần"**, bất kể preset:
+
+- Environment tag `prod` hoặc tag không rõ (luật cứng của AGENTS.md).
+- Tác động ra ngoài không đảo ngược được: gửi peer message, comment PR, API ghi, push, ghi DB không phải dev.
+- Đọc secret từ vault.
+- Thao tác vượt phạm vi grant hiện tại.
+
+## 6. Sandbox và escalation
+
+Sandbox là chính sách, không phải việc đoán qua nội dung lệnh. Mode xếp thành bậc thang đóng: `read-only` → `workspace-write` → `full-access`.
+
+1. Lời gọi bị sandbox chặn trả error `sandbox_denied`, có marker nêu mode hiện tại và gợi ý escalation.
+2. Model gọi lại **đúng lời gọi đó** với `sandbox_permissions` (mode rộng hơn hẹp nhất đủ dùng) và `justification`.
+3. `Prepare` trả `NeedsConfirmation`; user chọn không cho, cho 1 lần hoặc cho cả session.
+4. Lời gọi được nới chạy trong **jail riêng của chính nó** với policy rộng hơn; jail của session không bị dựng lại.
+
+Xin lại đúng mode hiện tại thì không hỏi; xin hẹp hơn là args không hợp lệ. Grant "cho cả session" lưu đúng phạm vi đã nới, mất hiệu lực khi vault lock hoặc restart, và không áp dụng cho việc ở §5.3.
+
+## 7. Shell, job và env
+
+### 7.1 Shell
+
+- Mỗi lệnh chạy một lần, **bên trong jail sống theo session**: không tương tác (stdin đóng, `CI=1`, `PAGER=cat`), trả exit code, stdout và stderr tách riêng.
+- Policy áp theo từng lời gọi: grant mới có hiệu lực ngay từ lời gọi tiếp theo.
+- **cwd do DevKit giữ trong journal**: wrapper ghi cwd cuối ra kênh riêng, lưu trong result; lời gọi sau mặc định dùng cwd đó, chỉ trong workspace. Env không giữ giữa các lời gọi; model truyền qua tham số `env` theo allowlist.
+- Khi lệnh xong, process group **của lệnh đó** bị kill. Daemon đã tự tách (Gradle, Kotlin, mvnd) sống tiếp trong jail của session, hiện trong session view, bị dừng khi session kết thúc. Daemon không phải attempt nên không cản `RunFinished`.
+- Daemon đang chạy giữ policy lúc nó khởi động (có thể hẹp hơn grant mới); user có thể restart daemon từ UI.
+
+### 7.2 Job
+
+- Timeout của shell cấu hình theo workspace, mặc định 10 phút. Quá timeout thì lệnh **chuyển thành background job**, không bị kill; model nhận job handle. Model cũng có thể chạy ngay ở nền.
+- Tool: `job.output` (đọc phần cuối hoặc theo khoảng), `job.status`, `job.cancel`. Job ID gắn với session và là capability: chỉ session sở hữu mới đọc hoặc cancel được, nên tự chạy.
+- `job.cancel` gửi SIGTERM cho process group, chờ ân hạn rồi SIGKILL; result có bằng chứng dừng. User cũng cancel được từ UI.
+- Giới hạn mặc định (cấu hình theo workspace): tối đa 3 job cùng lúc mỗi session, mỗi job sống tối đa 2 giờ. Session kết thúc thì mọi job bị dừng.
+- Job xong thì model nhận một thông báo có nhãn ở ranh giới step kế tiếp; thông báo này không đóng vai input của user.
+
+### 7.3 Env của host
+
+- Khi session bắt đầu, chạy `$SHELL -l -i -c env` của user **một lần, ngoài sandbox**, có timeout; cache cho cả session, có nút refresh. Lỗi hoặc treo thì fallback về env hiện có của DevKit (`os.Environ` cộng các thư mục bin phổ biến) và báo cho user.
+- Giá trị env không bao giờ vào journal, log hay audit; journal chỉ ghi env snapshot revision.
+- Shared-home: `~/.m2`, `~/.gradle`, `~/.cache` đọc ghi trực tiếp để build dùng chung cache; `~/.ssh`, `~/.gnupg`, `~/.aws`, gcloud vẫn bị chặn đọc.
+- **Giới hạn đã chấp nhận:** Gradle client trong jail có thể kết nối tới daemon của host qua registry trong `~/.gradle` và loopback; khi đó build chạy ngoài sandbox với JDK và env của daemon host. Bazel và sbt có cùng kiểu vấn đề.
+
+### 7.4 Platform
+
+- macOS: seatbelt gán profile theo từng process, daemon kế thừa profile. DevKit giữ registry process của session (PID kèm thời điểm start, ghi trong journal) và chạy reaper khi khởi động để dọn process mồ côi sau crash.
+- Linux: bwrap `--die-with-parent` cho bằng chứng dừng; giữ daemon qua nhiều lời gọi mà vẫn `--unshare-pid` cần supervisor chung namespace (spike).
+- Model attempt bị gián đoạn do host crash được tính vào retry budget để crash lặp có điểm dừng.
+
+## 8. Network và Docker
+
+- Giai đoạn A: network `host` cho preset Workspace và Full access. Mức bảo vệ thực tế của giai đoạn A chủ yếu là chặn ghi ngoài workspace và chặn đọc thư mục nhạy cảm; **không chặn được dữ liệu bị gửi ra ngoài**. Activation UX phải nói rõ điều này.
+- Dài hạn: mode `egress-allowlist` qua proxy HTTP(S) CONNECT của DevKit (registry, VCS host, host do user khai báo), vẫn cho loopback tới dịch vụ local.
+- Docker giai đoạn A (preset Full access):
+  - Tìm endpoint bằng `docker context inspect --format '{{.Endpoints.docker.Host}}'` ngoài sandbox, dùng env snapshot, có timeout.
+  - `unix://` thì resolve symlink rồi thêm vào `AllowUnixSockets`; `tcp://` đã có qua network `host`; `ssh://` không hỗ trợ ở v1.
+  - Thư mục thật của CLI (resolve từ PATH) thêm vào `ReadOnlyPaths`.
+  - Giới hạn: `credsStore` dùng Keychain có thể bị seatbelt chặn, nên pull image từ registry private có thể lỗi.
+- Dài hạn: **Docker proxy** do DevKit sở hữu (lọc API, chỉ cho bind mount trong workspace, cấm privileged và host namespaces, gắn label session cho container), ưu tiên hơn việc nhúng container runtime vào DevKit vì không ảnh hưởng setup Docker sẵn có của user.
+
+## 9. Snapshot
+
+Native runtime gọi snapshot qua một **interface** (chụp, diff, lên kế hoạch restore, restore). Giai đoạn A dùng shadow git của `internal/checkpoint`: repo riêng trong data dir, gọi với `--git-dir` và `--work-tree`, nên **project không cần có `.git`**, và `.git` của user không bị đụng. Store viết thuần bằng Go là nâng cấp dài hạn phía sau cùng interface.
+
+| | Turn snapshot | Tool snapshot |
+| --- | --- | --- |
+| Chụp lúc nào | Khi run được admit, trước mọi việc | Slot `before` ngay trước và `after` ngay sau mỗi tool có `touchesWorkspace` |
+| Restore | Cả project về đầu turn | **Chỉ các file trong diff `before`/`after`** của tool đó, qua `PlanRestore(only=…)` |
+| Hạn mức mặc định | 200 mỗi session | 500 mỗi session, vòng tròn |
+| Giữ | 30 ngày | 7 ngày |
+
+- Hạn mức, thời gian giữ và **danh sách loại trừ** (ví dụ `target/`, `build/`, `dist/`) cấu hình theo workspace; danh sách loại trừ áp dụng cả khi project có `.gitignore`.
+- Chỉ đếm tree khác nhau. Giới hạn đĩa 1 GiB dùng chung, đầy thì tỉa tool snapshot trước; tool snapshot không bao giờ lấn hạn mức của turn snapshot.
+- Tool sửa file còn giữ bản trước trong payload (nhờ đọc trước khi sửa); bản này không tính vào hạn mức snapshot.
+- Tự chạy thao tác phá hủy trong workspace cần **ít nhất turn snapshot** của run. Turn snapshot thất bại (git không có, vượt giới hạn) thì tool ghi của run đó phải hỏi user, kèm hướng dẫn cài git.
+- Restore chỉ khi session rảnh, hoặc tự đặt run vào `host_paused`. Xung đột `changed_since` cho user quyết. Sau restore, các lần đọc cũ hết hiệu lực.
+- Journal ghi ID ngẫu nhiên ánh xạ tới tree git; hash tree không vào metadata.
+- UI nói rõ restore không hoàn tác: file bị ignore hoặc loại trừ (`node_modules`, `.venv`, `.gradle`…), file lớn hơn 10 MB, file ngoài workspace, DB, Docker, network, git push.
+
+Tool file còn hai luật cứng: **đọc trước khi sửa** và **từ chối nếu file đã đổi kể từ lần đọc**. Hash của lần đọc nằm trong protected payload (D-10) và là cơ sở để `Reconcile` sau crash.
+
+## 10. Result và error
+
+**Ba kênh:**
+
+| Kênh | Cho ai | Lưu |
+| --- | --- | --- |
+| `content` (text, ảnh) | Model | Protected payload, vào canonical transcript |
+| `structured` | Nested call, MCP và chương trình; validate theo `outputSchema` | Protected payload |
+| `details` | UI | Protected payload, không gửi model |
+
+**Error có kiểu.** `isError` kèm `code` cho mọi result do harness tự ghi; map sang public code (`bridge.keptCodes`):
+
+| Code | Khi nào |
+| --- | --- |
+| `invalid_args` | Args không qua schema; result kèm schema để model sửa |
+| `tool_unavailable` | Tên không có trong binding hiện tại |
+| `tool_version_unavailable` | Version đã ghim không còn và args không validate được với version mới |
+| `denied`, `refused` | User từ chối / gate hoặc owner không cho |
+| `sandbox_denied` | Sandbox chặn; kèm gợi ý escalation |
+| `outcome_unknown` | Mất completion sau dispatch; nội dung chỉ cho retry với việc chỉ đọc hoặc idempotent, còn lại phải kiểm tra trạng thái hoặc hỏi user |
+| `cancelled` | Có bằng chứng dừng |
+| `result_too_large` | Vượt giới hạn lưu (S-01) |
+
+- Output dài: model thấy phần đầu và phần cuối kèm hướng dẫn đọc tiếp; bản đầy đủ lưu thành protected payload (theo giới hạn S-01), đọc tiếp qua tool đọc theo khoảng. Shell giữ phần cuối là chính; exit code khác 0 là error nhưng vẫn kèm output.
+- Redact secret **trước** khi rút gọn và lưu.
+- Kết quả rỗng hợp lệ (không có match, file trống) **không** là error; result tự giải thích và gợi ý bước tiếp.
+
+## 11. Tool đổi version
+
+- `ToolCallPlanned` ghim version descriptor.
+- Khi resume sau nâng cấp: attempt đang dispatch thành unknown như bình thường. Call chưa dispatch đi qua `ToolCheckReset` rồi `Prepare` lại với version mới **nếu args vẫn validate**; không thì trả `tool_version_unavailable` để model plan lại.
+- Step kế tiếp dùng `ToolBindingRevised` với các version mới.
+- History còn tham chiếu tool không còn tồn tại: converter của model adapter quyết định giữ khai báo tối thiểu hay render lại thành text, tùy provider; không được làm request sai protocol.
+
+## 12. Spike và evidence còn mở
+
+| Hạng mục | Cần chứng minh |
+| --- | --- |
+| Daemon trên Linux | Giữ Gradle daemon qua nhiều lời gọi với `--unshare-pid` |
+| Tách registry daemon | Gradle dùng cache chung nhưng registry daemon riêng của session |
+| Egress allowlist | Proxy CONNECT trên macOS (seatbelt) và Linux (forwarder trong jail) |
+| Docker proxy | Lọc API kể cả BuildKit và compose; label và cleanup container |
+| Keychain trong seatbelt | Docker `credsStore` cho registry private |
+| Binding revision | Đo chi phí mất prompt cache khi nạp group |
+| Nạp schema trễ | Adapter nào có cơ chế provider tương ứng |
+| Store snapshot thuần Go | Hiệu năng chụp tăng dần tương đương shadow git |
+| Tách prompt | Từng owner chuyển confirm/select sang check → request → execute; ratchet chuyển site sang `native-compatible` |

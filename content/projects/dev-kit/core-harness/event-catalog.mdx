@@ -1,11 +1,11 @@
 ---
 title: Event catalog và execution traces
-description: Danh mục command/event v0.6 và ba chuỗi thực thi để review transitions.
+description: Danh mục command/event v0.7 và ba chuỗi thực thi để review transitions.
 ---
 
 # Event catalog và execution traces
 
-Trạng thái: foundation contract v0.6, tên/schema logic để review; chưa là public wire API. Đây là catalog tối thiểu của native execution. Event batch được append bởi coordinator; projection được cập nhật đồng bộ như [storage protocol](/dev-kit/core-harness/event-storage-recovery).
+Trạng thái: foundation contract v0.7, tên/schema logic để review; chưa là public wire API. Đây là catalog tối thiểu của native execution. Event batch được append bởi coordinator; projection được cập nhật đồng bộ như [storage protocol](/dev-kit/core-harness/event-storage-recovery).
 
 ## 1. Quy ước
 
@@ -32,6 +32,7 @@ Envelope chung có run/sequence, command/causation, authenticated origin và wri
 | `ContextBoundarySelected` | Target queued run, old/new contextRevision/epoch, startRunID, mode fresh/continue, actor, validation evidence và previous deciding-event ref | SelectRunContext qua trusted user ingress; cùng RunAdmitted + update admission row/transcript epoch; fresh_required cấm continue, vault_locked chỉ revalidation |
 | `RunFinished` | Outcome, primary/secondary stop refs, unresolved exposure refs nếu có | Mọi invocation đã có control disposition; cancel timers/dependencies, clear đúng control admission nếu run sở hữu nó; Queued finish không clear admission của run khác |
 | `StepStarted` | Step index, context/config refs | Step trước đã đóng; tạo model frontier, chưa gọi model |
+| `ToolBindingRevised` | Old/new binding revision, groups thêm/bớt, descriptor versions, cause (session_start, user_selection, propose, revoke, upgrade) | Chỉ ở ranh giới step: không có step mở hoặc attempt đang chạy; step kế tiếp dùng binding mới ([tool system §4](/dev-kit/core-harness/tool-system#4-registry-và-nạp-tool)) |
 | `StepCompleted` | Response ref, ordered result refs, continuation decision/policy | Canonical response và tool pairs đủ; next action end/continue có budget/stop checks |
 | `StepAborted` | Typed reason và dispositions của batch đã xuất hiện | Dùng khi stop/fatal/unknown close trước normal completion; đóng model invocation còn mở bằng disposition tương ứng (unknown close là abandoned_unknown); không giả response/failure đã biết |
 

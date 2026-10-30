@@ -7,7 +7,7 @@ description: Thiết kế kỹ thuật nền tảng cho runtime agent do DevKit 
 
 | Thuộc tính | Giá trị |
 | --- | --- |
-| Trạng thái | Foundation design v0.6 — để tiếp tục thiết kế và review; chưa triển khai hoặc kích hoạt runtime mới |
+| Trạng thái | Foundation design v0.7 — để tiếp tục thiết kế và review; chưa triển khai hoặc kích hoạt runtime mới |
 | Ngày | 2026-10-30, Asia/Ho_Chi_Minh |
 | Baseline repository | `main` tại `1c977c7d`; nhánh thiết kế `feat/harness-core` đã rebase lên baseline này |
 | Ngôn ngữ thực thi | Go cho runtime, application services và hệ thống tool; frontend là adapter |
@@ -24,6 +24,7 @@ Tài liệu này đặc tả nền tảng để DevKit sở hữu vòng gọi mo
 | [Event catalog và execution traces](/dev-kit/core-harness/event-catalog) | Command/event catalog, guards và ba chuỗi thực thi |
 | [Event storage và recovery](/dev-kit/core-harness/event-storage-recovery) | Nguồn dữ liệu gốc, transaction, replay, ambiguity, bảo vệ payload và compatibility |
 | [Storage và bảo mật payload](/dev-kit/core-harness/storage-security) | G-03: devkit.db, logical DDL, khóa theo session, crypto-shred, codec, vault observation và data-directory lock |
+| [Tool system](/dev-kit/core-harness/tool-system) | Contract tool, nạp tool theo group, interaction và preset, sandbox escalation, shell/job/env, Docker, snapshot, result và version |
 | [Activation và failure UX](/dev-kit/core-harness/activation) | G-07: opt-in theo session, failure UX, rollback và tiêu chí chuyển hẳn sang harness core |
 | [Quyết định và kiểm chứng](/dev-kit/core-harness/decisions-and-validation) | Phương án thay thế, so sánh Pi/Harness², rollout gates, failure scenarios và các điểm còn mở |
 

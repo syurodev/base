@@ -5,7 +5,7 @@ description: Quyết định G-07 — opt-in theo session, failure UX, rollback 
 
 # Activation và failure UX (G-07)
 
-Trạng thái: foundation decision v0.6. **Thiết kế G-07 đã chốt**; gate chỉ đóng khi evidence ở [mục 5](#5-evidence-để-bật-giai-đoạn-a) đạt. G-07 vẫn đứng sau G-04 đến G-06: chưa có tool, provider và compatibility path được review thì không có gì để bật.
+Trạng thái: foundation decision v0.7. **Thiết kế G-07 đã chốt**; gate chỉ đóng khi evidence ở [mục 5](#5-evidence-để-bật-giai-đoạn-a) đạt. G-07 vẫn đứng sau G-04 đến G-06: chưa có tool, provider và compatibility path được review thì không có gì để bật.
 
 ## 1. Hai giai đoạn
 
@@ -21,7 +21,8 @@ Runtime **ghim theo session** từ lúc tạo, không đổi giữa chừng (G-0
 
 ## 2. Phạm vi một session native ở giai đoạn A
 
-- Chỉ advertise tool có version được đánh dấu native-compatible theo G-04. Ratchet `prompt_sites_test.go` cho thấy mọi prompt site hiện còn `native-blocked`, nên session native đầu tiên chỉ có tool đọc, không hỏi user, cho đến khi từng owner tách xong luồng confirm/select.
+- Bộ tool cơ bản của native ([tool system](/dev-kit/core-harness/tool-system)): file, tìm kiếm, shell, `job.*`, codegraph đọc, `harness.profile.propose`; tự chạy trong phạm vi grant theo preset của workspace.
+- Tool nghiệp vụ (db, git, ssh…) chỉ được advertise khi version của nó `nativeCompatible`. Ratchet `prompt_sites_test.go` cho thấy mọi prompt site hiện còn `native-blocked`, nên các group này chưa có trong session native cho đến khi từng owner tách xong luồng confirm/select.
 - Chỉ provider và account đã qua G-04; provider-hosted tools bị tắt.
 - Không parallel tools, không team automation, không remote worker (ngoài v1).
 - Execution history chỉ local (S-04). Vault phải mở để chạy hoặc resume (S-01, S-02).
