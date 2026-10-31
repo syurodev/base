@@ -10,6 +10,7 @@
     "tool-system",
     "context-engine",
     "model-adapter",
+    "coordination",
     "activation",
     "decisions-and-validation",
     "design-map"

@@ -7,7 +7,7 @@ description: Thiết kế kỹ thuật nền tảng cho runtime agent do DevKit 
 
 | Thuộc tính | Giá trị |
 | --- | --- |
-| Trạng thái | Foundation design v0.9 — để tiếp tục thiết kế và review; chưa triển khai hoặc kích hoạt runtime mới |
+| Trạng thái | Foundation design v0.10 — để tiếp tục thiết kế và review; chưa triển khai hoặc kích hoạt runtime mới |
 | Ngày | 2026-10-30, Asia/Ho_Chi_Minh |
 | Baseline repository | `main` tại `1c977c7d`; nhánh thiết kế `feat/harness-core` đã rebase lên baseline này |
 | Ngôn ngữ thực thi | Go cho runtime, application services và hệ thống tool; frontend là adapter |
@@ -27,6 +27,7 @@ Tài liệu này đặc tả nền tảng để DevKit sở hữu vòng gọi mo
 | [Tool system](/dev-kit/core-harness/tool-system) | Contract tool, nạp tool theo group, interaction và preset, sandbox escalation, shell/job/env, Docker, snapshot, result và version |
 | [Context engine](/dev-kit/core-harness/context-engine) | Bố cục prompt cho cache, tầng rule R0–R3, context bền của workspace, đo token, pruning, compaction và kiểm tra ngôn ngữ |
 | [Model adapter](/dev-kit/core-harness/model-adapter) | Contract gọi model, phân loại lỗi và retry, converter, catalog, usage và cost, account, auth pluggable và failover |
+| [Điều phối input](/dev-kit/core-harness/coordination) | Queue, steer, chen ngang, ngắt, peer message và input khi đang chờ |
 | [Activation và failure UX](/dev-kit/core-harness/activation) | G-07: opt-in theo session, failure UX, rollback và tiêu chí chuyển hẳn sang harness core |
 | [Quyết định và kiểm chứng](/dev-kit/core-harness/decisions-and-validation) | Phương án thay thế, so sánh Pi/Harness², rollout gates, failure scenarios và các điểm còn mở |
 | [Phụ lục: bản đồ thiết kế](/dev-kit/core-harness/design-map) | Danh mục mọi mảng thiết kế (H-01–H-41), trạng thái, phụ thuộc và tiêu chí một trang thiết kế đầy đủ |

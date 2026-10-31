@@ -5,7 +5,7 @@ description: Lý do chọn kiến trúc, phương án thay thế và gates trư�
 
 # Quyết định và kiểm chứng
 
-Trạng thái: foundation decisions v0.9 để review. Hướng đã thống nhất không đồng nghĩa từng interface, schema và state đã được duyệt để phát hành. Các lựa chọn dưới đây phải được đối chiếu lại khi có implementation evidence.
+Trạng thái: foundation decisions v0.10 để review. Hướng đã thống nhất không đồng nghĩa từng interface, schema và state đã được duyệt để phát hành. Các lựa chọn dưới đây phải được đối chiếu lại khi có implementation evidence.
 
 ## D-01 — Go cho runtime và hệ thống tools
 
@@ -86,7 +86,7 @@ Lớp cải tiến tương lai có thể đề xuất cấu hình, chạy thử 
 
 **Không chọn:** để model tự thay transition graph hoặc hot-patch core của run đang chạy. Không đưa Jev hoặc một external decision API vào scheduling cơ bản.
 
-**Sửa đổi v0.9:** tool declaration binding ghim theo session và chỉ đổi qua `ToolBindingRevised` ở ranh giới step ([tool system §4](/dev-kit/core-harness/tool-system#4-registry-và-nạp-tool)); các phần cấu hình khác vẫn ghim theo run.
+**Sửa đổi v0.10:** tool declaration binding ghim theo session và chỉ đổi qua `ToolBindingRevised` ở ranh giới step ([tool system §4](/dev-kit/core-harness/tool-system#4-registry-và-nạp-tool)); các phần cấu hình khác vẫn ghim theo run.
 
 **Chi phí chấp nhận:** thay strategy giữa một nhiệm vụ có thể cần run/attempt mới. Trials cần ngân sách, môi trường cô lập và thước đo; lịch sử tốt không chứng minh cấu hình mới sẽ tốt hơn.
 
@@ -242,6 +242,22 @@ Lớp cải tiến tương lai có thể đề xuất cấu hình, chạy thử 
 
 **Chi phí chấp nhận:** chương trình đang preview nên có thể đổi; request bị nhiều ràng buộc (không `max_output_tokens`, không item `system`, gửi lại toàn bộ history); phải làm đủ UI bắt buộc.
 
+## D-27 — Mọi input vào queue trước; steer và chen ngang do user chọn
+
+**Lựa chọn:** input khi session đang chạy luôn vào queue bền trong core; user chọn Steer (chèn ở ranh giới step, gộp) hoặc Chen ngang (có hiệu lực ngay, luôn chờ tool `side_effecting` xong); Stop trả mọi tin chờ về ô soạn thảo; sau lỗi hoặc restart queue đứng. Chi tiết ở [điều phối input](/dev-kit/core-harness/coordination).
+
+**Lý do:** user luôn thấy và quyết định mọi thứ đi vào việc đang chạy; không làm hỏng file vì hủy tool giữa chừng; giống inbox của pi và deepseek-harness nhưng chặt hơn ở chen ngang.
+
+**Chi phí chấp nhận:** cần thêm một thao tác để steer so với vendor session hiện nay (đang tự steer text).
+
+## D-28 — Peer message theo chiều của quyền
+
+**Lựa chọn:** parent → child được steer; child → parent và mọi peer khác chỉ vào queue, xếp sau input của user; peer không bao giờ chen ngang; giao đúng một lần bằng `command ID = outbox item ID`.
+
+**Lý do:** chặn đường một child bị prompt injection steer parent có grant rộng hơn; parent vẫn điều khiển được child nhanh.
+
+**Chi phí chấp nhận:** báo cáo của child tới parent chậm hơn khi parent đang chạy.
+
 ## So sánh với Pi và Harness²
 
 Các nhận xét dưới đây dựa trên nguồn được đọc ngày 2026-10-30, tập trung vào Pi agent core và mô hình Harness²; không phải đánh giá toàn bộ hệ sinh thái hoặc benchmark cho DevKit.
@@ -265,12 +281,12 @@ Tài liệu [Agent Harness Engineering Patterns](https://ashishpatel26.github.io
 | Gate | Cần chốt | Điều kiện để đóng |
 | --- | --- | --- |
 | G-01 Package và owner | Kernel/execution store đặt ở đâu; dependencies nào được phép | Dependency diagram đối chiếu architecture tests; không thêm resolver/managed ledger/outbox cạnh tranh |
-| G-02 Transition protocol | Catalog v0.9, derived phase, admission/fences và host incarnation | Review transitions/SM-01–SM-12, metadata-only close và fresh context, uniform check reset/generation, active-time windows/crash accounting, traces; chứng minh host thứ hai không lấy incarnation/token khi exclusive data-directory lock còn giữ |
-| G-03 Storage/security | **Thiết kế đã chốt (v0.9)** ở [storage và bảo mật payload](/dev-kit/core-harness/storage-security): devkit.db, logical DDL, session key/crypto-shred, retention, codec v1, giới hạn kích thước, vault observation API, data-directory lock | Đóng khi [evidence G-03](/dev-kit/core-harness/storage-security#10-evidence-để-đóng-g-03) đạt kèm revision |
+| G-02 Transition protocol | Catalog v0.10, derived phase, admission/fences và host incarnation | Review transitions/SM-01–SM-12, metadata-only close và fresh context, uniform check reset/generation, active-time windows/crash accounting, traces; chứng minh host thứ hai không lấy incarnation/token khi exclusive data-directory lock còn giữ |
+| G-03 Storage/security | **Thiết kế đã chốt (v0.10)** ở [storage và bảo mật payload](/dev-kit/core-harness/storage-security): devkit.db, logical DDL, session key/crypto-shred, retention, codec v1, giới hạn kích thước, vault observation API, data-directory lock | Đóng khi [evidence G-03](/dev-kit/core-harness/storage-security#10-evidence-để-đóng-g-03) đạt kèm revision |
 | G-04 Model/tool integration | Thiết kế model adapter đã chốt ở [model adapter](/dev-kit/core-harness/model-adapter); Thiết kế tool cấp hệ thống đã chốt ở [tool system](/dev-kit/core-harness/tool-system); còn lại: Provider/account path và canonical tool execution path dùng chung với hosts hiện hữu | Thiết kế cùng gateway check → request approval → execute(one-use receipt), current-authority revalidation không hỏi đôi hoặc bypass; chốt reserve/consume/release scoped use tại effect boundary và crash read-back; audit mọi direct/nested prompt path (confirmation và selection suy ra từ `interaction.Hub`) trong ratchet `prompt_sites_test.go`; chỉ advertise/dispatch native-compatible tool versions đã tách mọi confirmation, mặc định deny tool chưa đạt; cấm provider-hosted tools v1; chứng minh identity, budgets, result/error contracts |
 | G-05 Interaction semantics | Đã chốt request trong memory theo incarnation, kết quả và preset ([tool system §5](/dev-kit/core-harness/tool-system#5-interaction-approval-và-preset)); còn lại: Owner operation identity/read-back khi nối question/approval, lifetime và vault/pause | Confirmation và selection (active profile, remote account, tool-group scope, group request) cùng dùng durable request/receipt; owner-issued receipt bind exact args/identity/attempt/check-generation/revisions/expiry/incarnation; ensure/read-back request kể cả Checking crash; claim/consume một lần, invalidate sau restart/vault lock; prod/unknown tag hỏi mỗi execution, bỏ allow-always/scoped; headless/nil responder fail closed; owner vault lifecycle → shared interaction/coordinator hoạt động không qua bridge, lock-vs-consume fail closed |
 | G-06 Compatibility | Session cũ, native/vendor coexistence, protocol upgrades và rollback | Không giả lập native guarantees cho vendor; không chuyển runtime giữa run; đọc được lịch sử sau nâng cấp |
-| G-07 Activation | **Thiết kế đã chốt (v0.9)** ở [activation và failure UX](/dev-kit/core-harness/activation): opt-in theo session, failure UX, rollback, tiêu chí chuyển hẳn | Đóng khi G-01–G-06 đã đóng và [evidence giai đoạn A](/dev-kit/core-harness/activation#5-evidence-để-bật-giai-đoạn-a) đạt |
+| G-07 Activation | **Thiết kế đã chốt (v0.10)** ở [activation và failure UX](/dev-kit/core-harness/activation): opt-in theo session, failure UX, rollback, tiêu chí chuyển hẳn | Đóng khi G-01–G-06 đã đóng và [evidence giai đoạn A](/dev-kit/core-harness/activation#5-evidence-để-bật-giai-đoạn-a) đạt |
 
 G-01 đến G-03 phải đóng trước persistence/core production implementation. G-04 đến G-06 phải đóng trước tích hợp thực thi tương ứng. G-07 phải đóng trước bật tính năng cho người dùng. Spike dùng dữ liệu giả không tự đóng gate hoặc cho phép activation.
 

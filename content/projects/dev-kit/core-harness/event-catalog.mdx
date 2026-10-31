@@ -1,11 +1,11 @@
 ---
 title: Event catalog và execution traces
-description: Danh mục command/event v0.9 và ba chuỗi thực thi để review transitions.
+description: Danh mục command/event v0.10 và ba chuỗi thực thi để review transitions.
 ---
 
 # Event catalog và execution traces
 
-Trạng thái: foundation contract v0.9, tên/schema logic để review; chưa là public wire API. Đây là catalog tối thiểu của native execution. Event batch được append bởi coordinator; projection được cập nhật đồng bộ như [storage protocol](/dev-kit/core-harness/event-storage-recovery).
+Trạng thái: foundation contract v0.10, tên/schema logic để review; chưa là public wire API. Đây là catalog tối thiểu của native execution. Event batch được append bởi coordinator; projection được cập nhật đồng bộ như [storage protocol](/dev-kit/core-harness/event-storage-recovery).
 
 ## 1. Quy ước
 
@@ -19,7 +19,7 @@ Envelope chung có run/sequence, command/causation, authenticated origin và wri
 
 | Event | Fields/control facts chính | Guard / thay đổi projection |
 | --- | --- | --- |
-| `RunAccepted` | Input ref, session/queue item ref, protocol/config binding, initial budgets | Run ID mới; tạo `Queued`; chưa đưa queued input vào transcript đang chạy |
+| `RunAccepted` | Input ref, session/queue item ref, protocol/config binding, initial budgets, `origin`, lớp ưu tiên, peer outbox item ref nếu có ([điều phối input](/dev-kit/core-harness/coordination)) | Run ID mới; tạo `Queued`; chưa đưa queued input vào transcript đang chạy |
 | `RunAdmitted` | Admission token, owner incarnation, queue decision reference, context epoch/startRunID và initial context revision nếu là admission đầu | CAS session admission thành công; materialize input trong canonical transcript |
 | `RunOwnershipAcquired` | Token mới, previous token, recovery receipt và data-directory lock generation | Chỉ session owner trong process giữ exclusive lock phục hồi cùng active run; cùng batch thêm recovery dependency, đồng bộ vault theo owner revision, không tạo dispatch |
 | `RunStopRequested` | Reason, mode terminal/suspend, actor, target, request time | Ghi stop intent; terminal primary reason không bị callback ghi đè |
@@ -37,6 +37,8 @@ Envelope chung có run/sequence, command/causation, authenticated origin và wri
 | `ContextInjected` | Tag, nguồn (patch rule/W/preset, runtime context, rule theo path, job đã xong), payload ref | Message có nhãn gắn vào cuối view; không sửa prefix ([context engine §2.1](/dev-kit/core-harness/context-engine#21-patch-và-runtime-context)) |
 | `ToolResultsPruned` | Vị trí các tool result, tham số cắt, token tiết kiệm | Chỉ khi vượt ngưỡng và tiết kiệm đủ; bản gốc giữ nguyên trong payload |
 | `ContextCompacted` | Payload bản tóm tắt, vị trí giữ nguyên đầu tiên, token trước/sau, W references, model invocation ref | Chỉ ở ranh giới step, trong cùng epoch; transcript gốc không đổi ([context engine §6.2](/dev-kit/core-harness/context-engine#62-compaction)) |
+| `InputSteered` | Input ref, origin, thời điểm | Chờ chèn; mọi steer đang chờ được gộp và chèn ở ranh giới step kế tiếp qua `ContextInjected` ([điều phối input](/dev-kit/core-harness/coordination) §4) |
+| `InputInterjected` | Input ref, các steer được gộp, target attempt/invocation, kết quả quiesce | Chỉ user; tool `side_effecting` đang chạy luôn được chờ xong; result tổng hợp, message và model request mới trong cùng batch ([điều phối input](/dev-kit/core-harness/coordination) §5) |
 | `StepCompleted` | Response ref, ordered result refs, continuation decision/policy | Canonical response và tool pairs đủ; next action end/continue có budget/stop checks |
 | `StepAborted` | Typed reason và dispositions của batch đã xuất hiện | Dùng khi stop/fatal/unknown close trước normal completion; đóng model invocation còn mở bằng disposition tương ứng (unknown close là abandoned_unknown); không giả response/failure đã biết |
 

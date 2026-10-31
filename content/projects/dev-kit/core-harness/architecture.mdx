@@ -5,7 +5,7 @@ description: Ownership, execution kernel và extension contracts của core harn
 
 # Kiến trúc và ranh giới
 
-Trạng thái: foundation design v0.9, chưa implementation. Phạm vi và bất biến chung ở [Core harness](/dev-kit/core-harness).
+Trạng thái: foundation design v0.10, chưa implementation. Phạm vi và bất biến chung ở [Core harness](/dev-kit/core-harness).
 
 ## 1. Mô hình kiến trúc
 
@@ -138,7 +138,7 @@ Run lifecycle/phase/wait reasons được suy ra từ invocation và control fac
 
 V1 SHOULD thực thi tool tuần tự. Mô hình dữ liệu MUST có invocation ID, source position và attempt riêng ngay từ đầu. Khi mở song song, phải review conflict/resource rules, approval của từng invocation, cancellation và cách đưa tool results về transcript theo source order. Không đổi enum run thành mọi tổ hợp tool states.
 
-User prompt, peer message và steering là command có nguồn/provenance rõ ràng. Thứ tự ưu tiên và pause/queue policy thuộc session host; core không được tự drain recovered peer work trước khi có queue state hiện tại của người dùng.
+User prompt, peer message và steering là command có nguồn/provenance rõ ràng. Ngữ nghĩa chi tiết của queue, steer, chen ngang, ngắt và peer message ở [điều phối input](/dev-kit/core-harness/coordination). Thứ tự ưu tiên và pause/queue policy thuộc session host; core không được tự drain recovered peer work trước khi có queue state hiện tại của người dùng.
 
 ## 7. Backend và tools độc lập frontend
 

@@ -1,0 +1,132 @@
+---
+title: Điều phối input
+description: Queue, steer, chen ngang, ngắt, peer message và input khi đang chờ của native session.
+---
+
+# Điều phối input
+
+Trạng thái: foundation decision v0.10. **Thiết kế đã chốt** cho H-29 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Continuation và điều kiện dừng (H-31) là mảng riêng.
+
+Tham khảo: pi (`pi-durable` inbox với follow-up, steer, write, continue; `coding-agent` với Enter/Alt+Enter/Esc), deepseek-harness (inbox bền `nextTurn`/`nextStep`, `inject`, `cancel` có `keepInbox`), và cơ chế hiện có của Agent Hub cho vendor session (queue ở window, `shouldSteer`, peer delivery `started`/`steered`/`queued`/`refused`). Harness² của Google không có phần tương tác lúc run nên không áp dụng ở đây.
+
+## 1. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| Q-01 | **Mọi input khi session đang chạy đều vào queue trước.** Chỉ khi user thao tác trên một tin trong queue thì tin đó mới được steer hoặc chen ngang |
+| Q-02 | Steer chèn **ở ranh giới step**; nhiều steer đang chờ thì **gộp** và chèn một lần; follow-up chạy từng cái một |
+| Q-03 | **Chen ngang** (`Interject`) có hiệu lực ngay trong run hiện tại; tool `side_effecting` đang chạy thì **luôn chờ nó xong**, không có lựa chọn hủy |
+| Q-04 | Chen ngang lúc đang chờ duyệt hoặc chờ trả lời thì **coi là từ chối** request đó |
+| Q-05 | **Ngắt** (Stop) thì **trả mọi tin đang chờ về ô soạn thảo** |
+| Q-06 | Peer message theo **chiều của quyền**: parent → child được steer; child → parent và mọi peer khác chỉ vào queue, **xếp sau input của user** |
+| Q-07 | Sau lỗi hoặc restart, queue **đứng lại** chờ user; chỉ tự chạy tiếp khi run trước hoàn tất bình thường |
+| Q-08 | Queue và input đang chờ là **trạng thái bền trong core**; UI, Telegram và CLI chỉ hiển thị và gửi lệnh |
+
+## 2. Các loại input
+
+| Lệnh | Tác dụng | Ai được dùng |
+| --- | --- | --- |
+| `Prompt` | Vào queue; session rảnh và queue không đứng thì được admit thành run mới | User, peer, DevKit |
+| `Steer` | Chuyển một tin trong queue thành chỉ dẫn cho run đang chạy, chèn ở ranh giới step kế tiếp | User (thao tác trên queue); parent đối với child |
+| `Interject` | Chuyển một tin trong queue thành input **có hiệu lực ngay** trong run đang chạy (§5) | **Chỉ user** |
+| `InterruptAndPrompt` | Dừng run hiện tại và đưa prompt lên đầu queue, trong **một** transaction | Chỉ user |
+| `Answer` | Trả lời approval hoặc câu hỏi đang chờ; không bao giờ là prompt | User (và parent theo luật interaction hiện có) |
+| `Inject` | Thông tin cho agent biết, **không mở run mới**; vào `ContextInjected` ở ranh giới step kế tiếp, hoặc ở run sau nếu session đang rảnh | DevKit (job xong, preset đổi, env refresh) |
+| `Continue` | Chạy tiếp run đã dừng vì lỗi hoặc gián đoạn trên context hiện có, kèm steer còn chờ; không cần tin mới | User |
+
+- Mỗi input mang `origin` do host xác lập (user, parent_session, session, devkit…) và một **lớp ưu tiên** (§3).
+- Input tự động có thể kèm cờ `whenBusy: reject` hoặc `whenIdle: reject` để không bao giờ mở run hoặc không bao giờ xếp hàng ngoài ý muốn.
+- Input có file đính kèm vẫn là `Prompt` hoặc `Steer` bình thường; đính kèm nằm trong protected payload.
+
+## 3. Queue
+
+- Queue là danh sách các run `Queued` của session (mỗi tin là một `RunAccepted`), cộng thứ tự, lớp ưu tiên và trạng thái **đứng/chạy**. Thứ tự và trạng thái đứng là control state của session host, lưu trong bảng `exec_queue` cùng revision, giống admission row; nó không phải execution history.
+- **Lớp ưu tiên khi admit**, cao tới thấp:
+  1. Input của user.
+  2. Thông báo của DevKit cần agent hành động.
+  3. Peer message (child báo về parent, session anh em, session khác).
+
+  Trong cùng lớp thì đến trước được admit trước. User đổi thứ tự bằng tay thì thứ tự đó thắng lớp ưu tiên.
+- **Thao tác trên một tin**: đổi thứ tự, sửa nội dung (khi còn Queued), xóa (hủy bền), đưa về ô soạn thảo, **Steer**, **Chen ngang**. Mọi thao tác kèm revision; revision cũ thì bị từ chối có kiểu.
+- Queue **đứng** khi: user bấm dừng queue, run trước kết thúc không bình thường (§6), hoặc sau restart. Queue đứng thì không admit tự động; user bấm tiếp tục hoặc chọn một tin để chạy.
+- Peer message xếp hàng quá 5 tin từ cùng một nguồn thì được gộp thành một tin, giữ ID của từng tin gốc.
+
+## 4. Steer
+
+- Khi user chọn Steer trên một tin, coordinator ghi `InputSteered` vào stream của run đang chạy; tin rời queue.
+- Ở ranh giới step kế tiếp (sau khi model attempt và tool batch hiện tại xong), **mọi steer đang chờ được gộp** theo thứ tự đến thành **một** message user có nhãn "steering", vào transcript qua `ContextInjected`. Không bao giờ tách tool call khỏi tool result.
+- Model vừa trả lời xong mà còn steer đang chờ thì run **chạy tiếp thêm một step** trong cùng run, không mở run mới.
+- Run bị ngắt thì steer còn chờ về ô soạn thảo (§6). Run lỗi hoặc gián đoạn thì steer vẫn gắn với run; `Continue` sẽ chèn chúng.
+- Không steer khi run đang chờ duyệt hoặc chờ câu hỏi: lúc đó ô nhập là `Answer`, còn tin trong queue chỉ có thể chen ngang (§5).
+
+## 5. Chen ngang
+
+User chọn **Chen ngang** trên một tin trong queue. Coordinator ghi `InputInterjected`, gửi `InvocationQuiesceRequested` cho việc đang chạy, rồi xử lý theo trạng thái:
+
+| Run đang | Xử lý |
+| --- | --- |
+| Stream model | Hủy attempt ngay. Phần đã sinh giữ làm bản nháp bị ngắt, không vào canonical transcript; usage vẫn tính, không ghi 0 |
+| Chạy tool `pure_read` hoặc job hủy được | Hủy, chờ bằng chứng dừng; tool nhận result `cancelled` |
+| Chạy tool `side_effecting` | **Chờ tool xong** (không có lựa chọn hủy, để không làm hỏng file hay trạng thái ngoài) |
+| Còn tool đã plan nhưng chưa dispatch | Nhận result `cancelled_before_dispatch` để mỗi tool call có đúng một result |
+| Chờ duyệt hoặc chờ câu hỏi | Request đang chờ bị **từ chối**; tool nhận result `denied` |
+| Đang compact | Hủy compaction (không side effect); compact lại sau nếu vẫn vượt ngưỡng |
+
+Sau đó, trong **một** batch: các result tổng hợp, message chen ngang (gộp cùng mọi steer đang chờ) và model request mới **trong cùng run**. Message được gắn vào cuối transcript nên không phá prompt cache.
+
+Peer và agent **không bao giờ** chen ngang.
+
+## 6. Khi run kết thúc
+
+| Cách kết thúc | Queue | Tin đang chờ |
+| --- | --- | --- |
+| Hoàn tất bình thường | Tự admit tin kế tiếp (nếu không đứng) | — |
+| **Ngắt** (Stop) | Rỗng | **Mọi tin trong queue và mọi steer còn chờ về ô soạn thảo**, theo thứ tự, kèm đính kèm |
+| `InterruptAndPrompt` | Prompt mới lên đầu và chạy ngay; các tin khác giữ nguyên | Steer còn chờ của run cũ được gộp vào prompt mới |
+| Lỗi, hết budget, `Interrupted` | **Đứng** | Steer còn chờ gắn với run; `Continue` chèn chúng |
+| Sau restart | **Đứng** (cùng cơ chế `recovery_admission`) | Giữ nguyên |
+
+## 7. Peer message
+
+| Hướng | Session nhận đang chạy | Session nhận đang rảnh |
+| --- | --- | --- |
+| Parent → child | `Steer` | `Prompt` (mở run nếu queue không đứng) |
+| Child → parent | `Prompt` vào queue, **xếp sau input của user** | `Prompt` |
+| Anh em và session khác | `Prompt` vào queue, sau input của user | `Prompt` |
+| Thông báo của DevKit | `Inject`; hoặc `Prompt` nếu cần agent hành động | Như bên trái |
+
+- Peer outbox hiện có vẫn là owner của việc giao tin. Native coordinator nhận mỗi tin như một command có `command ID = outbox item ID`; receipt chống trùng bảo đảm giao **đúng một lần**, kể cả khi crash giữa chừng. Outbox đánh dấu đã giao sau khi có receipt.
+- Giữ nguyên giới hạn hiện có: số bước theo cặp (6; anh em 4), 5 tin/phút mỗi cặp, 20 tin/phút mỗi đích, độ dài tối đa, và yêu cầu user duyệt khi khác workspace.
+- Trong context, tin nằm trong envelope "không phải lời của user, là dữ liệu", gắn nguồn.
+- Peer không steer khi session nhận đang chờ duyệt, và không bao giờ chen ngang.
+
+## 8. Event
+
+| Event | Nội dung |
+| --- | --- |
+| `RunAccepted` (bổ sung) | `origin`, lớp ưu tiên, peer outbox item ref nếu có |
+| `InputSteered` | Input ref, origin, thời điểm; trạng thái chờ chèn |
+| `InputInterjected` | Input ref, các steer được gộp, target attempt/invocation, kết quả quiesce |
+| `ContextInjected` (đã có) | Dùng để chèn steer đã gộp và `Inject` |
+
+Thứ tự và trạng thái đứng của queue nằm trong `exec_queue` (control state), không phải event.
+
+## 9. UX
+
+- Khi agent đang chạy, `Enter` đưa tin vào queue. Mỗi tin trong queue có các nút: **Steer**, **Chen ngang**, sửa, xóa, đổi thứ tự, đưa về ô soạn thảo.
+- Hiển thị rõ queue đang **đứng** và lý do (lỗi, restart, user dừng), cùng nút tiếp tục và `Continue`.
+- Ô nhập đổi thành **trả lời** khi đang chờ duyệt hoặc câu hỏi.
+- Peer message trong queue hiện nguồn, khác hẳn tin của user.
+- Telegram và CLI dùng cùng các lệnh này.
+
+## 10. Evidence
+
+| Evidence | Cách chứng minh |
+| --- | --- |
+| Queue bền | Crash với queue đang có tin; sau restart giữ thứ tự và đứng |
+| Steer | Gộp nhiều steer; steer tới lúc model vừa trả lời xong thì chạy tiếp một step; không tách tool call/result |
+| Chen ngang | Từng trạng thái ở §5; tool `side_effecting` luôn chạy xong; usage của attempt bị hủy vẫn được tính |
+| Ngắt | Mọi tin chờ về ô soạn thảo đúng thứ tự, kèm đính kèm |
+| Peer | Đúng một lần khi crash giữa outbox và coordinator; child → parent xếp sau input của user; không chen ngang |
+| Ưu tiên | Lớp ưu tiên và thứ tự do user đổi bằng tay |
+| Revision | Thao tác trên queue với revision cũ bị từ chối |

@@ -92,7 +92,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
-| H-29 | Queue, steering, peer message, input của user giữa run | Một phần | [Coordination](https://github.com/syurodev/dev-kit/blob/main/docs/agent-reference/agent-hub-coordination.md), architecture §6 | A | H-01 |
+| H-29 | Queue, steering, chen ngang, peer message, input của user giữa run | Đã chốt | [Điều phối input](/dev-kit/core-harness/coordination) | A | H-01 |
 | H-30 | Child session, subagent và team cho native | Ngoài v1 | Activation §2 | Sau | H-29 |
 | H-31 | Continuation strategy và điều kiện dừng: giới hạn turn, phát hiện lặp, gọi tool lặp lại | Chưa | — | A | H-01, H-10 |
 
@@ -122,7 +122,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 2. ~~**Model adapter, usage, account** (H-07, H-08, H-09)~~: đã chốt ở [model adapter](/dev-kit/core-harness/model-adapter).
 3. **Tool file, shell/job, đọc code, hỏi user** (H-17, H-18, H-19, H-20).
 4. **Interaction API, sandbox runtime, nội dung không tin cậy, redact** (H-24, H-25, H-26, H-27).
-5. **Queue/steering và continuation** (H-29, H-31).
+5. ~~**Queue/steering** (H-29)~~: đã chốt ở [điều phối input](/dev-kit/core-harness/coordination); còn **continuation** (H-31).
 6. **Read model, UI, cấu hình workspace** (H-32, H-33, H-34).
 7. **Compatibility** (H-36) và **budget** (H-06).
 8. **Đặt package** (H-04), rồi **review toàn bộ** (H-05) trước khi viết code.

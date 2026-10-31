@@ -5,7 +5,7 @@ description: Quyết định G-03 cho execution store, protected payload, khóa,
 
 # Storage và bảo mật payload (G-03)
 
-Trạng thái: foundation decision v0.9. **Thiết kế G-03 đã chốt**; evidence (migration, tests, fault injection) còn chờ implementation và được liệt kê ở [mục 10](#10-evidence-để-đóng-g-03). Semantics của stream, admission và recovery ở [event storage và recovery](/dev-kit/core-harness/event-storage-recovery); trang này chốt cách lưu và bảo vệ chúng.
+Trạng thái: foundation decision v0.10. **Thiết kế G-03 đã chốt**; evidence (migration, tests, fault injection) còn chờ implementation và được liệt kê ở [mục 10](#10-evidence-để-đóng-g-03). Semantics của stream, admission và recovery ở [event storage và recovery](/dev-kit/core-harness/event-storage-recovery); trang này chốt cách lưu và bảo vệ chúng.
 
 ## 1. Quyết định của người dùng
 
@@ -39,6 +39,7 @@ Tên cột cuối cùng chốt trong migration; khóa, ràng buộc và ownershi
 | `exec_receipts` | PK `command_id`; kind, principal, target, `input_payload_id` hoặc metadata-only fields, kết quả (sequence range hoặc typed rejection) | Dedup; metadata-only commands so sánh được khi vault khóa |
 | `exec_context_decisions` | PK (`session_id`, `context_revision`); `run_id`, `sequence`, `event_id`, `previous_revision` | Chain liên tục, không gap/conflict; rebuild context state không quét tùy ý |
 | `exec_transcript` | PK (`session_id`, `context_epoch`, `position`); `run_id`, role, call ID, source position, `payload_id`, disposition code | Canonical transcript projection; fixed typed dispositions không cần payload |
+| `exec_queue` | PK (`session_id`, `run_id`); vị trí, lớp ưu tiên, `origin`; theo session: trạng thái đứng/chạy, lý do, `queue_revision` | Control state của session host, không phải execution history; mọi thao tác kiểm tra revision ([điều phối input](/dev-kit/core-harness/coordination) §3) |
 | `exec_payloads` | PK `payload_id` (random); `session_id`, `kind`, `key_id`, `size`, `envelope` | Chỉ insert khi sealed xong; không update |
 | `exec_session_keys` | PK `session_id`; `key_id`, `wrapped_key`, `created_at`, `shredded_at` | Một key active mỗi session ở v1 |
 | `exec_purges` | PK `session_id`; `requested_at` | Cửa duy nhất cho phép DELETE trên bảng append-only |
