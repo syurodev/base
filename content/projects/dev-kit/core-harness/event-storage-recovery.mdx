@@ -104,7 +104,7 @@ HMAC là phương án có thể review sau nếu equality reads thành bottlenec
 
 `StepCompleted` chỉ hợp lệ khi projection đủ model/tool pairs của step; stop/deny/refusal/abandon dùng synthetic result có code/provenance trung thực, không giả tool success. Partial stream là attempt draft ngoài canonical transcript; retry không trộn output cũ vào response mới.
 
-Payload có thể là artifact ngoài DB nhưng reference chỉ được commit khi content đã finalize trong protected store. Orphan artifact sau crash có thể thu gom; dangling ref không được coi là response rỗng. Xóa payload theo retention làm context unavailable dù lifecycle metadata còn rebuild được.
+Payload nằm **trong `devkit.db`** và được ghi trong cùng transaction với event (S-01, [storage-security](/dev-kit/core-harness/storage-security)); v1 không có artifact ngoài DB, nên không có file mồ côi cần thu gom. Dangling ref (ví dụ sau khi xóa theo retention) không được coi là response rỗng. Xóa payload theo retention làm context unavailable dù lifecycle metadata còn rebuild được.
 
 Đây là contract của **native runtime tương lai**. Không chuyển vendor transcript cũ thành event projection hoặc khẳng định vendor có atomicity này khi chưa có migration/adapter evidence. Native rewind/branching phải có view/event contract riêng; không sửa projection rows trực tiếp để rewrite execution history.
 

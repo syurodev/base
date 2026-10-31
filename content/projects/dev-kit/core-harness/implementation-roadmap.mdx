@@ -7,7 +7,7 @@ description: Danh sách việc triển khai harness core theo giai đoạn, tr�
 
 Trang này là **bảng việc sống** cho agent triển khai. Nó trả lời: làm gì, theo thứ tự nào, dựa trên trang thiết kế nào, thế nào là xong, và việc đang ở đâu. Thiết kế nằm ở các trang khác của core harness; trang này **không** thay đổi thiết kế.
 
-Lần cập nhật cuối: 2026-10-31, bởi người thiết kế (thêm R0.0 và R0.4).
+Lần cập nhật cuối: 2026-10-31, bởi người thiết kế (trả lời ba câu hỏi ở §6).
 
 **Tên sản phẩm:** DevKit được đổi tên thành **Fugue by SynX**. Code và tài liệu hiện có vẫn ghi DevKit cho tới khi R0.0 chốt quy tắc đặt tên; code mới dùng tên theo R0.0.
 
@@ -163,7 +163,9 @@ Agent ghi câu hỏi ở đây khi một việc chuyển sang `Cần quyết đ�
 
 | Ngày | Việc | Câu hỏi | Trả lời |
 | --- | --- | --- | --- |
-| | | | |
+| 2026-10-31 | Luật quy trình | Design map đòi chốt mọi thiết kế giai đoạn A trước production code, lộ trình cho bắt đầu từng phần | Lộ trình thắng: code bắt đầu theo từng việc khi thiết kế của việc và phụ thuộc đã chốt; mọi mảng giai đoạn A phải chốt trước activation. G-01 và R0.0 phải duyệt trước code của core; G-02, G-03 đóng bằng evidence từ P1–P2, trước khi chạy provider hoặc dữ liệu thật. Đã sửa design map và trang quyết định |
+| 2026-10-31 | R5.3 | D-16 chọn interaction request trong memory, nhưng kiến trúc và G-05 còn ghi request bền | D-16 thắng: request trong memory theo incarnation; journal và audit là sự thật bền. Đã sửa kiến trúc và G-05 |
+| 2026-10-31 | R1.3, R1.4 | Storage-security chốt payload trong SQLite, event storage §6 còn cho artifact ngoài DB | S-01 thắng: payload trong `devkit.db`, cùng transaction với event; không có artifact ngoài DB ở v1. Đã sửa event storage §6 |
 
 ## 7. Nhật ký
 
@@ -171,3 +173,4 @@ Agent ghi câu hỏi ở đây khi một việc chuyển sang `Cần quyết đ�
 | --- | --- | --- | --- |
 | 2026-10-31 | — | Khởi tạo lộ trình | Người thiết kế |
 | 2026-10-31 | R0.0, R0.4 | Thêm việc chốt quy tắc đặt tên Fugue by SynX và việc đổi tên code cũ | Người thiết kế |
+| 2026-10-31 | — | Trả lời ba mâu thuẫn: luật quy trình, interaction request, chỗ lưu payload | Người thiết kế |
