@@ -7,7 +7,7 @@ description: Danh sách việc triển khai harness core theo giai đoạn, tr�
 
 Trang này là **bảng việc sống** cho agent triển khai. Nó trả lời: làm gì, theo thứ tự nào, dựa trên trang thiết kế nào, thế nào là xong, và việc đang ở đâu. Thiết kế nằm ở các trang khác của core harness; trang này **không** thay đổi thiết kế.
 
-Lần cập nhật cuối: 2026-10-31, bởi agent điều phối (R0.0–R0.3 và R1.7 đã merge; R3.1–R3.2 chờ review; người thiết kế đã duyệt R0.0–R0.1).
+Lần cập nhật cuối: 2026-10-31, bởi agent điều phối (R0.0–R0.3, R1.7 và R3.1–R3.2 đã merge; người thiết kế đã duyệt R0.0–R0.1).
 
 **Tên sản phẩm:** DevKit được đổi tên thành **Fugue by SynX**; quy tắc đặt tên đã được chốt trong ADR R0.0. Code hiện có vẫn ghi DevKit cho tới khi R0.4 thực hiện đổi tên; code mới dùng tên đã chốt.
 
@@ -100,8 +100,8 @@ Lần cập nhật cuối: 2026-10-31, bởi agent điều phối (R0.0–R0.3 v
 
 | ID | Việc | Thiết kế | Phụ thuộc | Xong khi | Trạng thái | PR / commit | Ghi chú |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| R3.1 | **Spike SDK Anthropic**: `anthropic-sdk-go` có đáp ứng bảng điều kiện kiểm soát không | Model adapter §8, §10 | R0.1 | Báo cáo ngắn kèm tên option thật; phần không đáp ứng ghi rõ | Chờ review | [PR #416](https://github.com/syurodev/dev-kit/pull/416) · [commit 8934283](https://github.com/syurodev/dev-kit/commit/8934283d8333d1b1186ef1d550a781b4a01740fa) | Spike fixture-only; tests, vet và race pass. Bằng chứng provider/live còn mở; không phải production. |
-| R3.2 | **Spike SDK OpenAI** và Sign in with ChatGPT (reasoning khi `store: false`, cache, `additional_tools`, `/v1/models`) | Model adapter §11.7 | R0.1 | Báo cáo như R3.1 | Chờ review | [PR #416](https://github.com/syurodev/dev-kit/pull/416) · [commit 8934283](https://github.com/syurodev/dev-kit/commit/8934283d8333d1b1186ef1d550a781b4a01740fa) | Spike fixture-only; tests, vet và race pass. Bằng chứng provider/live còn mở; không dùng lại token của Codex CLI (M-10). |
+| R3.1 | **Spike SDK Anthropic**: `anthropic-sdk-go` có đáp ứng bảng điều kiện kiểm soát không | Model adapter §8, §10 | R0.1 | Báo cáo ngắn kèm tên option thật; phần không đáp ứng ghi rõ | Xong | [PR #416](https://github.com/syurodev/dev-kit/pull/416) · [commit 912a8d5](https://github.com/syurodev/dev-kit/commit/912a8d59babae8a0c90e16cc166f853dbeeaeb20) | Spike fixture-only; CI xanh. Bằng chứng provider/live còn mở; spike chưa phải production. |
+| R3.2 | **Spike SDK OpenAI** và Sign in with ChatGPT (reasoning khi `store: false`, cache, `additional_tools`, `/v1/models`) | Model adapter §11.7 | R0.1 | Báo cáo như R3.1 | Xong | [PR #416](https://github.com/syurodev/dev-kit/pull/416) · [commit 912a8d5](https://github.com/syurodev/dev-kit/commit/912a8d59babae8a0c90e16cc166f853dbeeaeb20) | Spike fixture-only; CI xanh. Bằng chứng provider/live còn mở; chưa phải production, không dùng lại token của Codex CLI (M-10). |
 | R3.3 | Contract model trung lập, phân loại lỗi, retry thuộc kernel | Model adapter §2–3 | R1.11, R3.1 | Faux provider đi qua đủ 10 lớp lỗi; retry ghi attempt trước khi chờ | Bị chặn | | |
 | R3.4 | Adapter Anthropic (API key), converter, catalog, usage | Model adapter §4–7 | R3.3 | Golden file stream thật; thinking có chữ ký | Bị chặn | | |
 | R3.5 | Adapter OpenAI: API key, rồi Sign in with ChatGPT với UI bắt buộc | Model adapter §11 | R3.3, R3.2 | Bảng lỗi §11.4 có test; không failover tự động với gói ChatGPT | Bị chặn | | UI của §11.6 làm ở P6 |
@@ -182,4 +182,4 @@ Agent ghi câu hỏi ở đây khi một việc chuyển sang `Cần quyết đ�
 | 2026-10-31 | R1.7 | Mở PR #413, commit `76a7e675500546a224daa300ebec7a638649e5d3`; test observation/lock và các kiểm tra backend, arch, race, frontend, server-build đều đạt | Agent triển khai |
 | 2026-10-31 | R1.1 | Làm rõ tham chiếu tới semantics đã có ở state machine §6–7 và catalog §5 để R1.2 kiểm đủ invariant; không chuyển phần tích hợp của R2 vào P1 | Agent điều phối/review |
 | 2026-10-31 | R0.2, R0.3, R1.7 | PR #414, #415, #413 đã merge; CI xanh. R0.3 gồm proto generated-staleness, backend và frontend gates | Agent điều phối |
-| 2026-10-31 | R3.1, R3.2 | PR #416 tại commit `8934283d8333d1b1186ef1d550a781b4a01740fa` chờ review; fixture tests, vet và race pass; bằng chứng provider/live vẫn mở | Agent điều phối |
+| 2026-10-31 | R3.1, R3.2 | PR #416 tại commit `912a8d59babae8a0c90e16cc166f853dbeeaeb20` đã merge; CI xanh. Hai spike fixture-only, chưa phải production; bằng chứng provider/live vẫn mở | Agent điều phối |
