@@ -44,8 +44,8 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | H-01 | Kernel, state machine, invariant | Đã chốt | [State machine](/dev-kit/core-harness/state-machine), [event catalog](/dev-kit/core-harness/event-catalog) | A | — |
 | H-02 | Event store, admission, recovery | Đã chốt | [Event storage](/dev-kit/core-harness/event-storage-recovery) | A | H-01 |
 | H-03 | Storage và bảo mật payload (G-03) | Đã chốt, chờ evidence | [Storage-security](/dev-kit/core-harness/storage-security) | A | H-02 |
-| H-04 | Đặt package và dependency (G-01) | Chưa | — | A | Mọi mảng A; làm gần cuối |
-| H-05 | Review transition toàn bộ (G-02) | Chưa | [Quyết định](/dev-kit/core-harness/decisions-and-validation) | A | Làm sau cùng, khi mọi mảng A đã chốt |
+| H-04 | Đặt package và dependency (G-01) | Chưa | ADR của R0.1 trong [lộ trình](/dev-kit/core-harness/implementation-roadmap) | A | D-29, H-42 (đã chốt); làm **đầu tiên**, trước mọi production code của core |
+| H-05 | Review transition toàn bộ (G-02) | Chưa | [Quyết định](/dev-kit/core-harness/decisions-and-validation) | A | Thiết kế H-01–H-03 (đã chốt); chạy song song với P1–P2 và đóng bằng evidence (R1.1, R1.2, R2.4); review lại mỗi khi catalog có event mới |
 | H-06 | Budget: token, thời gian, tool, storage | Một phần | State machine §7, §9; storage-security §4 | A | H-08 |
 
 ## B. Model
@@ -131,4 +131,4 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 6. ~~**Queue/steering** (H-29)~~: đã chốt ở [điều phối input](/dev-kit/core-harness/coordination); còn **continuation** (H-31).
 7. **UI Agent Hub cho native và cấu hình workspace** (H-33, H-34).
 8. **Compatibility** (H-36) và **budget** (H-06).
-9. **Đặt package** (H-04), rồi **review toàn bộ** (H-05) trước khi viết code. Với D-29, harness nằm trong `internal/` của DevKit, theo đúng các tầng của architecture rules, không cần chuẩn bị để tách repo.
+9. **Đặt package** (H-04) **không chờ** các mảng trên: nó là việc đầu tiên trước mọi production code của core (R0.1 trong [lộ trình](/dev-kit/core-harness/implementation-roadmap)). **Review transition** (H-05) chạy song song với P1–P2 và đóng gate G-02 bằng evidence. Với D-29, harness nằm trong `internal/` của DevKit, theo đúng các tầng của architecture rules, không cần chuẩn bị để tách repo.

@@ -87,6 +87,13 @@ Trong phạm vi runtime tương lai, bộ tài liệu này thay hướng “ch�
 
 Các vendor runtime hiện hữu tiếp tục hoạt động qua adapter hiện tại cho đến khi có migration/activation được review. Không tạo runner tạm để né service/gateway.
 
-## Kết quả cần có trước implementation
+## Điều kiện bắt đầu code và đóng gate
 
-Bộ foundation cho phép review semantics và failure cases. Trước khi viết production core phải giải quyết các gate trong [quyết định và kiểm chứng](/dev-kit/core-harness/decisions-and-validation#open-decisions-trước-implementation), bao gồm placement theo architecture rules, lưu trữ payload, quyền của host mới và transaction protocol cụ thể.
+Bộ foundation cho phép review semantics và failure cases. Code được bắt đầu **theo từng việc** trong [lộ trình triển khai](/dev-kit/core-harness/implementation-roadmap), khi thiết kế của việc đó và mọi phụ thuộc đã chốt; mọi mảng giai đoạn A phải chốt trước activation.
+
+Gate trong [quyết định và kiểm chứng](/dev-kit/core-harness/decisions-and-validation#open-decisions-trước-implementation) có hai mức: **chốt thiết kế** và **đóng bằng evidence**.
+
+- **G-01** (placement theo architecture rules) và quy tắc đặt tên (R0.0) phải được duyệt **trước** production code của core.
+- **G-02** (transition protocol) và **G-03** (lưu trữ payload, transaction) chỉ cần thiết kế đã chốt để bắt đầu code; chúng đóng bằng evidence từ P1–P2, **trước khi** native runtime chạy với provider thật hoặc dữ liệu thật của user.
+- **G-04 đến G-06** (tích hợp model và tool, interaction, compatibility) đóng trước tích hợp tương ứng.
+- **G-07** (activation, gồm quyền của host mới) đóng trước khi bật cho user.
