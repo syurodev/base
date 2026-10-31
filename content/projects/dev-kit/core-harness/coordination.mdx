@@ -5,7 +5,7 @@ description: Queue, steer, chen ngang, ngắt, peer message và input khi đang 
 
 # Điều phối input
 
-Trạng thái: foundation decision v0.10. **Thiết kế đã chốt** cho H-29 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Continuation và điều kiện dừng (H-31) là mảng riêng.
+Trạng thái: foundation decision v0.11. **Thiết kế đã chốt** cho H-29 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Continuation và điều kiện dừng (H-31) là mảng riêng.
 
 Tham khảo: pi (`pi-durable` inbox với follow-up, steer, write, continue; `coding-agent` với Enter/Alt+Enter/Esc), deepseek-harness (inbox bền `nextTurn`/`nextStep`, `inject`, `cancel` có `keepInbox`), và cơ chế hiện có của Agent Hub cho vendor session (queue ở window, `shouldSteer`, peer delivery `started`/`steered`/`queued`/`refused`). Harness² của Google không có phần tương tác lúc run nên không áp dụng ở đây.
 

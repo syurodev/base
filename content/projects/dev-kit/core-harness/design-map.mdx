@@ -7,7 +7,9 @@ description: Danh mục mọi mảng thiết kế của harness core, trạng th
 
 Trang này là danh mục kiểm tra để **không thiết kế thiếu**. Mỗi mảng mà một harness hoàn chỉnh cần có một ID `H-xx`, trạng thái, nơi ghi thiết kế và giai đoạn cần nó. Quyết định của dự án: **thiết kế xong toàn bộ các mảng cần cho giai đoạn A rồi mới viết production code.**
 
-Khi một trang thiết kế được chốt hoặc đổi phạm vi, cập nhật trạng thái ở đây **trong cùng commit**.
+Khi một trang thiết kế được chốt hoặc đổi phạm vi, cập nhật trạng thái ở đây **trong cùng commit**. Tiến độ triển khai được theo dõi riêng ở [lộ trình triển khai](/dev-kit/core-harness/implementation-roadmap).
+
+**Hướng sản phẩm (D-29):** lõi Go của DevKit và harness là **một bộ all-in-one**. Mọi logic nghiệp vụ, quyền, lưu trữ và runtime nằm trong lõi Go; mọi UI (desktop, native, web, CLI, Telegram) chỉ là client của **Host API** (H-42). Vì vậy H-42 được thiết kế trước các tool cụ thể.
 
 ## Quy ước
 
@@ -100,10 +102,13 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
-| H-32 | Read model và streaming tới client: timeline, delta, catch-up | Một phần | Event storage §9 | A | H-02 |
+| H-32 | Read model và streaming tới client: timeline, delta, catch-up | Gộp vào H-42 | Event storage §9 | A | H-42 |
 | H-33 | UI Agent Hub cho session native: picker tool và preset, failure UX, view job/daemon/snapshot | Một phần | Activation §3 | A | H-32 |
 | H-34 | Cấu hình theo workspace: preset, hạn mức, timeout, danh sách loại trừ, network | Một phần | Tool system, storage-security | A | — |
-| H-35 | Host khác: server mode, CLI, Telegram control cho session native | Một phần | Architecture §7 | B | H-24 |
+| H-35 | Host khác: server mode, CLI, Telegram control cho session native | Gộp vào H-42 | Architecture §7 | A | H-42 |
+| H-42 | **Host API**: contract command, query và event có schema và version, không gắn Wails; transport (Wails, socket local, HTTP/WebSocket loopback, MCP); read model với snapshot và catch-up; tin cậy client (ai được duyệt approval, mở vault); lệch version giữa UI và lõi; cách chạy process (nhúng, daemon hoặc cả hai) | Đã chốt | [Host API](/dev-kit/core-harness/host-api) | A | H-02, H-24 |
+| H-43 | Kiểm kê logic nghiệp vụ còn nằm ở frontend (state machine và quyết định trong React) và kế hoạch chuyển về lõi Go | Chưa | — | A | H-42 |
+| H-44 | **Shell ngoài Wails** (giai đoạn A: Electron desktop): đóng gói binary Go theo nền tảng, khởi động và nối host, preload và bảo mật renderer, hộp thoại native, cửa sổ và title bar, thông báo, tray, auto-update, chuyển phần frontend phụ thuộc Wails | Chưa | [Host API](/dev-kit/core-harness/host-api) §3, §7, §9 | A | H-42, H-43 |
 
 ## H. Vòng đời, chất lượng, vận hành
 
@@ -120,9 +125,10 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 
 1. ~~**Context engine và system prompt** (H-10, H-11, H-12, H-13)~~: đã chốt ở [Context engine](/dev-kit/core-harness/context-engine).
 2. ~~**Model adapter, usage, account** (H-07, H-08, H-09)~~: đã chốt ở [model adapter](/dev-kit/core-harness/model-adapter).
-3. **Tool file, shell/job, đọc code, hỏi user** (H-17, H-18, H-19, H-20).
-4. **Interaction API, sandbox runtime, nội dung không tin cậy, redact** (H-24, H-25, H-26, H-27).
-5. ~~**Queue/steering** (H-29)~~: đã chốt ở [điều phối input](/dev-kit/core-harness/coordination); còn **continuation** (H-31).
-6. **Read model, UI, cấu hình workspace** (H-32, H-33, H-34).
-7. **Compatibility** (H-36) và **budget** (H-06).
-8. **Đặt package** (H-04), rồi **review toàn bộ** (H-05) trước khi viết code.
+3. ~~**Host API** (H-42, gộp H-32 và H-35)~~: đã chốt ở [Host API](/dev-kit/core-harness/host-api); còn **kiểm kê frontend** (H-43) và **shell ngoài Wails** (H-44).
+4. **Tool file, shell/job, đọc code, hỏi user** (H-17, H-18, H-19, H-20).
+5. **Interaction API, sandbox runtime, nội dung không tin cậy, redact** (H-24, H-25, H-26, H-27).
+6. ~~**Queue/steering** (H-29)~~: đã chốt ở [điều phối input](/dev-kit/core-harness/coordination); còn **continuation** (H-31).
+7. **UI Agent Hub cho native và cấu hình workspace** (H-33, H-34).
+8. **Compatibility** (H-36) và **budget** (H-06).
+9. **Đặt package** (H-04), rồi **review toàn bộ** (H-05) trước khi viết code. Với D-29, harness nằm trong `internal/` của DevKit, theo đúng các tầng của architecture rules, không cần chuẩn bị để tách repo.

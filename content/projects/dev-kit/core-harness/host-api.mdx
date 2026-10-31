@@ -1,0 +1,103 @@
+---
+title: Host API
+description: API duy nhất giữa lõi Go của DevKit và mọi UI — cách chạy process, contract Connect/protobuf, event stream, principal, version và lộ trình chuyển đổi.
+---
+
+# Host API
+
+Trạng thái: foundation decision v0.11. **Thiết kế đã chốt** cho H-42 (gộp H-32 read model và H-35 host khác) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), ở phạm vi giai đoạn A. Kiểm kê logic ở frontend (H-43) và shell ngoài Wails (H-44) là mảng riêng.
+
+Theo D-29, lõi Go của DevKit và harness là một bộ all-in-one; mọi UI là client của API này.
+
+Tham khảo: RPC mode của pi (JSONL qua stdio: command có `id`, response, event stream, bản ghi yêu cầu UI), API Gateway và remote-access của deepseek-harness (contract có kiểu sinh cho Host và Client, stream qua WebSocket ghép kênh, principal và role theo resource).
+
+## 1. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| HA-01 | **Host là process đang giữ data-directory lock**; host luôn mở một socket local cho client |
+| HA-02 | Contract dùng **protobuf với Connect** (`connect-go`, `connect-es`/`protobuf-es`, `buf`), **schema trước**; `buf breaking` chạy trong CI |
+| HA-03 | Client của giai đoạn A: **chỉ desktop trên shell ngoài Wails (Electron)**. CLI, web, Telegram, UI native để sau |
+| HA-04 | Truy cập từ xa (Telegram, điện thoại) với role riêng: **giai đoạn B** |
+| HA-05 | UI không chứa logic nghiệp vụ; mọi quyết định nằm trong lõi (H-43 kiểm kê phần còn sót) |
+
+## 2. Hiện trạng
+
+| Thành phần | Hiện nay | Sau khi có Host API |
+| --- | --- | --- |
+| API | 453 method của `AppService` trong `internal/bridge`, binding sinh cho Wails | Service Connect có schema; binding Wails chỉ còn trong giai đoạn chuyển đổi |
+| Event lên UI | ~31 event qua event bus của Wails, payload `map[string]any`, không sequence, không catch-up | Topic có kiểu, có sequence, đăng ký lại được từ một sequence (§6) |
+| Server mode | Cùng method qua HTTP loopback, chưa xác thực, thao tác có gate fail closed | Không mở HTTP ở giai đoạn A; client nối qua socket local có xác thực (§7) |
+| Hộp thoại native | `bridge.NativeHost` (chọn file, chọn thư mục, lưu file) gọi từ lõi | Hộp thoại thuộc shell; lõi chỉ nhận đường dẫn và vẫn kiểm tra theo grant |
+| MCP host | Socket riêng cho mỗi session, dành cho agent | Giữ nguyên; không phải client UI |
+
+## 3. Cách chạy process
+
+- Một binary `devkit`, có lệnh `devkit serve` chạy headless. Process giữ data-directory lock (G-03) là host.
+- Sau khi lấy lock, host ghi `host.json` trong data dir: PID, thời điểm start, đường dẫn socket, các API version hỗ trợ. File này chỉ để tìm host; **lock mới là sự thật**: lấy được lock nghĩa là không có host nào đang chạy.
+- **Shell khởi động**: đọc `host.json` và thử nối; nối được và bắt tay thành công thì dùng host đó. Không được thì chạy `devkit serve` từ binary đi kèm, chờ host báo sẵn sàng, rồi nối. Hai shell cùng khởi động thì lock bảo đảm chỉ một host.
+- **Vòng đời host**: mặc định, host thoát khi không còn client nào **và** không còn run, job hay daemon của session. Setting "chạy nền" giữ host sống sau khi đóng app.
+- **Socket**: Linux và macOS dùng unix socket quyền `0600` trong thư mục `0700`; Windows dùng named pipe với ACL của user. Đường dẫn unix socket phải vừa giới hạn của hệ điều hành (104 byte trên macOS, 108 byte trên Linux). Data dir dài quá thì dùng thư mục runtime ngắn (`$XDG_RUNTIME_DIR/devkit/` trên Linux, một thư mục riêng của user trong temp trên macOS), và ghi đường dẫn thật vào `host.json`.
+- Host chết thì shell phát hiện qua kết nối bị đóng, hiện trạng thái "mất kết nối với lõi", rồi nối lại hoặc khởi động host mới. Recovery của execution diễn ra trong host mới theo [event storage](/dev-kit/core-harness/event-storage-recovery).
+
+## 4. Contract
+
+- File `.proto` nằm trong repo DevKit, chia theo module và version: `proto/devkit/<module>/v1/*.proto`. `buf generate` sinh code Go và client TypeScript cho shell.
+- **Adapter Host API** (`internal/hostapi/<module>`, tên chốt ở G-01) map giữa type của proto và type của domain, rồi gọi application service trong `internal/app`. Đây là một adapter cùng tầng với `internal/bridge` và `internal/mcp`.
+- Domain package **không import** code sinh từ proto; luật này vào `internal/arch`.
+- Một service cho mỗi module: session (native và vendor dùng chung read model), queue, interaction, vault, account, workspace, settings, notes, tasks, git, database…
+- **Unary** cho command và query. **Server streaming** cho đăng ký event. **Bidi streaming** chỉ cho terminal (input và output của PTY), cần HTTP/2; unix socket dùng h2c.
+- **Lỗi**: mã lỗi của Connect, kèm detail có kiểu chứa public error code của DevKit (giữ contract `bridge.keptCodes` / `redactedOnPurpose`). Không đưa nguyên nhân nội bộ hay secret vào message.
+
+## 5. Command
+
+- Mọi RPC thay đổi trạng thái mang `command_id` do client sinh (UUID) để chống trùng khi gửi lại; host trả lại cùng kết quả cho cùng `command_id`.
+- `origin` lấy từ **principal đã xác thực** của kết nối, không bao giờ từ field trong request.
+- Thao tác trên thứ có revision (queue, admission, cấu hình) gửi kèm revision mong đợi; revision cũ bị từ chối có kiểu.
+
+## 6. Event stream
+
+- `Subscribe(topic, since_sequence?)`: không có `since_sequence`, hoặc sequence đã quá cũ, thì host gửi **snapshot** rồi các event tiếp theo; có `since_sequence` hợp lệ thì gửi bù từ đó. Snapshot và luồng event nhất quán, không có khoảng hở ([event storage §9](/dev-kit/core-harness/event-storage-recovery#9-payload-security-compatibility-và-client-delivery)).
+- Mỗi topic có sequence tăng đơn điệu riêng. Topic giai đoạn A: timeline của từng session, danh sách session, queue, interaction đang chờ (approval, câu hỏi), job, thông báo, và thay đổi của từng module (thay 31 event của Wails).
+- **Hai loại topic**:
+  - **Bền**: sinh từ trạng thái đã commit; catch-up được.
+  - **Tạm** (delta của model, output của terminal): chỉ có buffer ngắn; mất thì client đọc lại trạng thái bền.
+- **Backpressure**: delta có thể được gộp, event điều khiển không bao giờ bị bỏ. Client chậm quá buffer thì stream kết thúc với `resync_required`, client lấy lại snapshot. Client chậm không bao giờ chặn transaction hay cancellation của lõi.
+
+## 7. Principal và tin cậy
+
+**Giai đoạn A** chỉ có một loại client:
+
+| Principal | Xác thực | Quyền |
+| --- | --- | --- |
+| `desktop` | Socket local, kiểm tra **UID của process nối vào** (`SO_PEERCRED` trên Linux, `getpeereid` trên macOS; ACL của user trên Windows) trùng với user chạy host | Mọi thao tác, gồm **duyệt approval**, **mở vault**, trả lời câu hỏi, chen ngang |
+
+- Kiểm tra UID chứng minh "cùng user hệ điều hành", không chứng minh "đúng app DevKit". Một process khác của cùng user vốn đã đọc được data dir, nên đây là mô hình đe dọa chấp nhận được; tài liệu bảo mật ghi rõ điều này.
+- Trong shell Electron, chỉ **main process** giữ kết nối tới host. Renderer không mở được socket; nó dùng client đã sinh thông qua preload (`contextBridge` hoặc `MessagePort`), với `contextIsolation` và `sandbox` bật, `nodeIntegration` tắt, có CSP.
+- Giai đoạn A **không mở HTTP loopback**. Server mode hiện tại giữ nguyên hành vi fail closed cho tới khi bị gỡ.
+- **Giai đoạn B**: ghép đôi bằng token cho CLI, web, Telegram và điện thoại; role theo resource (xem, steer, trả lời, duyệt, mở vault) theo kiểu remote-access của deepseek-harness. Server lọc danh sách theo role để client không thấy thứ nó không được dùng.
+
+## 8. Version
+
+- Khi nối, client gửi `Hello(client_name, client_version, supported_api_versions)`; host chọn version chung cao nhất, hoặc từ chối kèm hướng dẫn nâng cấp.
+- Mỗi module có package `v1`, `v2`…; trong cùng version chỉ được **thêm**; `buf breaking` so với `main` trong CI chặn thay đổi phá vỡ. Field bị ngừng giữ lại ít nhất 2 release.
+- Shell luôn đi kèm binary host cùng release. Shell mới gặp host cũ đang chạy nền: nếu host không có run, job hay daemon thì shell yêu cầu host khởi động lại bằng binary mới; nếu có thì hiện thông báo và chờ.
+
+## 9. Lộ trình chuyển đổi
+
+1. API mới của harness (session native, queue, interaction, event stream) viết theo schema ngay từ đầu, chạy trên socket local.
+2. Trong lúc chuyển, app Wails hiện tại vẫn dùng binding cũ; shell Electron dùng Host API ngay từ đầu.
+3. Chuyển 453 method theo từng module. Ratchet test trong `internal/arch`: danh sách method của `AppService` bị đóng băng, method mới phải nằm trong proto.
+4. Hộp thoại native, theme và điều khiển cửa sổ chuyển sang shell.
+5. Khi shell mới đủ tính năng (H-44) thì gỡ shell Wails và `internal/bridge`.
+
+## 10. Evidence
+
+| Evidence | Cách chứng minh |
+| --- | --- |
+| Một host | Hai shell khởi động cùng lúc; host crash rồi shell nối lại hoặc khởi động host mới |
+| Socket | Đường dẫn dài; quyền `0600`; process của user khác bị từ chối |
+| Catch-up | Mất kết nối giữa chừng rồi nối lại từ sequence; sequence quá cũ thì nhận snapshot; `resync_required` khi client chậm |
+| Chống trùng | Gửi lại cùng `command_id` nhận cùng kết quả |
+| Version | `buf breaking` trong CI; client lệch version bị từ chối có hướng dẫn |
+| Ranh giới | `internal/arch` chặn domain import code proto; ratchet đóng băng `AppService` |

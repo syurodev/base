@@ -1,0 +1,168 @@
+---
+title: Lộ trình triển khai
+description: Danh sách việc triển khai harness core theo giai đoạn, trạng thái và evidence; agent triển khai cập nhật trang này.
+---
+
+# Lộ trình triển khai
+
+Trang này là **bảng việc sống** cho agent triển khai. Nó trả lời: làm gì, theo thứ tự nào, dựa trên trang thiết kế nào, thế nào là xong, và việc đang ở đâu. Thiết kế nằm ở các trang khác của core harness; trang này **không** thay đổi thiết kế.
+
+Lần cập nhật cuối: 2026-10-31, bởi người thiết kế (khởi tạo trang).
+
+## 1. Luật cho agent triển khai
+
+1. **Đọc trước khi làm**: `AGENTS.md` của repo `syurodev/dev-kit`, [architecture rules](https://github.com/syurodev/dev-kit/blob/main/docs/agent-reference/architecture-rules.md), và đúng các trang thiết kế mà việc đó trỏ tới. Không cần đọc mọi trang.
+2. **Chỉ làm việc có thiết kế "Đã chốt"** trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Việc có trạng thái `Chờ thiết kế` thì không bắt đầu, kể cả khi có vẻ đơn giản.
+3. **Không tự sửa thiết kế.** Gặp chỗ thiết kế sai, thiếu hoặc mâu thuẫn với code thật thì đặt việc sang `Cần quyết định`, ghi câu hỏi cụ thể ở cột Ghi chú và ở [§6](#6-cần-quyết-định), rồi chuyển sang việc khác không bị chặn.
+4. **Không bypass**: không runner thay thế, không bỏ qua gateway, không nới allowlist của `internal/arch` chỉ để test qua. Mở rộng một luật arch phải kèm lý do trong cùng thay đổi, đúng như architecture rules yêu cầu.
+5. **Kiểm tra bắt buộc** trước khi đánh dấu xong, theo AGENTS.md:
+   - `go test ./internal/... ./cmd/...`
+   - `go test ./internal/arch/`
+   - `cd frontend && bun test --isolate` và `cd frontend && bun run build` khi có thay đổi frontend
+   - `wails3 generate bindings` khi đổi method của `AppService` (cho tới khi gỡ Wails)
+   - Từ khi có proto: `buf lint` và `buf breaking` so với `main`
+6. **Evidence là test có tên**, không phải mô tả. "Xong" nghĩa là các test trong cột "Xong khi" đã có và pass trên một commit cụ thể.
+7. **Nhánh và PR**: mỗi việc (hoặc một nhóm nhỏ việc liền nhau) một nhánh `feat/harness-<id>` từ `main`, một PR vào `main`. Không xếp PR chồng lên PR chưa merge.
+
+## 2. Cách cập nhật trang này
+
+- Mỗi khi đổi trạng thái một việc, sửa dòng của việc đó: **Trạng thái**, **PR / commit** (link đầy đủ tới `github.com/syurodev/dev-kit`), **Ghi chú** (tên test làm evidence, giới hạn còn lại).
+- Thêm một dòng vào [nhật ký](#7-nhật-ký) với ngày, ID việc, thay đổi.
+- Cập nhật dòng "Lần cập nhật cuối" ở đầu trang.
+- Trang này nằm trong repo `syurodev/base` (`content/projects/dev-kit/core-harness/implementation-roadmap.mdx`). Commit riêng ở repo đó, message dạng `docs(dev-kit): roadmap <ID> <trạng thái>`.
+- Không sửa các trang thiết kế khác. Nếu một gate (G-01 … G-07) đạt đủ evidence, ghi vào §5 để người thiết kế đóng gate.
+
+**Trạng thái dùng trong bảng**
+
+| Trạng thái | Nghĩa |
+| --- | --- |
+| `Chưa bắt đầu` | Thiết kế đã chốt, chưa làm |
+| `Đang làm` | Có nhánh và commit |
+| `Chờ review` | PR đã mở |
+| `Xong` | Đã merge vào `main`, evidence pass |
+| `Bị chặn` | Chờ một việc khác; ghi ID việc chặn |
+| `Cần quyết định` | Thiết kế cần người thiết kế trả lời (§6) |
+| `Chờ thiết kế` | Mảng chưa có thiết kế đã chốt; **không làm** |
+
+## 3. Tổng quan giai đoạn
+
+| Phase | Mục tiêu | Trang thiết kế chính |
+| --- | --- | --- |
+| P0 | Chốt chỗ đặt package (G-01), dựng khung repo | [Kiến trúc](/dev-kit/core-harness/architecture), [Host API](/dev-kit/core-harness/host-api) |
+| P1 | Vertical slice headless: kernel, execution store, coordinator, faux model, tool đọc giả, replay | [State machine](/dev-kit/core-harness/state-machine), [event catalog](/dev-kit/core-harness/event-catalog), [event storage](/dev-kit/core-harness/event-storage-recovery), [storage-security](/dev-kit/core-harness/storage-security) |
+| P2 | Recovery và fault injection trước khi có tool có side effect | Event storage, state machine §6–8 |
+| P3 | Context engine và model adapter thật | [Context engine](/dev-kit/core-harness/context-engine), [model adapter](/dev-kit/core-harness/model-adapter) |
+| P4 | Host API và điều phối input | [Host API](/dev-kit/core-harness/host-api), [điều phối input](/dev-kit/core-harness/coordination) |
+| P5 | Tool cụ thể và interaction | [Tool system](/dev-kit/core-harness/tool-system) (từng tool **chờ thiết kế**) |
+| P6 | Shell ngoài Wails và UI native session | Chờ thiết kế (H-43, H-44, H-33) |
+| P7 | Evidence giai đoạn A và bật opt-in | [Activation](/dev-kit/core-harness/activation) |
+
+## 4. Danh sách việc
+
+### P0 — Nền
+
+| ID | Việc | Thiết kế | Phụ thuộc | Xong khi | Trạng thái | PR / commit | Ghi chú |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| R0.1 | **Đề xuất G-01**: cây package của harness trong `internal/` (kernel, execstore, coordinator, contextengine, modeladapter, tools, hostapi), danh sách import được phép, luật `internal/arch` mới, owner của bảng `exec_*` | D-29, kiến trúc §8, Host API §4 | — | Một ADR dạng markdown trong `docs/` của dev-kit, được người thiết kế duyệt; chưa có code | Chưa bắt đầu | | Theo D-29: harness nằm trong `internal/`; `kernel` chỉ stdlib; SDK chỉ trong modeladapter; domain không import code proto. Tránh trùng tên với `internal/harness` hiện có |
+| R0.2 | Thêm luật arch theo ADR của R0.1 (chưa có package thật thì luật vẫn chạy được) | R0.1 | R0.1 | `go test ./internal/arch/` pass, có test mới cho từng luật | Bị chặn | | Chặn bởi R0.1 |
+| R0.3 | Dựng khung `proto/` và `buf` (lint, breaking, generate cho Go và TS), chưa có service | Host API §4, §8 | R0.1 | `buf lint` và `buf generate` chạy trong CI; code sinh không bị domain import | Bị chặn | | |
+
+### P1 — Vertical slice headless
+
+| ID | Việc | Thiết kế | Phụ thuộc | Xong khi | Trạng thái | PR / commit | Ghi chú |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| R1.1 | Kernel: type của command và event theo catalog; `decide` và `evolve` cho run, step, model invocation/attempt, tool invocation/attempt; lifecycle và phase suy ra; không đọc clock, random hay I/O | State machine §1–5, catalog §1–4 | R0.2 | Test bảng transition hợp lệ và bị từ chối; replay hai lần cho cùng kết quả | Bị chặn | | |
+| R1.2 | Invariant checker SM-01 đến SM-12, chạy sau mỗi batch trong test | State machine §3 | R1.1 | Mỗi invariant có test vi phạm và test hợp lệ | Bị chặn | | Dùng lại ở dogfood (activation §5) |
+| R1.3 | Execution store: migration bảng `exec_*`, trigger append-only, kiểm tra pragma, transaction một lần cho event + payload + projection + receipt + admission | Storage-security §2–3, §6; event storage §5 | R1.1 | Evidence G-03: atomicity (fault injection), pragma bị từ chối, trigger chặn UPDATE/DELETE | Bị chặn | | `tableOwners` có prefix `exec_` |
+| R1.4 | Payload được bảo vệ: session key wrap bằng `SealRecord`, AEAD cho payload, giới hạn kích thước, crypto-shred khi xóa session | Storage-security §4, §7 | R1.3 | Evidence G-03: crypto-shred, giới hạn 1 MiB / 64 MiB / 1 GiB | Bị chặn | | |
+| R1.5 | Canonical codec v1 và dedup bằng receipt | Storage-security §5; event storage §5 | R1.3 | Duplicate key, field lạ, khác `codec_version`; cùng `command_id` nhận cùng receipt | Bị chặn | | |
+| R1.6 | Data-directory lock và incarnation (`exec_host`) | Storage-security §9 | R1.3 | Hai process, alias đường dẫn, crash rồi lấy lại lock | Bị chặn | | |
+| R1.7 | Vault observation API ở `internal/vault` (snapshot, revision, subscription, guard đồng bộ); chuyển việc báo lock/unlock từ bridge sang `internal/app` | Storage-security §8 | — | Unlock trước recovery, lock giữa consume, subscriber chậm, chạy trên host không có bridge | Chưa bắt đầu | | Không phụ thuộc kernel; làm song song được |
+| R1.8 | Coordinator theo session: admission row, queue tối thiểu, dispatch protocol (giữ chỗ worker, commit rồi mới handoff), read-back khi commit không rõ, timer bền | Event storage §2–3, §7; kiến trúc §3, §6 | R1.3, R1.6 | Commit không rõ thì không dispatch trùng; worker cũ bị fence | Bị chặn | | |
+| R1.9 | Faux model provider (kịch bản text, thinking, tool call, lỗi từng lớp, đứt stream) | Model adapter §9 | R1.1 | Dùng được trong mọi test headless | Bị chặn | | |
+| R1.10 | Tool đọc giả (`pure_read`, không prompt) theo contract `Prepare`/`Execute` | Tool system §2 | R1.1 | Đi đủ `ToolCheckStarted` → `ToolReadyRecorded` → `ToolDispatchStarted` → `ToolResultRecorded` | Bị chặn | | |
+| R1.11 | **Slice đầu cuối**: start → model → tool → model → finish (trace A), lưu bền, replay không có side effect | Catalog §7 | R1.2–R1.10 | Trace A tái tạo đúng 22 event; replay cho 0 lần gọi model và tool | Bị chặn | | Mốc chính của P1 |
+
+### P2 — Recovery và fault injection
+
+| ID | Việc | Thiết kế | Phụ thuộc | Xong khi | Trạng thái | PR / commit | Ghi chú |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| R2.1 | Phân loại khi restart: Queued, Checking/AwaitingApproval/Ready (`ToolCheckReset`), dispatching thành unknown, vault khóa, payload mất | State machine §8; event storage §7 | R1.11 | Trace B tái tạo đúng; không chạy lại effect chưa rõ | Bị chặn | | |
+| R2.2 | Stop intent, cancel, quiesce, `AcceptUnknown`, `CloseRunWithoutPayload`, `SelectRunContext` | State machine §6; event storage §3 | R2.1 | Trace C; context requirement trên admission row | Bị chặn | | |
+| R2.3 | Active-time budget, tranche 60 s, crash giữa tranche | State machine §7; storage-security §6 | R1.8 | Không tính thời gian chết; charge bảo thủ khi resume | Bị chặn | | |
+| R2.4 | Bộ fault injection theo bảng "Tiêu chí kiểm chứng" (crash ở từng điểm, commit unknown, race approval) | Quyết định §Tiêu chí kiểm chứng | R2.1–R2.3 | Mỗi dòng của bảng có ít nhất một test; có mutation probe cho guard quan trọng | Bị chặn | | |
+
+### P3 — Context engine và model adapter
+
+| ID | Việc | Thiết kế | Phụ thuộc | Xong khi | Trạng thái | PR / commit | Ghi chú |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| R3.1 | **Spike SDK Anthropic**: `anthropic-sdk-go` có đáp ứng bảng điều kiện kiểm soát không | Model adapter §8, §10 | R0.1 | Báo cáo ngắn kèm tên option thật; phần không đáp ứng ghi rõ | Chưa bắt đầu | | Spike, không phải production |
+| R3.2 | **Spike SDK OpenAI** và Sign in with ChatGPT (reasoning khi `store: false`, cache, `additional_tools`, `/v1/models`) | Model adapter §11.7 | R0.1 | Báo cáo như R3.1 | Chưa bắt đầu | | Không dùng lại token của Codex CLI (M-10) |
+| R3.3 | Contract model trung lập, phân loại lỗi, retry thuộc kernel | Model adapter §2–3 | R1.11, R3.1 | Faux provider đi qua đủ 10 lớp lỗi; retry ghi attempt trước khi chờ | Bị chặn | | |
+| R3.4 | Adapter Anthropic (API key), converter, catalog, usage | Model adapter §4–7 | R3.3 | Golden file stream thật; thinking có chữ ký | Bị chặn | | |
+| R3.5 | Adapter OpenAI: API key, rồi Sign in with ChatGPT với UI bắt buộc | Model adapter §11 | R3.3, R3.2 | Bảng lỗi §11.4 có test; không failover tự động với gói ChatGPT | Bị chặn | | UI của §11.6 làm ở P6 |
+| R3.6 | Account và failover bằng `PickAccount` từ rate-limit header | Model adapter §7 | R3.4 | Mọi account bị giới hạn thì `Waiting(retry_timer)` | Bị chặn | | |
+| R3.7 | Context engine: bố cục L0–L5, `ContextInjected`, `InstructionsLoaded`, rule R0–R3, đo token | Context engine §2–3, §5 | R1.11 | Lắp context xác định; patch không đổi prefix | Bị chặn | | |
+| R3.8 | Pruning, compaction, kiểm tra ngôn ngữ | Context engine §6 | R3.7, R3.3 | Bảng evidence của context engine §9 | Bị chặn | | |
+| R3.9 | Tầng W: field mới của `workspacememory`, pinned block, chỉ mục, độ tươi theo hash, hàng chờ gợi ý, job gợi ý chạy nền | Context engine §4 | R3.7 | Redact; CAS khi duyệt; INVALIDATE giữ lịch sử | Bị chặn | | |
+
+### P4 — Host API và điều phối input
+
+| ID | Việc | Thiết kế | Phụ thuộc | Xong khi | Trạng thái | PR / commit | Ghi chú |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| R4.1 | Process `devkit serve`, `host.json`, socket local, kiểm tra UID, `Hello` và version | Host API §3, §7, §8 | R0.3, R1.6 | Bảng evidence Host API §10 (một host, socket, version) | Bị chặn | | |
+| R4.2 | Event stream có sequence, snapshot, catch-up, `resync_required` | Host API §6 | R4.1 | Mất kết nối rồi nối lại đúng sequence | Bị chặn | | |
+| R4.3 | Service session, queue, interaction trên Connect | Host API §4–5 | R4.2, R1.11 | Command có `command_id` chống trùng; `origin` từ principal | Bị chặn | | |
+| R4.4 | Điều phối input: queue bền (`exec_queue`), Steer, Interject, Stop trả về ô soạn thảo, `Continue`, `Inject`, peer theo chiều của quyền | Điều phối input | R4.3, R2.2 | Bảng evidence của điều phối input §10 | Bị chặn | | |
+| R4.5 | Ratchet đóng băng danh sách method của `AppService` | Host API §9 | R0.2 | Thêm method mới vào `AppService` làm test fail | Bị chặn | | |
+
+### P5 — Tool và interaction
+
+| ID | Việc | Thiết kế | Phụ thuộc | Xong khi | Trạng thái | PR / commit | Ghi chú |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| R5.1 | Registry, descriptor, factory, result servant, binding revision | Tool system §2–4, §10–11 | R1.11 | `ToolBindingRevised` chỉ ở ranh giới step | Bị chặn | | |
+| R5.2 | Snapshot turn và tool qua interface trên shadow git | Tool system §9 | R5.1 | Hai hạn mức riêng; restore chỉ diff của tool | Bị chặn | | |
+| R5.3 | Interaction owner API: request trong memory, receipt, preset | Tool system §5 | R5.1 | Chờ thiết kế chi tiết H-24 | Chờ thiết kế | | |
+| R5.4 | Sandbox runtime: jail theo session, process registry, env snapshot, Docker endpoint | Tool system §6–8 | R5.1 | Chờ thiết kế chi tiết H-25 | Chờ thiết kế | | |
+| R5.5 | Tool file, shell/job, đọc code, hỏi user | — | R5.1–R5.4 | Chờ thiết kế H-17 đến H-20 | Chờ thiết kế | | |
+| R5.6 | Continuation và điều kiện dừng | — | R1.11 | Chờ thiết kế H-31 | Chờ thiết kế | | |
+
+### P6 — Shell và UI
+
+| ID | Việc | Thiết kế | Phụ thuộc | Xong khi | Trạng thái | PR / commit | Ghi chú |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| R6.1 | Kiểm kê logic nghiệp vụ ở frontend | — | — | Chờ thiết kế H-43 | Chờ thiết kế | | Có thể làm như một báo cáo, không sửa code |
+| R6.2 | Shell ngoài Wails (Electron) | — | R4.1 | Chờ thiết kế H-44 | Chờ thiết kế | | |
+| R6.3 | UI native session: picker, preset, failure UX, view job/daemon/snapshot | Activation §3 | R6.2 | Chờ thiết kế H-33 | Chờ thiết kế | | |
+
+### P7 — Activation giai đoạn A
+
+| ID | Việc | Thiết kế | Phụ thuộc | Xong khi | Trạng thái | PR / commit | Ghi chú |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| R7.1 | Preference `harness.nativeRuntime`, rollback, compatibility với vendor session | Activation §1, §4 | P1–P6 | Evidence activation §5 | Chờ thiết kế | | Cần H-36 (compatibility) |
+
+## 5. Tiến độ gate
+
+| Gate | Thiết kế | Evidence | Việc liên quan |
+| --- | --- | --- | --- |
+| G-01 Package | Chưa | — | R0.1, R0.2 |
+| G-02 Transition | Chưa review toàn bộ | — | R1.1, R1.2, R2.4 |
+| G-03 Storage | Đã chốt | Chưa | R1.3–R1.7 |
+| G-04 Model/tool | Một phần | Chưa | R3.*, R5.* |
+| G-05 Interaction | Một phần | Chưa | R5.3 |
+| G-06 Compatibility | Chưa | — | R7.1 |
+| G-07 Activation | Đã chốt | Chưa | R7.1 |
+
+## 6. Cần quyết định
+
+Agent ghi câu hỏi ở đây khi một việc chuyển sang `Cần quyết định`. Người thiết kế trả lời và cập nhật trang thiết kế tương ứng.
+
+| Ngày | Việc | Câu hỏi | Trả lời |
+| --- | --- | --- | --- |
+| | | | |
+
+## 7. Nhật ký
+
+| Ngày | Việc | Thay đổi | Người cập nhật |
+| --- | --- | --- | --- |
+| 2026-10-31 | — | Khởi tạo lộ trình | Người thiết kế |

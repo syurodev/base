@@ -5,7 +5,7 @@ description: Ownership, execution kernel và extension contracts của core harn
 
 # Kiến trúc và ranh giới
 
-Trạng thái: foundation design v0.10, chưa implementation. Phạm vi và bất biến chung ở [Core harness](/dev-kit/core-harness).
+Trạng thái: foundation design v0.11, chưa implementation. Phạm vi và bất biến chung ở [Core harness](/dev-kit/core-harness).
 
 ## 1. Mô hình kiến trúc
 
@@ -141,6 +141,8 @@ V1 SHOULD thực thi tool tuần tự. Mô hình dữ liệu MUST có invocation
 User prompt, peer message và steering là command có nguồn/provenance rõ ràng. Ngữ nghĩa chi tiết của queue, steer, chen ngang, ngắt và peer message ở [điều phối input](/dev-kit/core-harness/coordination). Thứ tự ưu tiên và pause/queue policy thuộc session host; core không được tự drain recovered peer work trước khi có queue state hiện tại của người dùng.
 
 ## 7. Backend và tools độc lập frontend
+
+Theo D-29, mọi UI là client của [Host API](/dev-kit/core-harness/host-api); phần dưới đây là nguyên tắc, contract cụ thể ở trang đó.
 
 Go sở hữu model/tool schemas, validation, budgets, lifecycle, authorization, domain services và persistence. Frontend sở hữu trình bày, form draft, selection và view state. Một host mới chuyển command vào cùng application/service contracts với identity được xác thực; các host không mặc nhiên có cùng quyền.
 

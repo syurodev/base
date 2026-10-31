@@ -5,7 +5,7 @@ description: Quyết định G-07 — opt-in theo session, failure UX, rollback 
 
 # Activation và failure UX (G-07)
 
-Trạng thái: foundation decision v0.10. **Thiết kế G-07 đã chốt**; gate chỉ đóng khi evidence ở [mục 5](#5-evidence-để-bật-giai-đoạn-a) đạt. G-07 vẫn đứng sau G-04 đến G-06: chưa có tool, provider và compatibility path được review thì không có gì để bật.
+Trạng thái: foundation decision v0.11. **Thiết kế G-07 đã chốt**; gate chỉ đóng khi evidence ở [mục 5](#5-evidence-để-bật-giai-đoạn-a) đạt. G-07 vẫn đứng sau G-04 đến G-06: chưa có tool, provider và compatibility path được review thì không có gì để bật.
 
 ## 1. Hai giai đoạn
 
@@ -26,6 +26,7 @@ Runtime **ghim theo session** từ lúc tạo, không đổi giữa chừng (G-0
 - Chỉ provider và account đã qua G-04; provider-hosted tools bị tắt.
 - Không parallel tools, không team automation, không remote worker (ngoài v1).
 - Execution history chỉ local (S-04). Vault phải mở để chạy hoặc resume (S-01, S-02).
+- Client duy nhất là desktop trên **shell ngoài Wails** (Electron), nối với host qua [Host API](/dev-kit/core-harness/host-api). CLI, web, Telegram và truy cập từ xa để sau (truy cập từ xa ở giai đoạn B).
 
 ## 3. Failure UX bắt buộc
 

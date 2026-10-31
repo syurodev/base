@@ -11,8 +11,10 @@
     "context-engine",
     "model-adapter",
     "coordination",
+    "host-api",
     "activation",
     "decisions-and-validation",
-    "design-map"
+    "design-map",
+    "implementation-roadmap"
   ]
 }
