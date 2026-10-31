@@ -7,9 +7,9 @@ description: Danh sách việc triển khai harness core theo giai đoạn, tr�
 
 Trang này là **bảng việc sống** cho agent triển khai. Nó trả lời: làm gì, theo thứ tự nào, dựa trên trang thiết kế nào, thế nào là xong, và việc đang ở đâu. Thiết kế nằm ở các trang khác của core harness; trang này **không** thay đổi thiết kế.
 
-Lần cập nhật cuối: 2026-10-31, bởi người thiết kế (trả lời ba câu hỏi ở §6).
+Lần cập nhật cuối: 2026-10-31, bởi agent triển khai (R0.0, R0.1 được duyệt; PR chờ review/merge).
 
-**Tên sản phẩm:** DevKit được đổi tên thành **Fugue by SynX**. Code và tài liệu hiện có vẫn ghi DevKit cho tới khi R0.0 chốt quy tắc đặt tên; code mới dùng tên theo R0.0.
+**Tên sản phẩm:** DevKit được đổi tên thành **Fugue by SynX**; quy tắc đặt tên đã được chốt trong ADR R0.0. Code hiện có vẫn ghi DevKit cho tới khi R0.4 thực hiện đổi tên; code mới dùng tên đã chốt.
 
 ## 1. Luật cho agent triển khai
 
@@ -65,8 +65,8 @@ Lần cập nhật cuối: 2026-10-31, bởi người thiết kế (trả lời 
 
 | ID | Việc | Thiết kế | Phụ thuộc | Xong khi | Trạng thái | PR / commit | Ghi chú |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| R0.0 | **Quy tắc đặt tên Fugue by SynX**: tên binary và lệnh CLI, package proto, Go module path, tên data dir và socket, cách migrate data dir cũ của DevKit (vault, lịch sử, account), tiền tố biến môi trường, bundle ID và `UniqueID` của app, tên repo, domain, route tài liệu | — | — | Một ADR ngắn trong `docs/` của dev-kit, được người thiết kế duyệt; chưa đổi code cũ | Chưa bắt đầu | | Mặc định đề xuất cần xác nhận: CLI không dùng `fugue` trơn (trùng CLI của công ty Fugue) — ví dụ `fgx` hoặc `synx-fugue`; biến môi trường `SYNX_FUGUE_` (tránh `FUGUE_API_*`); package proto `fugue.<module>.v1`; bundle ID dạng `vn.io.synx.fugue`; domain `fugue.synx.io.vn`; repo dưới tài khoản SynX (tổ chức GitHub `fugue` đã có chủ) |
-| R0.1 | **Đề xuất G-01**: cây package của harness trong `internal/` (kernel, execstore, coordinator, contextengine, modeladapter, tools, hostapi), danh sách import được phép, luật `internal/arch` mới, owner của bảng `exec_*` | D-29, kiến trúc §8, Host API §4 | — | Một ADR dạng markdown trong `docs/` của dev-kit, được người thiết kế duyệt; chưa có code | Chưa bắt đầu | | Theo D-29: harness nằm trong `internal/`; `kernel` chỉ stdlib; SDK chỉ trong modeladapter; domain không import code proto. Tránh trùng tên với `internal/harness` hiện có |
+| R0.0 | **Quy tắc đặt tên Fugue by SynX**: tên binary và lệnh CLI, package proto, Go module path, tên data dir và socket, cách migrate data dir cũ của DevKit (vault, lịch sử, account), tiền tố biến môi trường, bundle ID và `UniqueID` của app, tên repo, domain, route tài liệu | — | — | ADR `/docs/adr/2026-10-31-fugue-product-naming.md` được người thiết kế duyệt; chưa đổi code cũ | Chờ review | [PR #412](https://github.com/syurodev/dev-kit/pull/412) · [commit cf27953](https://github.com/syurodev/dev-kit/commit/cf27953ff19870a12a17b564a2360a854a1db1f0) | `git diff --check`; `go test ./internal/arch/` đều đạt. Người thiết kế đã duyệt; PR chờ review/merge. Chỉ đổi module Go/chuyển repo ở R0.4 sau khi xác nhận chủ sở hữu bên ngoài. |
+| R0.1 | **Đề xuất G-01**: cây package của harness trong `internal/` (kernel, execstore, coordinator, contextengine, modeladapter, tools, hostapi), danh sách import được phép, luật `internal/arch` mới, owner của bảng `exec_*` | D-29, kiến trúc §8, Host API §4 | — | ADR `docs/adr/2026-10-31-harness-package-ownership.md` được người thiết kế duyệt; chưa có code | Chờ review | [PR #412](https://github.com/syurodev/dev-kit/pull/412) · [commit cf27953](https://github.com/syurodev/dev-kit/commit/cf27953ff19870a12a17b564a2360a854a1db1f0) | `git diff --check`; `go test ./internal/arch/` đều đạt. Người thiết kế đã duyệt; PR chờ review/merge. |
 | R0.2 | Thêm luật arch theo ADR của R0.1 (chưa có package thật thì luật vẫn chạy được) | R0.1 | R0.1 | `go test ./internal/arch/` pass, có test mới cho từng luật | Bị chặn | | Chặn bởi R0.1 |
 | R0.3 | Dựng khung `proto/` và `buf` (lint, breaking, generate cho Go và TS), chưa có service | Host API §4, §8 | R0.0, R0.1 | `buf lint` và `buf generate` chạy trong CI; code sinh không bị domain import | Bị chặn | | |
 | R0.4 | Đổi tên code và dữ liệu hiện có của DevKit sang Fugue theo ADR của R0.0: Go module, binary, data dir kèm migrate, bundle ID, AGENTS.md, repo | R0.0 | R0.0 | Migrate data dir cũ không mất vault, lịch sử hay account (có test); app cũ và mới không cùng mở một data dir | Bị chặn | | Làm thành PR riêng, không trộn với việc khác; có thể làm sau P1 |
@@ -80,7 +80,7 @@ Lần cập nhật cuối: 2026-10-31, bởi người thiết kế (trả lời 
 | R1.3 | Execution store: migration bảng `exec_*`, trigger append-only, kiểm tra pragma, transaction một lần cho event + payload + projection + receipt + admission | Storage-security §2–3, §6; event storage §5 | R1.1 | Evidence G-03: atomicity (fault injection), pragma bị từ chối, trigger chặn UPDATE/DELETE | Bị chặn | | `tableOwners` có prefix `exec_` |
 | R1.4 | Payload được bảo vệ: session key wrap bằng `SealRecord`, AEAD cho payload, giới hạn kích thước, crypto-shred khi xóa session | Storage-security §4, §7 | R1.3 | Evidence G-03: crypto-shred, giới hạn 1 MiB / 64 MiB / 1 GiB | Bị chặn | | |
 | R1.5 | Canonical codec v1 và dedup bằng receipt | Storage-security §5; event storage §5 | R1.3 | Duplicate key, field lạ, khác `codec_version`; cùng `command_id` nhận cùng receipt | Bị chặn | | |
-| R1.6 | Data-directory lock và incarnation (`exec_host`) | Storage-security §9 | R1.3 | Hai process, alias đường dẫn, crash rồi lấy lại lock | Bị chặn | | |
+| R1.6 | Data-directory lock (`fugue.lock`) và incarnation (`exec_host`) | Storage-security §9 | R1.3 | Hai process, alias đường dẫn, crash rồi lấy lại lock | Bị chặn | | |
 | R1.7 | Vault observation API ở `internal/vault` (snapshot, revision, subscription, guard đồng bộ); chuyển việc báo lock/unlock từ bridge sang `internal/app` | Storage-security §8 | — | Unlock trước recovery, lock giữa consume, subscriber chậm, chạy trên host không có bridge | Chưa bắt đầu | | Không phụ thuộc kernel; làm song song được |
 | R1.8 | Coordinator theo session: admission row, queue tối thiểu, dispatch protocol (giữ chỗ worker, commit rồi mới handoff), read-back khi commit không rõ, timer bền | Event storage §2–3, §7; kiến trúc §3, §6 | R1.3, R1.6 | Commit không rõ thì không dispatch trùng; worker cũ bị fence | Bị chặn | | |
 | R1.9 | Faux model provider (kịch bản text, thinking, tool call, lỗi từng lớp, đứt stream) | Model adapter §9 | R1.1 | Dùng được trong mọi test headless | Bị chặn | | |
@@ -114,7 +114,7 @@ Lần cập nhật cuối: 2026-10-31, bởi người thiết kế (trả lời 
 
 | ID | Việc | Thiết kế | Phụ thuộc | Xong khi | Trạng thái | PR / commit | Ghi chú |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| R4.1 | Process `devkit serve` (tên theo R0.0), `host.json`, socket local, kiểm tra UID, `Hello` và version | Host API §3, §7, §8 | R0.0, R0.3, R1.6 | Bảng evidence Host API §10 (một host, socket, version) | Bị chặn | | |
+| R4.1 | Process `fugue serve`, `host.json`, socket `fugue.sock`, kiểm tra UID, `Hello` và version | Host API §3, §7, §8 | R0.0, R0.3, R1.6 | Bảng evidence Host API §10 (một host, socket, version) | Bị chặn | | |
 | R4.2 | Event stream có sequence, snapshot, catch-up, `resync_required` | Host API §6 | R4.1 | Mất kết nối rồi nối lại đúng sequence | Bị chặn | | |
 | R4.3 | Service session, queue, interaction trên Connect | Host API §4–5 | R4.2, R1.11 | Command có `command_id` chống trùng; `origin` từ principal | Bị chặn | | |
 | R4.4 | Điều phối input: queue bền (`exec_queue`), Steer, Interject, Stop trả về ô soạn thảo, `Continue`, `Inject`, peer theo chiều của quyền | Điều phối input | R4.3, R2.2 | Bảng evidence của điều phối input §10 | Bị chặn | | |
@@ -175,3 +175,5 @@ Agent ghi câu hỏi ở đây khi một việc chuyển sang `Cần quyết đ�
 | 2026-10-31 | R0.0, R0.4 | Thêm việc chốt quy tắc đặt tên Fugue by SynX và việc đổi tên code cũ | Người thiết kế |
 | 2026-10-31 | — | Trả lời ba mâu thuẫn: luật quy trình, interaction request, chỗ lưu payload | Người thiết kế |
 | 2026-10-31 | — | Sửa hai chỗ còn sót theo quy trình cũ (design map H-04/H-05 và mục 9; index phần điều kiện bắt đầu code) | Người thiết kế |
+| 2026-10-31 | R0.0, R0.1 | Mở PR #412 với hai ADR; ghi evidence `git diff --check` và `go test ./internal/arch/`; người thiết kế duyệt cả hai, PR chờ review/merge | Agent triển khai |
+| 2026-10-31 | R0.0 | Chốt tên `fugue serve`, `fugue.lock`, `host.json`, `fugue.sock`; cập nhật ví dụ Host API và G-03 | Agent triển khai |

@@ -102,7 +102,7 @@ Commit unknown (lỗi driver hoặc I/O sau khi gửi `COMMIT`): coordinator d�
 
 ## 9. Data-directory lock
 
-- File `<dataDir>/devkit.lock`, mở `O_RDWR|O_CREATE` quyền `0600`, giữ suốt vòng đời process. Unix: `flock(LOCK_EX|LOCK_NB)`; Windows: `LockFileEx` exclusive, fail immediately.
+- File `<dataDir>/fugue.lock`, mở `O_RDWR|O_CREATE` quyền `0600`, giữ suốt vòng đời process. Unix: `flock(LOCK_EX|LOCK_NB)`; Windows: `LockFileEx` exclusive, fail immediately.
 - Lock theo inode/file handle, nên mọi alias (symlink, đường dẫn tương đối) trỏ cùng file đều tranh cùng một lock. `dataDir` vẫn được `filepath.EvalSymlinks` + `Abs` trước khi mở để thông báo lỗi đúng đường dẫn.
 - Filesystem mạng (NFS, SMB) không được hỗ trợ: phát hiện được thì execution store không mở; vendor path không đổi.
 - Không có lock thì không có `exec_host` incarnation mới, không admission, không recovery. Wails `SingleInstance` vẫn giữ làm UX.

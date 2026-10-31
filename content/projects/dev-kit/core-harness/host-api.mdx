@@ -15,7 +15,7 @@ Tham khảo: RPC mode của pi (JSONL qua stdio: command có `id`, response, eve
 
 | ID | Quyết định |
 | --- | --- |
-| HA-01 | **Host là process đang giữ data-directory lock**; host luôn mở một socket local cho client |
+| HA-01 | **Host là process đang giữ data-directory lock (`fugue.lock`)**; host luôn mở một socket local cho client |
 | HA-02 | Contract dùng **protobuf với Connect** (`connect-go`, `connect-es`/`protobuf-es`, `buf`), **schema trước**; `buf breaking` chạy trong CI |
 | HA-03 | Client của giai đoạn A: **chỉ desktop trên shell ngoài Wails (Electron)**. CLI, web, Telegram, UI native để sau |
 | HA-04 | Truy cập từ xa (Telegram, điện thoại) với role riêng: **giai đoạn B** |
@@ -33,16 +33,16 @@ Tham khảo: RPC mode của pi (JSONL qua stdio: command có `id`, response, eve
 
 ## 3. Cách chạy process
 
-- Một binary `devkit`, có lệnh `devkit serve` chạy headless. Process giữ data-directory lock (G-03) là host.
-- Sau khi lấy lock, host ghi `host.json` trong data dir: PID, thời điểm start, đường dẫn socket, các API version hỗ trợ. File này chỉ để tìm host; **lock mới là sự thật**: lấy được lock nghĩa là không có host nào đang chạy.
-- **Shell khởi động**: đọc `host.json` và thử nối; nối được và bắt tay thành công thì dùng host đó. Không được thì chạy `devkit serve` từ binary đi kèm, chờ host báo sẵn sàng, rồi nối. Hai shell cùng khởi động thì lock bảo đảm chỉ một host.
+- Một binary `fugue`, có lệnh `fugue serve` chạy headless. Process giữ `<dataDir>/fugue.lock` (G-03) là host.
+- Sau khi lấy lock, host ghi `<dataDir>/host.json`: PID, thời điểm start, đường dẫn socket, các API version hỗ trợ. File này chỉ để tìm host; **lock mới là sự thật**: lấy được lock nghĩa là không có host nào đang chạy.
+- **Shell khởi động**: đọc `<dataDir>/host.json` và thử nối; nối được và bắt tay thành công thì dùng host đó. Không được thì chạy `fugue serve` từ binary đi kèm, chờ host báo sẵn sàng, rồi nối. Hai shell cùng khởi động thì lock bảo đảm chỉ một host.
 - **Vòng đời host**: mặc định, host thoát khi không còn client nào **và** không còn run, job hay daemon của session. Setting "chạy nền" giữ host sống sau khi đóng app.
-- **Socket**: Linux và macOS dùng unix socket quyền `0600` trong thư mục `0700`; Windows dùng named pipe với ACL của user. Đường dẫn unix socket phải vừa giới hạn của hệ điều hành (104 byte trên macOS, 108 byte trên Linux). Data dir dài quá thì dùng thư mục runtime ngắn (`$XDG_RUNTIME_DIR/devkit/` trên Linux, một thư mục riêng của user trong temp trên macOS), và ghi đường dẫn thật vào `host.json`.
+- **Socket**: Host API socket có tên `fugue.sock`. Linux và macOS dùng unix socket quyền `0600` trong thư mục `0700`; Windows dùng named pipe với ACL của user. Đường dẫn unix socket phải vừa giới hạn của hệ điều hành (104 byte trên macOS, 108 byte trên Linux). Data dir dài quá thì dùng thư mục runtime ngắn (`$XDG_RUNTIME_DIR/fugue/` trên Linux, một thư mục riêng của user trong temp trên macOS), và ghi đường dẫn thật vào `host.json`. Socket MCP dùng chung và theo phiên tiếp tục giữ tên riêng, tách biệt với socket Host API.
 - Host chết thì shell phát hiện qua kết nối bị đóng, hiện trạng thái "mất kết nối với lõi", rồi nối lại hoặc khởi động host mới. Recovery của execution diễn ra trong host mới theo [event storage](/dev-kit/core-harness/event-storage-recovery).
 
 ## 4. Contract
 
-- File `.proto` nằm trong repo DevKit, chia theo module và version: `proto/devkit/<module>/v1/*.proto`. `buf generate` sinh code Go và client TypeScript cho shell.
+- File `.proto` nằm trong repo ứng dụng, chia theo module và version: `proto/fugue/<module>/v1/*.proto`, với package `fugue.<module>.v1`. `buf generate` sinh code Go và client TypeScript cho shell.
 - **Adapter Host API** (`internal/hostapi/<module>`, tên chốt ở G-01) map giữa type của proto và type của domain, rồi gọi application service trong `internal/app`. Đây là một adapter cùng tầng với `internal/bridge` và `internal/mcp`.
 - Domain package **không import** code sinh từ proto; luật này vào `internal/arch`.
 - Một service cho mỗi module: session (native và vendor dùng chung read model), queue, interaction, vault, account, workspace, settings, notes, tasks, git, database…
