@@ -7,7 +7,7 @@ description: Danh sách việc triển khai harness core theo giai đoạn, tr�
 
 Trang này là **bảng việc sống** cho agent triển khai. Nó trả lời: làm gì, theo thứ tự nào, dựa trên trang thiết kế nào, thế nào là xong, và việc đang ở đâu. Thiết kế nằm ở các trang khác của core harness; trang này **không** thay đổi thiết kế.
 
-Lần cập nhật cuối: 2026-10-31, bởi agent điều phối (R0.0–R0.3, R1.7 và R3.1–R3.2 đã merge; người thiết kế đã duyệt R0.0–R0.1).
+Lần cập nhật cuối: 2026-11-01, bởi agent điều phối (R0.0–R0.3, R1.7 và R3.1–R3.2 đã merge; R1.1/R1.2 có baseline một phần tại PR #418, đang chờ review/CI; G-02 chưa đạt).
 
 **Tên sản phẩm:** DevKit được đổi tên thành **Fugue by SynX**; quy tắc đặt tên đã được chốt trong ADR R0.0. Code hiện có vẫn ghi DevKit cho tới khi R0.4 thực hiện đổi tên; code mới dùng tên đã chốt.
 
@@ -75,8 +75,8 @@ Lần cập nhật cuối: 2026-10-31, bởi agent điều phối (R0.0–R0.3, 
 
 | ID | Việc | Thiết kế | Phụ thuộc | Xong khi | Trạng thái | PR / commit | Ghi chú |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| R1.1 | Kernel: type của command và event theo catalog; `decide` và `evolve` cho run, step, model invocation/attempt, tool invocation/attempt; lifecycle và phase suy ra; không đọc clock, random hay I/O | State machine §1–7, catalog §1–5 | R0.2 | Test bảng transition hợp lệ và bị từ chối; replay hai lần cho cùng kết quả | Bị chặn | | Kernel giữ cả stop intent và facts timer/window/accounting để kiểm SM-01–SM-12; tích hợp quiesce/recovery ở R2.2, scheduler/tranche ở R2.3. |
-| R1.2 | Invariant checker SM-01 đến SM-12, chạy sau mỗi batch trong test | State machine §3 | R1.1 | Mỗi invariant có test vi phạm và test hợp lệ | Bị chặn | | Dùng lại ở dogfood (activation §5) |
+| R1.1 | Kernel: type của command và event theo catalog; `decide` và `evolve` cho run, step, model invocation/attempt, tool invocation/attempt; lifecycle và phase suy ra; không đọc clock, random hay I/O | State machine §1–7, catalog §1–5 | R0.2 | Test bảng transition hợp lệ và bị từ chối; replay hai lần cho cùng kết quả | Chờ review | [PR #418](https://github.com/syurodev/dev-kit/pull/418) · [commit 1de50f1](https://github.com/syurodev/dev-kit/commit/1de50f1822ce69567004b7b3b9fdf1360a28b0ec) | Baseline một phần; full backend, race, arch và vet pass, CI còn chờ. Chưa hoàn tất: thiếu timer deadline/policy/amount, model error stage/class, typed quiesce/resume evidence và multi-cause closure. |
+| R1.2 | Invariant checker SM-01 đến SM-12, chạy sau mỗi batch trong test | State machine §3 | R1.1 | Mỗi invariant có test vi phạm và test hợp lệ | Chờ review | [PR #418](https://github.com/syurodev/dev-kit/pull/418) · [commit 1de50f1](https://github.com/syurodev/dev-kit/commit/1de50f1822ce69567004b7b3b9fdf1360a28b0ec) | Baseline một phần; full backend, race, arch và vet pass, CI còn chờ. G-02 chưa đạt khi bốn hợp đồng lõi còn thiếu; dùng lại ở dogfood (activation §5). |
 | R1.3 | Execution store: migration bảng `exec_*`, trigger append-only, kiểm tra pragma, transaction một lần cho event + payload + projection + receipt + admission | Storage-security §2–3, §6; event storage §5 | R1.1 | Evidence G-03: atomicity (fault injection), pragma bị từ chối, trigger chặn UPDATE/DELETE | Bị chặn | | `tableOwners` có prefix `exec_` |
 | R1.4 | Payload được bảo vệ: session key wrap bằng `SealRecord`, AEAD cho payload, giới hạn kích thước, crypto-shred khi xóa session | Storage-security §4, §7 | R1.3 | Evidence G-03: crypto-shred, giới hạn 1 MiB / 64 MiB / 1 GiB | Bị chặn | | |
 | R1.5 | Canonical codec v1 và dedup bằng receipt | Storage-security §5; event storage §5 | R1.3 | Duplicate key, field lạ, khác `codec_version`; cùng `command_id` nhận cùng receipt | Bị chặn | | |
@@ -150,7 +150,7 @@ Lần cập nhật cuối: 2026-10-31, bởi agent điều phối (R0.0–R0.3, 
 | Gate | Thiết kế | Evidence | Việc liên quan |
 | --- | --- | --- | --- |
 | G-01 Package | Thiết kế đã được duyệt | Thiết kế và arch evidence đạt: R0.2 PR #414 CI xanh; R0.3 generated-staleness cùng backend/frontend gates xanh | R0.1, R0.2 |
-| G-02 Transition | Chưa review toàn bộ | — | R1.1, R1.2, R2.4 |
+| G-02 Transition | Chưa review toàn bộ | Một phần: PR #418 baseline; full backend, race, arch và vet pass; CI còn chờ. Chưa đạt: timer deadline/policy/amount, model error stage/class, quiesce/resume evidence, multi-cause closure | R1.1, R1.2, R2.4 |
 | G-03 Storage | Đã chốt | Chưa | R1.3–R1.7 |
 | G-04 Model/tool | Một phần | Chưa | R3.*, R5.* |
 | G-05 Interaction | Một phần | Chưa | R5.3 |
@@ -183,3 +183,4 @@ Agent ghi câu hỏi ở đây khi một việc chuyển sang `Cần quyết đ�
 | 2026-10-31 | R1.1 | Làm rõ tham chiếu tới semantics đã có ở state machine §6–7 và catalog §5 để R1.2 kiểm đủ invariant; không chuyển phần tích hợp của R2 vào P1 | Agent điều phối/review |
 | 2026-10-31 | R0.2, R0.3, R1.7 | PR #414, #415, #413 đã merge; CI xanh. R0.3 gồm proto generated-staleness, backend và frontend gates | Agent điều phối |
 | 2026-10-31 | R3.1, R3.2 | PR #416 tại commit `912a8d59babae8a0c90e16cc166f853dbeeaeb20` đã merge; CI xanh. Hai spike fixture-only, chưa phải production; bằng chứng provider/live vẫn mở | Agent điều phối |
+| 2026-11-01 | R1.1, R1.2 | PR #418 mở với baseline một phần tại commit `1de50f1822ce69567004b7b3b9fdf1360a28b0ec`; full backend, race, arch và vet pass, CI pending. Bốn hợp đồng lõi còn thiếu nên R1.1/R1.2 chưa complete, G-02 chưa đạt | Agent điều phối |
