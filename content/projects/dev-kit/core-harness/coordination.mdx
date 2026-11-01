@@ -5,7 +5,7 @@ description: Queue, steer, chen ngang, ngắt, peer message và input khi đang 
 
 # Điều phối input
 
-Trạng thái: foundation decision v0.11. **Thiết kế đã chốt** cho H-29 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Continuation và điều kiện dừng (H-31) là mảng riêng.
+Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-29 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Continuation và điều kiện dừng (H-31) là mảng riêng.
 
 Tham khảo: pi (`pi-durable` inbox với follow-up, steer, write, continue; `coding-agent` với Enter/Alt+Enter/Esc), deepseek-harness (inbox bền `nextTurn`/`nextStep`, `inject`, `cancel` có `keepInbox`), và cơ chế hiện có của Agent Hub cho vendor session (queue ở window, `shouldSteer`, peer delivery `started`/`steered`/`queued`/`refused`). Harness² của Google không có phần tương tác lúc run nên không áp dụng ở đây.
 
@@ -45,6 +45,7 @@ Tham khảo: pi (`pi-durable` inbox với follow-up, steer, write, continue; `co
   1. Input của user.
   2. Thông báo của DevKit cần agent hành động.
   3. Peer message (child báo về parent, session anh em, session khác).
+  4. Vòng goal tự động ([continuation](/dev-kit/core-harness/continuation) §5); chỉ được admit khi queue không còn input nào khác.
 
   Trong cùng lớp thì đến trước được admit trước. User đổi thứ tự bằng tay thì thứ tự đó thắng lớp ưu tiên.
 - **Thao tác trên một tin**: đổi thứ tự, sửa nội dung (khi còn Queued), xóa (hủy bền), đưa về ô soạn thảo, **Steer**, **Chen ngang**. Mọi thao tác kèm revision; revision cũ thì bị từ chối có kiểu.
@@ -83,6 +84,7 @@ Peer và agent **không bao giờ** chen ngang.
 | Hoàn tất bình thường | Tự admit tin kế tiếp (nếu không đứng) | — |
 | **Ngắt** (Stop) | Rỗng | **Mọi tin trong queue và mọi steer còn chờ về ô soạn thảo**, theo thứ tự, kèm đính kèm |
 | `InterruptAndPrompt` | Prompt mới lên đầu và chạy ngay; các tin khác giữ nguyên | Steer còn chờ của run cũ được gộp vào prompt mới |
+| Chờ `step_budget` (chưa kết thúc) | Chờ sau run như khi run đang chạy | Steer gửi lúc chờ được gộp khi user gia hạn; "Kết thúc" xử lý như hết budget |
 | Lỗi, hết budget, `Interrupted` | **Đứng** | Steer còn chờ gắn với run; `Continue` chèn chúng |
 | Sau restart | **Đứng** (cùng cơ chế `recovery_admission`) | Giữ nguyên |
 

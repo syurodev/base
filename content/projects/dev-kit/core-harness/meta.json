@@ -11,6 +11,7 @@
     "context-engine",
     "model-adapter",
     "coordination",
+    "continuation",
     "host-api",
     "activation",
     "decisions-and-validation",

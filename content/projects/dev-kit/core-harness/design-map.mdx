@@ -96,7 +96,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | --- | --- | --- | --- | --- | --- |
 | H-29 | Queue, steering, chen ngang, peer message, input của user giữa run | Đã chốt | [Điều phối input](/dev-kit/core-harness/coordination) | A | H-01 |
 | H-30 | Child session, subagent và team cho native | Ngoài v1 | Activation §2 | Sau | H-29 |
-| H-31 | Continuation strategy và điều kiện dừng: giới hạn turn, phát hiện lặp, gọi tool lặp lại | Chưa | — | A | H-01, H-10 |
+| H-31 | Continuation và điều kiện dừng: giới hạn step, phát hiện lặp, chế độ goal tự chạy nhiều vòng | Đã chốt | [Continuation](/dev-kit/core-harness/continuation) | A | H-01, H-10 |
 
 ## G. Host và UI
 
@@ -128,7 +128,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 3. ~~**Host API** (H-42, gộp H-32 và H-35)~~: đã chốt ở [Host API](/dev-kit/core-harness/host-api); còn **kiểm kê frontend** (H-43) và **shell ngoài Wails** (H-44).
 4. **Tool file, shell/job, đọc code, hỏi user** (H-17, H-18, H-19, H-20).
 5. **Interaction API, sandbox runtime, nội dung không tin cậy, redact** (H-24, H-25, H-26, H-27).
-6. ~~**Queue/steering** (H-29)~~: đã chốt ở [điều phối input](/dev-kit/core-harness/coordination); còn **continuation** (H-31).
+6. ~~**Queue/steering** (H-29) và **continuation** (H-31)~~: đã chốt ở [điều phối input](/dev-kit/core-harness/coordination) và [continuation](/dev-kit/core-harness/continuation).
 7. **UI Agent Hub cho native và cấu hình workspace** (H-33, H-34).
 8. **Compatibility** (H-36) và **budget** (H-06).
 9. **Đặt package** (H-04) **không chờ** các mảng trên: nó là việc đầu tiên trước mọi production code của core (R0.1 trong [lộ trình](/dev-kit/core-harness/implementation-roadmap)). **Review transition** (H-05) chạy song song với P1–P2 và đóng gate G-02 bằng evidence. Với D-29, harness nằm trong `internal/` của DevKit, theo đúng các tầng của architecture rules, không cần chuẩn bị để tách repo.

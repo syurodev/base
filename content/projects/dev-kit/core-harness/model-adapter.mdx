@@ -5,7 +5,7 @@ description: Contract gọi model trung lập với provider — stream, phân l
 
 # Model adapter
 
-Trạng thái: foundation decision v0.11. **Thiết kế đã chốt** cho H-07 (adapter và converter), H-08 (usage và cost) và H-09 (account, auth, chọn model) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Tên option của SDK được xác minh trong spike ([mục 10](#10-spike-và-evidence)).
+Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-07 (adapter và converter), H-08 (usage và cost) và H-09 (account, auth, chọn model) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Tên option của SDK được xác minh trong spike ([mục 10](#10-spike-và-evidence)).
 
 Tham khảo: pi-ai (stream chuẩn hóa, auth, chuyển model, system message và tool giữa hội thoại), deepseek-harness (`llm`, `llm-retry`, `token-meter`), module `accounts` và cơ chế failover account của Agent Hub, tài liệu [Sign in with ChatGPT cho ứng dụng mã nguồn mở](https://developers.openai.com/siwc/token-sharing-open-source) của OpenAI.
 
@@ -72,7 +72,7 @@ Luật:
 | `refusal`, `content_filter` | Model hoặc provider từ chối | Result có kiểu, không retry |
 | Đứt **sau** `start` mà không có kết thúc | Stream bị cắt giữa chừng | `Interrupted` theo state machine §4; không đoán đã xong hay chưa |
 
-**Retry mặc định** (cấu hình được theo provider): tối đa 5 lần cho các lớp retry được; backoff mũ từ 500 ms tới 10 s, jitter 10%; `Retry-After` thay backoff nếu không vượt trần 60 s. `Retry-After` dài hơn trần thì kernel đặt timer bền và run vào `Waiting(retry_timer)`. Mỗi retry là một attempt mới, được ghi trước khi chờ, và tính vào retry budget (kể cả attempt bị gián đoạn do host crash).
+**Retry mặc định** (cấu hình được theo provider): tối đa 5 lần cho các lớp retry được; backoff mũ từ 500 ms tới 10 s, jitter 10%; `Retry-After` thay backoff nếu không vượt trần 60 s. `Retry-After` dài hơn trần thì kernel đặt timer bền và run vào `Waiting(retry_timer)`. Mỗi retry là một attempt mới: retry intent, attempt `Planned` và timer được ghi cùng một batch **trước khi chờ**, và tính vào retry budget ngay lúc đó (kể cả attempt bị gián đoạn do host crash). Timer elapsed chỉ cho phép dispatch attempt đã ghi; crash lúc chờ không tạo attempt mới và không charge lại ([event catalog §3](/dev-kit/core-harness/event-catalog#3-model-invocation-và-attempts)).
 
 Circuit breaker theo provider và account để giai đoạn B.
 

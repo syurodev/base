@@ -5,7 +5,7 @@ description: Lifecycle model/tool, trạng thái run suy ra và invariant giữa
 
 # State machine thực thi
 
-Trạng thái: foundation semantics v0.11, chưa phải enum/API đã phát hành. Tên có thể đổi khi review; transition, invariant và recovery policy phải được giữ hoặc có quyết định thay thế. Danh mục event và chuỗi ví dụ ở [event catalog](/dev-kit/core-harness/event-catalog).
+Trạng thái: foundation semantics v0.12, chưa phải enum/API đã phát hành. Tên có thể đổi khi review; transition, invariant và recovery policy phải được giữ hoặc có quyết định thay thế. Danh mục event và chuỗi ví dụ ở [event catalog](/dev-kit/core-harness/event-catalog).
 
 ## 1. Đơn vị và facts có thẩm quyền
 
@@ -47,7 +47,7 @@ Không có `RunWaitEntered/Exited` event độc lập. `ToolApprovalRequested`, 
 
 `RunBlockAdded` biểu diễn wait dependency có thể resolve (vault/pause/recovery admission); `RunInterrupted` biểu diễn interruption cause cần repair/reconciliation/disposition và thắng wait theo precedence. Không gọi hai loại này chung là “blocker”.
 
-`waitReasons` là tập dependency có kiểu, không chỉ một chuỗi: `approval`, `user_input`, `dependency`, `retry_timer`, `worker_capacity`, `vault_locked`, `host_paused`, `recovery_admission`. Từng reason có token/reference và điều kiện resolve. worker_capacity là wait dependency có pool/generation và target frontier; reserve non-blocking thất bại thì RunBlockAdded(worker_capacity), khi có slot dành riêng mới RunBlockCleared cùng dispatch transaction. Không active effect thì Waiting(worker_capacity) và đóng time window; callback stale không được clear dependency mới. Restart invalidate reservation/generation memory cũ rồi đánh giá lại capacity dưới recovery_admission, không restore một slot cũ. Read model chọn một primary reason theo thứ tự cố định để hiển thị, vẫn giữ toàn bộ tập; không mất approval chỉ vì đang pause.
+`waitReasons` là tập dependency có kiểu, không chỉ một chuỗi: `approval`, `user_input`, `dependency`, `retry_timer`, `worker_capacity`, `vault_locked`, `host_paused`, `recovery_admission`, `step_budget`. Từng reason có token/reference và điều kiện resolve. worker_capacity là wait dependency có pool/generation và target frontier; reserve non-blocking thất bại thì RunBlockAdded(worker_capacity), khi có slot dành riêng mới RunBlockCleared cùng dispatch transaction. Không active effect thì Waiting(worker_capacity) và đóng time window; callback stale không được clear dependency mới. Restart invalidate reservation/generation memory cũ rồi đánh giá lại capacity dưới recovery_admission, không restore một slot cũ. Read model chọn một primary reason theo thứ tự cố định để hiển thị, vẫn giữ toàn bộ tập; không mất approval chỉ vì đang pause.
 
 ```mermaid
 stateDiagram-v2
@@ -118,7 +118,7 @@ stateDiagram-v2
     Interrupted --> AbandonedUnknown: Policy / user chấp nhận bất định
 ```
 
-`Failed` có `failureClass`, `retryDisposition` và usage status; `Interrupted` giữ uncertainty về response/usage. Một attempt đã `Failed` không chuyển ngược về `Planned`: `ModelRetryScheduled` liên kết timer, rồi `ModelAttemptPlanned` tạo attempt mới sau timer/revalidation. `Planned` còn có thể bị admission/gateway từ chối trước request; ghi `ModelRequestFailed` với stage `pre_dispatch` và mã lý do có kiểu.
+`Failed` có `failureClass`, `retryDisposition` và usage status; `Interrupted` giữ uncertainty về response/usage. Một attempt đã `Failed` không chuyển ngược về `Planned`: `ModelRetryScheduled`, `ModelAttemptPlanned` (attempt mới) và `TimerScheduled(model_retry)` ghi cùng một batch trước khi chờ; timer elapsed chỉ mở điều kiện dispatch, còn admission, budget và blockers được kiểm lại tại dispatch ([event catalog §3](/dev-kit/core-harness/event-catalog#3-model-invocation-và-attempts)). `Planned` còn có thể bị admission/gateway từ chối trước request; ghi `ModelRequestFailed` với stage `pre_dispatch` và mã lý do có kiểu.
 
 | Tình huống | Đường xử lý v1 |
 | --- | --- |
@@ -202,6 +202,8 @@ Terminal control dispositions của invocation là success, known failure, denie
 | Chấp nhận unknown để đóng | `abandoned_unknown`, giữ nguyên stop intent trước đó nếu có; không giả làm cancelled |
 | Không có stop, continuation kết thúc bình thường | `completed` |
 
+Reason `budget` chỉ dành cho budget cưỡng chế: token, cost, time, tool call, retry. Hết `maxSteps` **không** tạo stop intent; run vào wait dependency `step_budget` (§9) và chỉ kết thúc khi user chọn kết thúc.
+
 Completion và stop race được quyết định bởi thứ tự commit: nếu đã `RunFinished`, stop mới bị từ chối/no-op có receipt; nếu stop commit trước, response đến sau không tự mở tool loop. Stop cho run đang `Queued` có thể finish trong cùng event batch mà không dispatch.
 
 `Cancelling` không ngăn mọi external call tức thì. `DispatchStarted` commit trước stop nghĩa attempt có thể đã ra ngoài dù worker chưa được giao; host gửi cancellation hoặc ghi evidence pre-handoff chưa dispatch nếu chứng minh được trong cùng incarnation. Sau restart, mất bằng chứng handoff thì phải coi là unknown.
@@ -269,6 +271,8 @@ Hủy run cha không tự hủy mọi child hoặc release task. Team cascade ca
 ## 9. Budgets và transcript ordering
 
 Budget theo model attempts/steps, tokens/cost, tool calls, retries, time và concurrency. Kiểm tra trước dispatch, reserve phần đang hoạt động, đối soát usage khi có. Cả `ModelDispatchStarted` và `ToolDispatchStarted` MUST có reservation identity/counters cho attempt, commit cùng dispatch; reservation chưa rõ được giữ cho đến owner/accounting evidence, không hoàn chỉ vì restart/abandon. Tool-call count được charge khi dispatch commit; pre-handoff proof có thể release phần resource chưa dùng theo policy, không xóa lịch sử attempt. Unknown usage không được ghi zero; accounting reconciliation có thể bổ sung evidence sau khi run đóng mà không khởi động lại loop.
+
+**Step budget là ngoại lệ có chủ đích** ([continuation §3](/dev-kit/core-harness/continuation#3-giới-hạn-step)). Khi `StepCompleted` ghi `continuation=step_budget` (số step đã dùng chạm giới hạn ghim cộng các lần gia hạn), facts đó tạo wait dependency `step_budget`; không có `RunStopRequested`. Khi quiescent, run là `Waiting(step_budget)`, time window đóng và không charge thời gian chờ. Dependency suy ra từ facts bền nên còn nguyên sau restart, cùng `recovery_admission`. Chỉ `BudgetExtended(kind=steps, actor=user)` resolve được nó; peer, parent, model và goal không gia hạn được. User kết thúc thì ghi `RunStopRequested(budget, terminal, actor=user)` và outcome `budget_exceeded`; Stop thường hoặc `parent_cancel` vẫn đi theo §6. Mọi budget khác khi hết vẫn dừng terminal như cũ.
 
 Transcript native là projection cùng event transaction; chỉ canonical model responses và tool results/dispositions được dùng làm provider context. Partial drafts thuộc attempt view. Tool calls không còn chạy do stop cần synthetic disposition có kiểu trước `StepCompleted`, không bịa tool success.
 

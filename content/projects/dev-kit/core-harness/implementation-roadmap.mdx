@@ -86,6 +86,7 @@ Lần cập nhật cuối: 2026-11-01, bởi agent điều phối (R0.0–R0.3, 
 | R1.9 | Faux model provider (kịch bản text, thinking, tool call, lỗi từng lớp, đứt stream) | Model adapter §9 | R1.1 | Dùng được trong mọi test headless | Bị chặn | | |
 | R1.10 | Tool đọc giả (`pure_read`, không prompt) theo contract `Prepare`/`Execute` | Tool system §2 | R1.1 | Đi đủ `ToolCheckStarted` → `ToolReadyRecorded` → `ToolDispatchStarted` → `ToolResultRecorded` | Bị chặn | | |
 | R1.11 | **Slice đầu cuối**: start → model → tool → model → finish (trace A), lưu bền, replay không có side effect | Catalog §7 | R1.2–R1.10 | Trace A tái tạo đúng 22 event; replay cho 0 lần gọi model và tool | Bị chặn | | Mốc chính của P1 |
+| R1.12 | Luật quyết định sau step, `maxSteps` với `Waiting(step_budget)` và `BudgetExtended`, tự chạy tiếp một lần khi `length`, nhắc khi lặp | [continuation](/dev-kit/core-harness/continuation) §2–4 | R1.1, R1.5 | Evidence ở continuation §8 (trừ phần goal) | Bị chặn | | Phần quyết định sau step cần có trước R1.11; nhắc khi lặp cần `ContextInjected` (R3.7) nên có thể xong sau |
 
 ### P2 — Recovery và fault injection
 
@@ -129,7 +130,7 @@ Lần cập nhật cuối: 2026-11-01, bởi agent điều phối (R0.0–R0.3, 
 | R5.3 | Interaction owner API: request trong memory, receipt, preset | Tool system §5 | R5.1 | Chờ thiết kế chi tiết H-24 | Chờ thiết kế | | |
 | R5.4 | Sandbox runtime: jail theo session, process registry, env snapshot, Docker endpoint | Tool system §6–8 | R5.1 | Chờ thiết kế chi tiết H-25 | Chờ thiết kế | | |
 | R5.5 | Tool file, shell/job, đọc code, hỏi user | — | R5.1–R5.4 | Chờ thiết kế H-17 đến H-20 | Chờ thiết kế | | |
-| R5.6 | Continuation và điều kiện dừng | — | R1.11 | Chờ thiết kế H-31 | Chờ thiết kế | | |
+| R5.6 | Chế độ goal: `exec_goals`, `exec_goal_events`, điều kiện bắt đầu vòng, tool goal, luật `blocked` 3 vòng, disarm sau restart, bảng goal và thông báo | [continuation](/dev-kit/core-harness/continuation) §5 | R4.4, R5.1 | Evidence goal ở continuation §8 | Bị chặn | | Chờ R4.4 và R5.1 |
 
 ### P6 — Shell và UI
 
@@ -181,8 +182,9 @@ Agent ghi câu hỏi ở đây khi một việc chuyển sang `Cần quyết đ�
 | 2026-10-31 | R0.2 | Mở PR #414, commit `d343ba2ce047fbd2b2d1eceb854a36be664f02e1`; các test luật synthetic graph, nguồn lệnh/build tag và policy package đều đạt; `go test ./internal/arch/` pass | Agent triển khai |
 | 2026-10-31 | R1.7 | Mở PR #413, commit `76a7e675500546a224daa300ebec7a638649e5d3`; test observation/lock và các kiểm tra backend, arch, race, frontend, server-build đều đạt | Agent triển khai |
 | 2026-10-31 | R1.1 | Làm rõ tham chiếu tới semantics đã có ở state machine §6–7 và catalog §5 để R1.2 kiểm đủ invariant; không chuyển phần tích hợp của R2 vào P1 | Agent điều phối/review |
+| 2026-10-31 | R1.12, R5.6 | Thiết kế continuation và chế độ goal đã chốt; thêm R1.12, R5.6 chuyển thành chế độ goal | Người thiết kế |
 | 2026-10-31 | R0.2, R0.3, R1.7 | PR #414, #415, #413 đã merge; CI xanh. R0.3 gồm proto generated-staleness, backend và frontend gates | Agent điều phối |
-| 2026-10-31 | R3.1, R3.2 | PR #416 tại commit `912a8d59babae8a0c90e16cc166f853dbeeaeb20` đã merge; CI xanh. Hai spike fixture-only, chưa phải production; bằng chứng provider/live vẫn mở | Agent điều phối |
+| 2026-10-31 | R3.1, R3.2 | PR #416 merge tại commit `912a8d59babae8a0c90e16cc166f853dbeeaeb20`; CI xanh. Hai spike fixture-only, chưa phải production; bằng chứng provider/live vẫn mở | Agent điều phối |
 | 2026-11-01 | R1.1, R1.2 | PR #418 merge với baseline một phần tại commit `7b652ed6a4feed678a1917dea084dacd1fddab17`; CI run 41265058940 xanh. Bốn hợp đồng lõi còn thiếu nên R1.1/R1.2 vẫn đang làm, G-02 chưa đạt | Agent điều phối |
-| 2026-11-01 | R1.1, R1.2 | PR #419 closure manifest follow-up merge tại `b3c8ff5`, CI run 41267814115 xanh. R1.1/R1.2 vẫn Đang làm và G-02 partial: coverage accounting-only cho attempt cũ, timer facts, quiesce và model facts còn thiếu; chưa đánh dấu closure family hoàn tất | Agent điều phối |
+| 2026-11-01 | R1.1, R1.2 | PR #419 closure manifest follow-up merge tại `b3c8ff5`, CI run 41267814115 xanh. R1.1/R1.2 vẫn Đang làm và G-02 partial: coverage accounting-only cho attempt cũ, timers, quiesce và model facts còn thiếu; chưa đánh dấu closure family hoàn tất | Agent điều phối |
 | 2026-11-01 | R1.1, R1.2 | PR #420 merge tại `48670162c5315f2d691bb38f64423844e5f5dff2`, CI run 41285141770 xanh. Bounded model retry kernel slice và guard tests đã merge; R1.1/R1.2 vẫn Đang làm, G-02 partial. Provider runtime, active-window accounting, compaction/refusal results, account failover, quiesce/resume và closure/accounting evidence còn mở | Agent điều phối |

@@ -1,11 +1,11 @@
 ---
 title: Event catalog và execution traces
-description: Danh mục command/event v0.11 và ba chuỗi thực thi để review transitions.
+description: Danh mục command/event v0.12 và ba chuỗi thực thi để review transitions.
 ---
 
 # Event catalog và execution traces
 
-Trạng thái: foundation contract v0.11, tên/schema logic để review; chưa là public wire API. Đây là catalog tối thiểu của native execution. Event batch được append bởi coordinator; projection được cập nhật đồng bộ như [storage protocol](/dev-kit/core-harness/event-storage-recovery).
+Trạng thái: foundation contract v0.12, tên/schema logic để review; chưa là public wire API. Đây là catalog tối thiểu của native execution. Event batch được append bởi coordinator; projection được cập nhật đồng bộ như [storage protocol](/dev-kit/core-harness/event-storage-recovery).
 
 ## 1. Quy ước
 
@@ -19,7 +19,7 @@ Envelope chung có run/sequence, command/causation, authenticated origin và wri
 
 | Event | Fields/control facts chính | Guard / thay đổi projection |
 | --- | --- | --- |
-| `RunAccepted` | Input ref, session/queue item ref, protocol/config binding, initial budgets, `origin`, lớp ưu tiên, peer outbox item ref nếu có ([điều phối input](/dev-kit/core-harness/coordination)) | Run ID mới; tạo `Queued`; chưa đưa queued input vào transcript đang chạy |
+| `RunAccepted` | Input ref, session/queue item ref, protocol/config binding, initial budgets, `origin`, lớp ưu tiên, peer outbox item ref nếu có; `goal_id` và số vòng khi `origin=goal` ([điều phối input](/dev-kit/core-harness/coordination)) | Run ID mới; tạo `Queued`; chưa đưa queued input vào transcript đang chạy |
 | `RunAdmitted` | Admission token, owner incarnation, queue decision reference, context epoch/startRunID và initial context revision nếu là admission đầu | CAS session admission thành công; materialize input trong canonical transcript |
 | `RunOwnershipAcquired` | Token mới, previous token, recovery receipt và data-directory lock generation | Chỉ session owner trong process giữ exclusive lock phục hồi cùng active run; cùng batch thêm recovery dependency, đồng bộ vault theo owner revision, không tạo dispatch |
 | `RunStopRequested` | Reason, mode terminal/suspend, actor, target, request time | Ghi stop intent; terminal primary reason không bị callback ghi đè |
@@ -30,7 +30,7 @@ Envelope chung có run/sequence, command/causation, authenticated origin và wri
 | `UnknownAccepted` | Exact target attempts/revisions, actor, accepted uncertainty, disposition `close` | Trusted user command v1; đặt terminal control dispositions; exposure vẫn unknown |
 | `RunClosureConfirmed` | Metadata-only preview version, run revision, exact attempt/cause IDs, actor, unavailability enum, previous/new contextRevision khi ảnh hưởng admitted history, resulting contextRequirement và cause event ref, terminal attempt/cause dispositions | Chỉ CloseRunWithoutPayload qua trusted user ingress; không cần vault, không phải effect/stop proof; terminal dispositions/StepAborted nếu có/RunFinished cùng batch sau SM-05 |
 | `ContextBoundarySelected` | Target queued run, old/new contextRevision/epoch, startRunID, mode fresh/continue, actor, validation evidence và previous deciding-event ref | SelectRunContext qua trusted user ingress; cùng RunAdmitted + update admission row/transcript epoch; fresh_required cấm continue, vault_locked chỉ revalidation |
-| `RunFinished` | Outcome, primary/secondary stop refs, unresolved exposure refs nếu có | Mọi invocation đã có control disposition; cancel timers/dependencies, clear đúng control admission nếu run sở hữu nó; Queued finish không clear admission của run khác |
+| `RunFinished` | Outcome, cờ `truncated` nếu có, primary/secondary stop refs, unresolved exposure refs nếu có | Mọi invocation đã có control disposition; cancel timers/dependencies, clear đúng control admission nếu run sở hữu nó; Queued finish không clear admission của run khác |
 | `StepStarted` | Step index, context/config refs | Step trước đã đóng; tạo model frontier, chưa gọi model |
 | `ToolBindingRevised` | Old/new binding revision, groups thêm/bớt, descriptor versions, cause (session_start, user_selection, propose, revoke, upgrade) | Chỉ ở ranh giới step: không có step mở hoặc attempt đang chạy; step kế tiếp dùng binding mới ([tool system §4](/dev-kit/core-harness/tool-system#4-registry-và-nạp-tool)) |
 | `InstructionsLoaded` | Lớp rule (R1/R2/R3), đường dẫn nguồn, payload refs của snapshot, budget và phần bị cắt | Snapshot rule và instruction file dùng để lắp context; nạp lại khi file đổi ([context engine §3](/dev-kit/core-harness/context-engine#3-tầng-rule)) |
@@ -39,7 +39,8 @@ Envelope chung có run/sequence, command/causation, authenticated origin và wri
 | `ContextCompacted` | Payload bản tóm tắt, vị trí giữ nguyên đầu tiên, token trước/sau, W references, model invocation ref | Chỉ ở ranh giới step, trong cùng epoch; transcript gốc không đổi ([context engine §6.2](/dev-kit/core-harness/context-engine#62-compaction)) |
 | `InputSteered` | Input ref, origin, thời điểm | Chờ chèn; mọi steer đang chờ được gộp và chèn ở ranh giới step kế tiếp qua `ContextInjected` ([điều phối input](/dev-kit/core-harness/coordination) §4) |
 | `InputInterjected` | Input ref, các steer được gộp, target attempt/invocation, kết quả quiesce | Chỉ user; tool `side_effecting` đang chạy luôn được chờ xong; result tổng hợp, message và model request mới trong cùng batch ([điều phối input](/dev-kit/core-harness/coordination) §5) |
-| `StepCompleted` | Response ref, ordered result refs, continuation decision/policy | Canonical response và tool pairs đủ; next action end/continue có budget/stop checks |
+| `StepCompleted` | Response ref, ordered result refs, field `continuation` (lý do chạy tiếp hoặc kết thúc, [continuation](/dev-kit/core-harness/continuation) §2) | Canonical response và tool pairs đủ; next action end/continue có budget/stop checks |
+| `BudgetExtended` | Kind (ví dụ `steps`), lượng gia hạn, actor | Chỉ user; resolve wait dependency `step_budget`, run chạy tiếp trong cùng run, không đếm lại từ đầu ([continuation](/dev-kit/core-harness/continuation) §3) |
 | `StepAborted` | Typed reason và dispositions của batch đã xuất hiện | Dùng khi stop/fatal/unknown close trước normal completion; đóng model invocation còn mở bằng disposition tương ứng (unknown close là abandoned_unknown); không giả response/failure đã biết |
 
 Ghim input/config phục vụ provenance, không ghim quyền. Admission guards và execution authorization vẫn đọc owner hiện tại. Host không đọc được schema thì không được ghi `RunInterrupted` vào stream đó để đoán state.
@@ -56,14 +57,14 @@ Ghim input/config phục vụ provenance, không ghim quyền. Admission guards 
 | `ModelResponseRecorded` | Complete response ref, selected attempt, usage status | Valid final protocol record; chuyển `Completed`, chọn response và project canonical assistant message |
 | `ModelRequestFailed` | Stage, failure class/code, retry disposition, usage status, partial ref nếu có | Terminal error evidence; không chuyển transport uncertainty thành known failure |
 | `ModelRequestInterrupted` | Attempt, uncertainty class, partial ref, usage reservation | Thiếu completion/stop proof; giữ output gắn đúng attempt và chưa đưa vào canonical context |
-| `ModelRetryScheduled` | Previous attempt, policy version, retry number, timer ID | Known retryable failure hoặc attempt đã được abandon theo policy; ghi cùng `TimerScheduled` |
-| `ModelAttemptPlanned` | New attempt ID, previous attempt, same invocation, budget estimate | Timer đã elapsed, admission/budget/blockers hợp lệ; không sửa attempt cũ |
+| `ModelRetryScheduled` | Previous attempt, new attempt ID, policy version, retry number, timer ID | Known retryable failure hoặc attempt đã được abandon theo policy; **một batch** với `ModelAttemptPlanned` và `TimerScheduled(model_retry)`, ghi trước khi chờ; charge retry budget (số lần) tại đây |
+| `ModelAttemptPlanned` | New attempt ID, previous attempt, same invocation, budget estimate | Cùng batch với `ModelRetryScheduled`, trước khi chờ; attempt ở `Planned` cho tới khi timer elapsed; admission, budget và blockers được kiểm tại `ModelDispatchStarted`; không sửa attempt cũ |
 | `ModelAttemptCancelled` | Pre-dispatch hoặc terminal/quiescence evidence | Không dùng request cancellation làm bằng chứng đã dừng |
 | `ModelAttemptAbandoned` | Uncertainty, policy/user receipt, next action retry/close, unknown cost | Có authority/policy hữu hạn; close đi cùng StepAborted để đóng invocation bằng abandoned_unknown; retry giữ invocation mở; không ghi usage zero hoặc response giả |
 | `ModelInvocationFailed` | Final failure ref, exhausted/fatal decision | Không còn retry được phép; đóng logical invocation để abort step/finish run |
 | `ModelUsageReconciled` | Provider/accounting evidence, old reservation, observed usage | Cho phép bổ sung accounting sau finish; không mở lại loop hoặc sửa canonical response |
 
-Planning chỉ ghi budget estimate; reservation có hiệu lực được lập đúng một lần trong dispatch transaction, không double-reserve từ planning. `ModelRequestPlanned` tạo attempt đầu; `ModelAttemptPlanned` chỉ cho attempts sau. `ModelResponseRecorded` và các `ToolCallPlanned` từ response được chọn nằm cùng transaction để current step không bị lệch frontier. Tool arguments vẫn cần validate trước thực thi.
+Planning chỉ ghi budget estimate; reservation có hiệu lực được lập đúng một lần trong dispatch transaction, không double-reserve từ planning. `ModelRequestPlanned` tạo attempt đầu; `ModelAttemptPlanned` chỉ cho attempts sau. Retry intent, attempt mới và timer được ghi **trước khi chờ**; `TimerElapsed(model_retry)` chỉ resolve time dependency để attempt `Planned` đó được dispatch, không tạo attempt hay retry number mới. Crash lúc chờ giữ nguyên attempt `Planned` và retry đã charge: sau restart host re-arm timer UTC, resume hợp lệ dispatch chính attempt đó, không charge lại. Stop lúc chờ ghi `ModelAttemptCancelled` (pre-dispatch) cùng `TimerCancelled`. Retry budget (số lần) charge lúc lên lịch; reservation token/cost chỉ lập lúc dispatch, nên attempt chưa dispatch không có usage. `ModelResponseRecorded` và các `ToolCallPlanned` từ response được chọn nằm cùng transaction để current step không bị lệch frontier. Tool arguments vẫn cần validate trước thực thi.
 
 ## 4. Tool invocation và attempts
 

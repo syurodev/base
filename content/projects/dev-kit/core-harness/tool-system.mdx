@@ -5,7 +5,7 @@ description: Thiết kế cấp hệ thống cho tool của native runtime — c
 
 # Tool system
 
-Trạng thái: foundation decision v0.11. **Thiết kế cấp hệ thống đã chốt**; từng tool (file, shell, git, db…) được thiết kế ở trang riêng. Các spike và evidence còn mở ở [mục 12](#12-spike-và-evidence-còn-mở). Trang này cụ thể hóa G-04/G-05 cho phần tool; semantics lifecycle của invocation vẫn ở [state machine §5](/dev-kit/core-harness/state-machine#5-tool-invocation-và-effect-class).
+Trạng thái: foundation decision v0.12. **Thiết kế cấp hệ thống đã chốt**; từng tool (file, shell, git, db…) được thiết kế ở trang riêng. Các spike và evidence còn mở ở [mục 12](#12-spike-và-evidence-còn-mở). Trang này cụ thể hóa G-04/G-05 cho phần tool; semantics lifecycle của invocation vẫn ở [state machine §5](/dev-kit/core-harness/state-machine#5-tool-invocation-và-effect-class).
 
 Tham khảo khi thiết kế: [pi](https://github.com/earendil-works/pi) (`pi-durable`, `coding-agent`), [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) (tool pipeline, approval, sandbox escalation, spill, fs observation) và [Agent Harness Engineering Patterns](https://ashishpatel26.github.io/agent-harness-engineering-pattern/) chương 01–06. Đây là nguồn đối chiếu, không thay contract của DevKit.
 
@@ -74,7 +74,7 @@ Shell luôn là `side_effecting` + `touchesWorkspace`, không bao giờ `pure_re
 
 ## 4. Registry và nạp tool
 
-**Lúc tạo session.** Bộ cơ bản luôn bật, không tắt được: đọc, tìm, sửa và ghi file; shell; nhóm `job.*`; codegraph đọc; `harness.profile.propose`. User chọn thêm group (db, git, ssh, kafka, tasks…) trong picker, xuất phát từ workspace profile W; lựa chọn thành session override S. Picker hiển thị chi phí định nghĩa của mỗi group (đã có ở `harness.profile.get`).
+**Lúc tạo session.** Bộ cơ bản luôn bật, không tắt được: đọc, tìm, sửa và ghi file; shell; nhóm `job.*`; codegraph đọc; tool goal (`goal.get`, `goal.create`, `goal.update`, [continuation](/dev-kit/core-harness/continuation) §5.4); `harness.profile.propose`. User chọn thêm group (db, git, ssh, kafka, tasks…) trong picker, xuất phát từ workspace profile W; lựa chọn thành session override S. Picker hiển thị chi phí định nghĩa của mỗi group (đã có ở `harness.profile.get`).
 
 **Danh mục trong system prompt.** Tên mỗi group chưa bật kèm một dòng mô tả, không kèm schema, để agent biết còn gì có thể xin.
 
