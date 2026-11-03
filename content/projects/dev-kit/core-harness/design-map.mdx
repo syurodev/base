@@ -20,7 +20,7 @@ Khi một trang thiết kế được chốt hoặc đổi phạm vi, cập nh�
 | **Chưa** | Chưa thiết kế |
 | **Ngoài v1** | Cố ý để sau; cần quyết định riêng trước khi làm |
 
-Cột "Giai đoạn" theo [activation](/dev-kit/core-harness/activation): **A** là cần trước khi bật opt-in theo session, **B** là cần trước khi native thành mặc định, **Sau** là sau B.
+Cột "Giai đoạn" theo [phát hành giai đoạn A](/dev-kit/core-harness/activation) (v0.13, Q-02 của Fugue): **A** là cần trước khi phát hành giai đoạn A (chủ dự án dogfood, CLI, gói ChatGPT, Linux và macOS), **B** là việc đã hoãn, tiêu chí quyết định sau khi A ổn định, **Sau** là sau B. Fugue là sản phẩm riêng, chỉ có native runtime (A-01).
 
 ## Tiêu chí một trang thiết kế đầy đủ
 
@@ -74,10 +74,10 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | H-16 | Tool system cấp hệ thống | Đã chốt | [Tool system](/dev-kit/core-harness/tool-system) | A | H-01 |
 | H-17 | Tool file: read, tìm (grep/glob), edit, write, patch | Chưa | — | A | H-16, H-28 |
 | H-18 | Tool shell và job | Chưa (cấp hệ thống đã có) | Tool system §7 | A | H-16, H-25 |
-| H-19 | Tool đọc code: codegraph, LSP (`internal/lsp`), workspace search (`internal/wssearch`) | Chưa | — | A | H-16 |
+| H-19 | Tool đọc code: codegraph, LSP, workspace search. Giai đoạn A chỉ đọc code bằng read, grep, glob (H-17) | Chưa | — | B | H-16 |
 | H-20 | Hỏi user có cấu trúc (`ask_user`), plan và todo | Chưa | — | A | H-24 |
 | H-21 | Web fetch và web search: có cần không, và nếu có thì thiết kế ra sao | Chưa | — | B | H-26 |
-| H-22 | Chuyển các group nghiệp vụ (db, git, ssh, kafka, tasks, api, pr, vault, agenthub, workspace, pdf) sang native | Chưa; baseline là ratchet `prompt_sites_test.go` | — | B | H-16, H-24 |
+| H-22 | ~~Chuyển các group nghiệp vụ của DevKit sang native~~ | Bỏ (A-03): Fugue không có các owner service này | [Activation](/dev-kit/core-harness/activation) §1 | — | — |
 | H-23 | MCP server bên ngoài và plugin làm nguồn tool: adapter, ghim mô tả, trust | Chưa | — | B | H-16, H-26 |
 
 ## E. Interaction, sandbox, an toàn
@@ -103,19 +103,20 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
 | H-32 | Read model và streaming tới client: timeline, delta, catch-up | Gộp vào H-42 | Event storage §9 | A | H-42 |
-| H-33 | UI Agent Hub cho session native: picker tool và preset, failure UX, view job/daemon/snapshot | Một phần | Activation §3 | A | H-32 |
+| H-33 | UI desktop cho session: picker tool và preset, failure UX, view job/daemon/snapshot | Một phần | Activation §3 | B | H-32, H-44 |
 | H-34 | Cấu hình theo workspace: preset, hạn mức, timeout, danh sách loại trừ, network | Một phần | Tool system, storage-security | A | — |
 | H-35 | Host khác: server mode, CLI, Telegram control cho session native | Gộp vào H-42 | Architecture §7 | A | H-42 |
 | H-42 | **Host API**: contract command, query và event có schema và version, không gắn Wails; transport (Wails, socket local, HTTP/WebSocket loopback, MCP); read model với snapshot và catch-up; tin cậy client (ai được duyệt approval, mở vault); lệch version giữa UI và lõi; cách chạy process (nhúng, daemon hoặc cả hai) | Đã chốt | [Host API](/dev-kit/core-harness/host-api) | A | H-02, H-24 |
-| H-43 | Kiểm kê logic nghiệp vụ còn nằm ở frontend (state machine và quyết định trong React) và kế hoạch chuyển về lõi Go | Chưa | — | A | H-42 |
-| H-44 | **Shell ngoài Wails** (giai đoạn A: Electron desktop): đóng gói binary Go theo nền tảng, khởi động và nối host, preload và bảo mật renderer, hộp thoại native, cửa sổ và title bar, thông báo, tray, auto-update, chuyển phần frontend phụ thuộc Wails | Chưa | [Host API](/dev-kit/core-harness/host-api) §3, §7, §9 | A | H-42, H-43 |
+| H-43 | ~~Kiểm kê logic nghiệp vụ ở frontend DevKit~~ | Bỏ (A-03, Q-05): DevKit đóng băng | — | — | — |
+| H-44 | **Electron desktop**: đóng gói binary Go theo nền tảng, khởi động và nối host, preload và bảo mật renderer, hộp thoại native, cửa sổ và title bar, thông báo, tray, auto-update | Chưa | [Host API](/dev-kit/core-harness/host-api) §3, §7, §9 | B | H-42 |
+| H-45 | **CLI/TUI client** `fugue`: client tin cậy duy nhất của giai đoạn A; tạo và chạy session, trả lời interaction, mở vault, đăng nhập ChatGPT (chữ bắt buộc của model adapter §11.6), job và snapshot, mọi hành động failure UX | Chưa | [Activation](/dev-kit/core-harness/activation) §2, §3; [Host API](/dev-kit/core-harness/host-api) | A | H-42, H-24 |
 
 ## H. Vòng đời, chất lượng, vận hành
 
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
-| H-36 | Compatibility: native và vendor cùng tồn tại, nâng cấp, rollback (G-06) | Chưa | — | A | H-02 |
-| H-37 | Activation và rollout (G-07) | Đã chốt | [Activation](/dev-kit/core-harness/activation) | A | Mọi mảng A |
+| H-36 | Tương thích phiên bản Fugue: nâng cấp, hạ phiên bản, lệch version client và host (G-06) | Đã chốt | [Activation](/dev-kit/core-harness/activation) §4 | A | H-02, H-42 |
+| H-37 | Phát hành giai đoạn A (G-07, Q-02) | Đã chốt (v0.13) | [Activation](/dev-kit/core-harness/activation) | A | Mọi mảng A |
 | H-38 | Observability: telemetry, chẩn đoán, export, metrics | Một phần | — | B | H-32 |
 | H-39 | Test và eval: conformance headless, fault injection, eval prompt và tool, benchmark | Một phần (tiêu chí kiểm chứng) | [Quyết định](/dev-kit/core-harness/decisions-and-validation#tiêu-chí-kiểm-chứng) | A (test), B (eval) | — |
 | H-40 | Hiệu năng: độ trễ khởi động, chi phí token mỗi turn, chi phí snapshot | Một phần | Activation §6 | B | H-10 |
@@ -125,10 +126,10 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 
 1. ~~**Context engine và system prompt** (H-10, H-11, H-12, H-13)~~: đã chốt ở [Context engine](/dev-kit/core-harness/context-engine).
 2. ~~**Model adapter, usage, account** (H-07, H-08, H-09)~~: đã chốt ở [model adapter](/dev-kit/core-harness/model-adapter).
-3. ~~**Host API** (H-42, gộp H-32 và H-35)~~: đã chốt ở [Host API](/dev-kit/core-harness/host-api); còn **kiểm kê frontend** (H-43) và **shell ngoài Wails** (H-44).
-4. **Tool file, shell/job, đọc code, hỏi user** (H-17, H-18, H-19, H-20).
+3. ~~**Host API** (H-42, gộp H-32 và H-35)~~: đã chốt ở [Host API](/dev-kit/core-harness/host-api).
+4. **Tool file, shell/job, hỏi user** (H-17, H-18, H-20).
 5. **Interaction API, sandbox runtime, nội dung không tin cậy, redact** (H-24, H-25, H-26, H-27).
 6. ~~**Queue/steering** (H-29) và **continuation** (H-31)~~: đã chốt ở [điều phối input](/dev-kit/core-harness/coordination) và [continuation](/dev-kit/core-harness/continuation).
-7. **UI Agent Hub cho native và cấu hình workspace** (H-33, H-34).
-8. **Compatibility** (H-36) và **budget** (H-06).
+7. **CLI/TUI client và cấu hình workspace** (H-45, H-34).
+8. ~~**Phát hành giai đoạn A và compatibility** (H-37, H-36)~~: đã chốt ở [activation](/dev-kit/core-harness/activation) v0.13. Còn **budget** (H-06).
 9. **Đặt package** (H-04) **không chờ** các mảng trên: nó là việc đầu tiên trước mọi production code của core (R0.1 trong [lộ trình](/dev-kit/core-harness/implementation-roadmap)). **Review transition** (H-05) chạy song song với P1–P2 và đóng gate G-02 bằng evidence. Với D-29, harness nằm trong `internal/` của DevKit, theo đúng các tầng của architecture rules, không cần chuẩn bị để tách repo.

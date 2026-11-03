@@ -23,6 +23,7 @@ Tham khảo: pi-ai (stream chuẩn hóa, auth, chuyển model, system message v�
 | M-08 | **OpenAI cùng giai đoạn A**, qua Responses API; auth bằng API key hoặc **Sign in with ChatGPT** (dùng gói ChatGPT), vì OpenAI chính thức cho phép ứng dụng mã nguồn mở và chạy local dùng gói này ([§11](#11-openai-và-sign-in-with-chatgpt)) |
 | M-09 | Với gói ChatGPT, **không bao giờ tự chuyển sang đường tính tiền khác** (API key hay account khác); khi hết hạn mức, user tự chọn |
 | M-10 | Không dùng lại token, client ID hay home của Codex CLI; không gọi endpoint `backend-api` của ChatGPT. Chỉ dùng luồng đăng ký chính thức của DevKit |
+| M-11 | **Fugue giai đoạn A đảo M-01** (A-02, 2026-11-03): adapter thật đầu tiên là OpenAI Responses với Sign in with ChatGPT, và đây là provider duy nhất của giai đoạn A. API key OpenAI, Anthropic và failover giữa account (M-04) sang giai đoạn B ([phát hành giai đoạn A](/dev-kit/core-harness/activation)) |
 
 ## 2. Contract
 
@@ -160,7 +161,7 @@ Nguồn: tài liệu [Sign in with ChatGPT cho ứng dụng mã nguồn mở](ht
 | Gọi model | Codex tự gọi | Model adapter gọi `POST /v1/responses` |
 | Auth | Login của Codex trong Codex home | Credential của DevKit trong `internal/accounts` + vault (M-10) |
 
-Vì OpenAI cho phép dùng gói ChatGPT trong ứng dụng mã nguồn mở, giai đoạn C ([activation](/dev-kit/core-harness/activation)) **có thể áp dụng cho Codex** khi native runtime với OpenAI đạt tiêu chí giai đoạn B.
+Với Fugue, chỉ cột native runtime áp dụng (A-01); gói ChatGPT là provider duy nhất của giai đoạn A (M-11, [phát hành giai đoạn A](/dev-kit/core-harness/activation)).
 
 ### 11.2 Đăng ký và token
 
