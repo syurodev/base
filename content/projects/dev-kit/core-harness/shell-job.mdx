@@ -179,7 +179,18 @@ Bên trong output, mỗi chỗ bị cắt có hint trỏ đúng phần bị ẩn
 
 - Output gốc được giữ khi kênh Model không chứa toàn bộ output gốc (đã lọc, đã cap hoặc vượt `resultBudget`).
 - Giữ trong memory của host, không bao giờ ghi ra đĩa ([sandbox runtime](/dev-kit/core-harness/sandbox-runtime) J-06). Mất khi host restart.
-- Mỗi session giữ tối đa 8 output gần nhất, mỗi output tối đa 8 MiB mỗi kênh; output cũ nhất bị bỏ trước (FIFO). Cấu hình theo workspace (H-34).
+- Mỗi output được nén khi đưa vào bộ giữ; `raw_bytes` và kích thước sau nén được ghi kèm.
+- Giới hạn tính theo **dung lượng sau nén**, không theo số output, vì một session có thể có hàng trăm lời gọi `shell` mà phần lớn output nhỏ:
+
+| Giới hạn | Mặc định | Vượt thì |
+| --- | --- | --- |
+| Mỗi output | 8 MiB mỗi kênh trước khi nén (giới hạn thu output của §2.4) | Phần vượt đã bị bỏ lúc thu, có marker |
+| Mỗi session | 64 MiB | Bỏ output cũ nhất của session đó cho tới khi đủ chỗ |
+| Toàn host | 512 MiB | Bỏ output cũ nhất trên mọi session, trừ output mới nhất của mỗi session |
+
+- Workspace chỉnh được giới hạn mỗi session (H-34); giới hạn toàn host là cấu hình của host.
+- Output bị bỏ khi: vượt giới hạn; session kết thúc hoặc bị xóa; vault khóa (cùng lúc với việc xóa session key khỏi cache, [storage-security §8](/dev-kit/core-harness/storage-security#8-vault-observation-owner-api)), vì output gốc có cùng mức nhạy cảm với protected payload.
+- Không có TTL theo thời gian: output còn trong giới hạn thì còn đọc được trong suốt session.
 - `output_id` gắn với session và là capability, như `job_id` (§4).
 - Output của job nằm trong ring buffer của job (§5), đọc qua cùng tool `shell.output` với `job_id`.
 
@@ -252,7 +263,7 @@ Không lọc ở giai đoạn A:
 | `cwd` không còn tồn tại | Lỗi args `shell.cwd_missing`; model chọn cwd khác |
 | Lệnh chờ stdin | Đọc `/dev/null` thì nhận EOF; lệnh treo vì lý do khác thì theo timeout |
 | Filter lỗi hoặc không nhận ra output | Dùng tầng chung (§3.4); attempt vẫn `completed` |
-| Host restart sau khi trả result | Output đã giữ mất; `shell.output` trả `shell.output_expired` |
+| Host restart hoặc vault khóa sau khi trả result | Output đã giữ mất; `shell.output` trả `shell.output_expired` |
 
 Mã lỗi công khai: `shell.cwd_outside_workspace`, `shell.cwd_missing`, `shell.env_not_allowed`, `shell.timeout_over_cap`, `shell.output_not_found`, `shell.output_expired`, `job.not_found`, `job.limit_reached`, `sandbox_unavailable`.
 
@@ -280,7 +291,8 @@ Mã lỗi công khai: `shell.cwd_outside_workspace`, `shell.cwd_missing`, `shell
 - Bảng chọn lệnh sinh output (§3.3): lệnh đơn, `cd x && go test`, pipeline, `||`, redirect ra file.
 - `never_worse`: filter cho kết quả lớn hơn tầng chung thì kênh Model là kết quả tầng chung.
 - Header và hint có khi và chỉ khi có phần bị ẩn; `from_line` trỏ đúng dòng đầu bị ẩn.
-- `shell.output` với `full` trả byte giống hệt output gốc; output bị đẩy khỏi bộ giữ trả `shell.output_expired`; `output_id` của session khác trả `shell.output_not_found`.
+- `shell.output` với `full` trả byte giống hệt output gốc (qua nén và giải nén); output bị đẩy khỏi bộ giữ trả `shell.output_expired`; `output_id` của session khác trả `shell.output_not_found`.
+- Bộ giữ: vượt giới hạn session bỏ output cũ nhất của session đó; vượt giới hạn host không bỏ output mới nhất của session nào; vault khóa, session kết thúc hoặc bị xóa thì mọi output của session bị bỏ; 300 lời gọi với output nhỏ vẫn đọc lại được hết trong giới hạn mặc định.
 - Result dựng lại từ cùng output gốc cho kết quả giống hệt (tất định).
 - Fuzz cho parser lệnh shell và cho từng filter: không panic, không vượt giới hạn CPU, kết quả không lớn hơn input.
 - Output, argv và nội dung đã giữ không xuất hiện trong metadata, log hay audit.
@@ -290,6 +302,6 @@ Mã lỗi công khai: `shell.cwd_outside_workspace`, `shell.cwd_missing`, `shell
 - Cần trước: [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (H-25), [interaction](/dev-kit/core-harness/interaction) (H-24), H-16.
 - Mảng liên quan:
   - H-26: nhãn nội dung không tin cậy cho output, cả compact lẫn full.
-  - H-34: timeout, giới hạn job, danh sách chỉ đọc bổ sung, allowlist override env, chế độ `output` mặc định, cap, số output giữ lại, program loại trừ khỏi filter.
+  - H-34: timeout, giới hạn job, danh sách chỉ đọc bổ sung, allowlist override env, chế độ `output` mặc định, cap, dung lượng giữ output mỗi session, program loại trừ khỏi filter.
   - H-45: hiển thị job và daemon; số đo tiết kiệm và tỉ lệ đọc lại.
 - Giai đoạn B: filter cho thêm ecosystem; filter do workspace định nghĩa kèm cơ chế trust.

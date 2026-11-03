@@ -99,7 +99,7 @@ Commit unknown (lỗi driver hoặc I/O sau khi gửi `COMMIT`): coordinator d�
 - `Observe()` trả `Snapshot{Incarnation, Revision, State}` và một subscription. Đăng ký subscription và đọc snapshot trong **cùng critical section**, nên không mất transition giữa read và subscribe.
 - `Revision` tăng dưới mutex của vault cho mọi transition: `Setup`, `Unlock`, `UnlockWithRecovery`, `Lock`. Event chỉ chứa state; không key, password hoặc payload.
 - Hai loại listener:
-  - **Guard đồng bộ**: in-memory, không I/O, không block, chạy trong lifecycle của vault trước khi DEK bị zero. Dùng cho interaction (invalidate receipt và scoped approval) và execution store (zero cached session keys). Thứ tự này giữ nguyên hành vi hiện tại của bridge (`SetVaultLocked(true)` trước `Vault.Lock()`).
+  - **Guard đồng bộ**: in-memory, không I/O, không block, chạy trong lifecycle của vault trước khi DEK bị zero. Dùng cho interaction (invalidate receipt và scoped approval), execution store (zero cached session keys) và bộ giữ output của shell (bỏ mọi output đã giữ, [shell và job §3.7](/dev-kit/core-harness/shell-job#37-giữ-output-gốc)). Thứ tự này giữ nguyên hành vi hiện tại của bridge (`SetVaultLocked(true)` trước `Vault.Lock()`).
   - **Subscriber bất đồng bộ**: coordinators. Channel có buffer; đầy thì subscriber bị đánh dấu lagging và MUST đọc lại snapshot. Vault không bao giờ chờ subscriber khi đang giữ crypto lock.
 - Composition nằm ở `internal/app`, không ở bridge, nên host không dùng Wails cũng nhận đúng lifecycle. Bridge chỉ gọi owner API.
 - Lock-vs-consume: `StartScopedApproval`, claim receipt và mở session key đều kiểm tra trạng thái vault tại owner trong cùng thao tác; guard đồng bộ bảo đảm khi `Lock()` trả về thì không thao tác nào trong số đó còn thành công.
