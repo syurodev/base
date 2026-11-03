@@ -11,6 +11,8 @@
     "interaction",
     "sandbox-runtime",
     "shell-job",
+    "file-tools",
+    "content-safety",
     "context-engine",
     "model-adapter",
     "coordination",

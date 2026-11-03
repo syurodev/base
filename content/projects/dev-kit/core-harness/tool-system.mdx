@@ -196,7 +196,7 @@ Native runtime gọi snapshot qua một **interface** (chụp, diff, lên kế h
 - Journal ghi ID ngẫu nhiên ánh xạ tới tree git; hash tree không vào metadata.
 - UI nói rõ restore không hoàn tác: file bị ignore hoặc loại trừ (`node_modules`, `.venv`, `.gradle`…), file lớn hơn 10 MB, file ngoài workspace, DB, Docker, network, git push.
 
-Tool file còn hai luật cứng: **đọc trước khi sửa** và **từ chối nếu file đã đổi kể từ lần đọc**. Hash của lần đọc nằm trong protected payload (D-10) và là cơ sở để `Reconcile` sau crash.
+Tool file không bao giờ ghi lên nội dung mà model chưa thấy: `edit` phải khớp `old_string` với nội dung hiện tại, `write` ghi đè file đã có chỉ khi file đã được đọc và chưa đổi kể từ lần đọc ([tool file](/dev-kit/core-harness/file-tools) FT-05). Hash của phiên bản đã thấy nằm trong protected payload (D-10) và là cơ sở để `Reconcile` sau crash.
 
 ## 10. Result và error
 
@@ -222,7 +222,7 @@ Tool file còn hai luật cứng: **đọc trước khi sửa** và **từ chố
 | `result_too_large` | Vượt giới hạn lưu (S-01) |
 
 - Output dài: model thấy phần đầu và phần cuối kèm hướng dẫn đọc tiếp; bản đầy đủ lưu thành protected payload (theo giới hạn S-01), đọc tiếp qua tool đọc theo khoảng. Shell giữ phần cuối là chính; exit code khác 0 là error nhưng vẫn kèm output.
-- Redact secret **trước** khi rút gọn và lưu.
+- Redact secret **trước** khi rút gọn và lưu; nội dung không tin cậy nằm trong envelope ([an toàn nội dung](/dev-kit/core-harness/content-safety)).
 - Kết quả rỗng hợp lệ (không có match, file trống) **không** là error; result tự giải thích và gợi ý bước tiếp.
 
 ## 11. Tool đổi version

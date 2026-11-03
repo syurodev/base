@@ -106,7 +106,7 @@ Hai chế độ cùng một `risk`, một request duyệt và một attempt. Mod
 
 ### 3.2 Tầng chung
 
-Áp dụng cho mọi lệnh ở chế độ `compact`, theo thứ tự:
+Output tới đây đã được redact ([an toàn nội dung §3.5](/dev-kit/core-harness/content-safety#35-nơi-áp-dụng)); filter chạy trên text đã có placeholder. Tầng chung áp dụng cho mọi lệnh ở chế độ `compact`, theo thứ tự:
 
 1. Bỏ escape ANSI.
 2. Dòng ghi đè bằng `\r` (progress bar, spinner) chỉ giữ trạng thái cuối.
@@ -301,7 +301,7 @@ Mã lỗi công khai: `shell.cwd_outside_workspace`, `shell.cwd_missing`, `shell
 
 - Cần trước: [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (H-25), [interaction](/dev-kit/core-harness/interaction) (H-24), H-16.
 - Mảng liên quan:
-  - H-26: nhãn nội dung không tin cậy cho output, cả compact lẫn full.
+  - H-26, H-27: redact và envelope cho output, cả compact lẫn full ([an toàn nội dung](/dev-kit/core-harness/content-safety)).
   - H-34: timeout, giới hạn job, danh sách chỉ đọc bổ sung, allowlist override env, chế độ `output` mặc định, cap, dung lượng giữ output mỗi session, program loại trừ khỏi filter.
   - H-45: hiển thị job và daemon; số đo tiết kiệm và tỉ lệ đọc lại.
 - Giai đoạn B: filter cho thêm ecosystem; filter do workspace định nghĩa kèm cơ chế trust.
