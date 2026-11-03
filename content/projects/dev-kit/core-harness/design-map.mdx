@@ -104,7 +104,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | --- | --- | --- | --- | --- | --- |
 | H-32 | Read model và streaming tới client: timeline, delta, catch-up | Gộp vào H-42 | Event storage §9 | A | H-42 |
 | H-33 | UI desktop cho session: picker tool và preset, failure UX, view job/daemon/snapshot | Một phần | Activation §3 | B | H-32, H-44 |
-| H-34 | Cấu hình theo workspace: mode và sandbox profile mặc định, luật shell, ánh xạ tag, hạn mức, timeout, danh sách loại trừ, network | Một phần | Tool system, storage-security, [interaction](/dev-kit/core-harness/interaction) §3.3 | A | H-24 |
+| H-34 | Cấu hình theo workspace: mode và sandbox profile mặc định, luật shell, chế độ output và cap của shell, ánh xạ tag, hạn mức, timeout, danh sách loại trừ, network | Một phần | Tool system, storage-security, [interaction](/dev-kit/core-harness/interaction) §3.3 | A | H-24 |
 | H-35 | Host khác: server mode, CLI, Telegram control cho session native | Gộp vào H-42 | Architecture §7 | A | H-42 |
 | H-42 | **Host API**: contract command, query và event có schema và version, không gắn Wails; transport (Wails, socket local, HTTP/WebSocket loopback, MCP); read model với snapshot và catch-up; tin cậy client (ai được duyệt approval, mở vault); lệch version giữa UI và lõi; cách chạy process (nhúng, daemon hoặc cả hai) | Đã chốt | [Host API](/dev-kit/core-harness/host-api) | A | H-02, H-24 |
 | H-43 | ~~Kiểm kê logic nghiệp vụ ở frontend DevKit~~ | Bỏ (A-03, Q-05): DevKit đóng băng | — | — | — |

@@ -74,7 +74,7 @@ Shell luôn là `side_effecting` + `touchesWorkspace`, không bao giờ `pure_re
 
 ## 4. Registry và nạp tool
 
-**Lúc tạo session.** Bộ cơ bản luôn bật, không tắt được: đọc, tìm, sửa và ghi file; shell; nhóm `job.*`; codegraph đọc; tool goal (`goal.get`, `goal.create`, `goal.update`, [continuation](/dev-kit/core-harness/continuation) §5.4); `harness.profile.propose`. User chọn thêm group (db, git, ssh, kafka, tasks…) trong picker, xuất phát từ workspace profile W; lựa chọn thành session override S. Picker hiển thị chi phí định nghĩa của mỗi group (đã có ở `harness.profile.get`).
+**Lúc tạo session.** Bộ cơ bản luôn bật, không tắt được: đọc, tìm, sửa và ghi file; shell và `shell.output`; nhóm `job.*`; codegraph đọc; tool goal (`goal.get`, `goal.create`, `goal.update`, [continuation](/dev-kit/core-harness/continuation) §5.4); `harness.profile.propose`. User chọn thêm group (db, git, ssh, kafka, tasks…) trong picker, xuất phát từ workspace profile W; lựa chọn thành session override S. Picker hiển thị chi phí định nghĩa của mỗi group (đã có ở `harness.profile.get`).
 
 **Danh mục trong system prompt.** Tên mỗi group chưa bật kèm một dòng mô tả, không kèm schema, để agent biết còn gì có thể xin.
 
@@ -139,6 +139,7 @@ Xin lại đúng mode hiện tại thì không hỏi; xin hẹp hơn là args kh
 ### 7.1 Shell
 
 - Mỗi lệnh chạy một lần, **bên trong jail sống theo session**: không tương tác (stdin đóng, `CI=1`, `PAGER=cat`), trả exit code, stdout và stderr tách riêng.
+- Output cho model có hai chế độ, `compact` (mặc định) và `full`; output gốc bị ẩn được giữ trong memory và đọc lại bằng `shell.output` mà không chạy lại lệnh ([shell và job §3](/dev-kit/core-harness/shell-job#3-output-compact-và-full)).
 - Policy áp theo từng lời gọi: grant mới có hiệu lực ngay từ lời gọi tiếp theo.
 - **cwd do DevKit giữ trong journal**: wrapper ghi cwd cuối ra kênh riêng, lưu trong result; lời gọi sau mặc định dùng cwd đó, chỉ trong workspace. Env không giữ giữa các lời gọi; model truyền qua tham số `env` theo allowlist.
 - Khi lệnh xong, process group **của lệnh đó** bị kill. Daemon đã tự tách (Gradle, Kotlin, mvnd) sống tiếp trong jail của session, hiện trong session view, bị dừng khi session kết thúc. Daemon không phải attempt nên không cản `RunFinished`.
@@ -147,7 +148,7 @@ Xin lại đúng mode hiện tại thì không hỏi; xin hẹp hơn là args kh
 ### 7.2 Job
 
 - Timeout của shell cấu hình theo workspace, mặc định 10 phút. Quá timeout thì lệnh **chuyển thành background job**, không bị kill; model nhận job handle. Model cũng có thể chạy ngay ở nền.
-- Tool: `job.output` (đọc phần cuối hoặc theo khoảng), `job.status`, `job.cancel`. Job ID gắn với session và là capability: chỉ session sở hữu mới đọc hoặc cancel được, nên tự chạy.
+- Tool: `shell.output` (đọc output của job hoặc output đã giữ của lệnh, phần cuối hoặc theo khoảng), `job.status`, `job.cancel`. Job ID gắn với session và là capability: chỉ session sở hữu mới đọc hoặc cancel được, nên tự chạy.
 - `job.cancel` gửi SIGTERM cho process group, chờ ân hạn rồi SIGKILL; result có bằng chứng dừng. User cũng cancel được từ UI.
 - Giới hạn mặc định (cấu hình theo workspace): tối đa 3 job cùng lúc mỗi session, mỗi job sống tối đa 2 giờ. Session kết thúc thì mọi job bị dừng.
 - Job xong thì model nhận một thông báo có nhãn ở ranh giới step kế tiếp; thông báo này không đóng vai input của user.
