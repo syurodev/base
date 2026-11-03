@@ -120,7 +120,7 @@ Chỉ khi sandbox profile là `full-access` (J-05), theo [tool system §8](/dev-
 
 - Chỉ hai lệnh chạy ngoài sandbox: env snapshot và `docker context inspect`. Cả hai do host khởi tạo, argv cố định, không nhận input của model.
 - Thư mục nhạy cảm luôn bị chặn đọc: `~/.ssh`, `~/.gnupg`, `~/.aws`, cấu hình gcloud, data directory của Fugue (`Policy.DenyReadPaths`, cộng phần chặn có sẵn của `internal/sandbox`).
-- Supervisor và mọi message của nó là không tin cậy (§3). Output của lệnh là nội dung không tin cậy (H-26).
+- Supervisor và mọi message của nó là không tin cậy (§3). Output của lệnh là nội dung không tin cậy ([an toàn nội dung](/dev-kit/core-harness/content-safety)).
 - Network `host` ở giai đoạn A không chặn dữ liệu bị gửi ra ngoài ([phát hành giai đoạn A §2](/dev-kit/core-harness/activation#2-phạm-vi-giai-đoạn-a)).
 
 ## 11. Giới hạn

@@ -72,7 +72,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
 | H-16 | Tool system cấp hệ thống | Đã chốt | [Tool system](/dev-kit/core-harness/tool-system) | A | H-01 |
-| H-17 | Tool file: read, tìm (grep/glob), edit, write, patch | Chưa | — | A | H-16, H-28 |
+| H-17 | Tool file: read, tìm (grep/glob), edit, write | Đã chốt | [Tool file](/dev-kit/core-harness/file-tools) | A | H-16, H-24, H-25, H-26, H-27, H-28 |
 | H-18 | Tool shell và job | Đã chốt | [Shell và job](/dev-kit/core-harness/shell-job) | A | H-16, H-24, H-25 |
 | H-19 | Tool đọc code: codegraph, LSP, workspace search. Giai đoạn A chỉ đọc code bằng read, grep, glob (H-17) | Chưa | — | B | H-16 |
 | H-20 | Hỏi user có cấu trúc (`ask_user`), plan và todo | Một phần | [Interaction](/dev-kit/core-harness/interaction) §2.2, §4.1 (kind `question`, lối thoát Plan mode) | A | H-24 |
@@ -86,8 +86,8 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | --- | --- | --- | --- | --- | --- |
 | H-24 | Interaction owner API và approval policy (phần còn lại của G-05): approval mode, sandbox profile, policy khi nào hỏi, env tag, grant scope, request/receipt/question, Host API | Đã chốt | [Interaction](/dev-kit/core-harness/interaction) | A | H-16, H-42 |
 | H-25 | Sandbox runtime: jail theo session, process registry, reaper, env snapshot, Docker endpoint | Đã chốt (spike giai đoạn B ở §13) | [Sandbox runtime](/dev-kit/core-harness/sandbox-runtime) | A | H-16, H-24 |
-| H-26 | Nội dung không tin cậy và prompt injection: tool result, file, web, mô tả MCP; cách gắn nhãn | Một phần | Bất biến rải rác | A | — |
-| H-27 | Redact secret trong result, log, export | Một phần | Tool system §10 | A | H-26 |
+| H-26 | Nội dung không tin cậy và prompt injection: tool result, file, web, mô tả MCP; cách gắn nhãn | Đã chốt | [An toàn nội dung](/dev-kit/core-harness/content-safety) §2, §4, §5 | A | — |
+| H-27 | Redact secret trong result, log, export | Đã chốt | [An toàn nội dung](/dev-kit/core-harness/content-safety) §3, §6 | A | H-26 |
 | H-28 | Snapshot và restore | Đã chốt | Tool system §9 | A | H-16 |
 
 ## F. Điều phối
@@ -127,8 +127,8 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 1. ~~**Context engine và system prompt** (H-10, H-11, H-12, H-13)~~: đã chốt ở [Context engine](/dev-kit/core-harness/context-engine).
 2. ~~**Model adapter, usage, account** (H-07, H-08, H-09)~~: đã chốt ở [model adapter](/dev-kit/core-harness/model-adapter).
 3. ~~**Host API** (H-42, gộp H-32 và H-35)~~: đã chốt ở [Host API](/dev-kit/core-harness/host-api).
-4. **Tool file, hỏi user** (H-17, H-20); ~~shell/job~~ (H-18) đã chốt ở [shell và job](/dev-kit/core-harness/shell-job).
-5. ~~**Interaction API**~~ (H-24): đã chốt ở [interaction](/dev-kit/core-harness/interaction). ~~**Sandbox runtime**~~ (H-25) đã chốt ở [sandbox runtime](/dev-kit/core-harness/sandbox-runtime). Còn **nội dung không tin cậy, redact** (H-26, H-27).
+4. **Hỏi user** (H-20); ~~tool file~~ (H-17) đã chốt ở [tool file](/dev-kit/core-harness/file-tools); ~~shell/job~~ (H-18) đã chốt ở [shell và job](/dev-kit/core-harness/shell-job).
+5. ~~**Interaction API**~~ (H-24): đã chốt ở [interaction](/dev-kit/core-harness/interaction). ~~**Sandbox runtime**~~ (H-25) đã chốt ở [sandbox runtime](/dev-kit/core-harness/sandbox-runtime). ~~Nội dung không tin cậy, redact~~ (H-26, H-27) đã chốt ở [an toàn nội dung](/dev-kit/core-harness/content-safety).
 6. ~~**Queue/steering** (H-29) và **continuation** (H-31)~~: đã chốt ở [điều phối input](/dev-kit/core-harness/coordination) và [continuation](/dev-kit/core-harness/continuation).
 7. **CLI/TUI client và cấu hình workspace** (H-45, H-34).
 8. ~~**Phát hành giai đoạn A và compatibility** (H-37, H-36)~~: đã chốt ở [activation](/dev-kit/core-harness/activation) v0.13. Còn **budget** (H-06).
