@@ -9,6 +9,8 @@
     "storage-security",
     "tool-system",
     "interaction",
+    "sandbox-runtime",
+    "shell-job",
     "context-engine",
     "model-adapter",
     "coordination",

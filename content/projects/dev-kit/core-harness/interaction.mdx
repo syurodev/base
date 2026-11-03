@@ -32,7 +32,7 @@ Tham khảo: approval mode của Claude Code (default, acceptEdits, plan, auto, 
 | `workspace-write` (mặc định) | Ghi trong workspace và thư mục tạm của session | `host` | Không |
 | `full-access` | Như user | `host` | `docker.sock`, nhãn **host-root** |
 
-Profile là cấu hình của jail theo session ([tool system §6](/dev-kit/core-harness/tool-system#6-sandbox-và-escalation), H-25). Đổi profile giữa session có hiệu lực khi jail được dựng lại theo H-25; trang này không định nghĩa thời điểm đó.
+Profile là cấu hình của jail theo session ([tool system §6](/dev-kit/core-harness/tool-system#6-sandbox-và-escalation), H-25). Đổi profile giữa session có hiệu lực khi jail được dựng lại trước lệnh kế tiếp ([sandbox runtime §5](/dev-kit/core-harness/sandbox-runtime#5-vòng-đời)).
 
 ### 2.2 Approval mode
 

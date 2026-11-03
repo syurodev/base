@@ -1,0 +1,160 @@
+---
+title: Sandbox runtime
+description: H-25 — jail theo session với supervisor, kênh host–supervisor, stop proof theo nền tảng, vòng đời, process registry, env snapshot và Docker endpoint.
+---
+
+# Sandbox runtime
+
+Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-25 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Trang này cụ thể hóa [tool system §6–8](/dev-kit/core-harness/tool-system#6-sandbox-và-escalation); sandbox profile và approval mode ở [interaction §2](/dev-kit/core-harness/interaction#2-hai-trục-sandbox-profile-và-approval-mode); tool `shell` và `job.*` ở [shell và job](/dev-kit/core-harness/shell-job). Backend seatbelt, bwrap và Landlock là package `internal/sandbox` đã port (F1.6).
+
+## 1. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| J-01 | Mỗi session có **một jail sống lâu** với **supervisor** `fugue jail-init` chạy bên trong sandbox; host điều khiển supervisor, không spawn lệnh trực tiếp |
+| J-02 | Linux: một PID namespace mỗi jail; dừng jail là **stop proof mạnh** cho mọi process trong jail, kể cả daemon. macOS: stop proof cho daemon tự tách là **best-effort** qua registry và reaper |
+| J-03 | Jail dựng **lười** ở lệnh đầu tiên; dừng khi **rảnh 30 phút**, khi đóng session, khi host tắt hoặc khi đổi sandbox profile |
+| J-04 | Env snapshot **lọc biến trông giống secret theo denylist**; workspace cho phép giữ lại theo tên |
+| J-05 | Docker chỉ ở sandbox profile `full-access`; Docker proxy, egress allowlist và Keychain để giai đoạn B |
+| J-06 | Output của lệnh **không ghi ra đĩa**; job giữ ring buffer trong memory |
+| J-07 | Không có đường chạy lệnh của model ngoài sandbox. Jail không dựng được thì lỗi có kiểu, không fallback |
+
+## 2. Thành phần
+
+| Thành phần | Owner | Trách nhiệm |
+| --- | --- | --- |
+| `internal/jail` | Tool system | `Jail` theo session trên host: dựng, gửi lệnh, nhận sự kiện, dừng, registry, reaper, env snapshot, Docker endpoint |
+| `fugue jail-init` | Tool system (lệnh con ẩn của binary `fugue`) | Supervisor trong sandbox: spawn lệnh, process group, gom zombie, theo dõi daemon, báo cwd và exit status |
+| `internal/sandbox` | Tool system (F1.6) | Dựng sandbox cho supervisor và cho jail dùng một lần của escalation |
+
+Contract của `Jail` (logic; tên Go chốt khi implement):
+
+| Thao tác | Ngữ nghĩa |
+| --- | --- |
+| `Ensure(ctx, session)` | Trả jail đang sống hoặc dựng mới với sandbox profile và env snapshot hiện hành; ghi supervisor vào registry |
+| `Exec(ctx, spec) → handle` | `spec`: argv, cwd đã validate, env (đã lọc + override), timeout, job ID. Trả handle để chờ, đọc output, signal |
+| `Signal(ctx, handle, sig)` | Gửi tới process group của lệnh |
+| `Processes(ctx)` | Danh sách command, job, daemon kèm PID và thời điểm start |
+| `Stop(ctx, reason) → proof` | Dừng toàn bộ jail; trả `StopProof` (§4) |
+
+## 3. Kênh host–supervisor
+
+- `socketpair(AF_UNIX, SOCK_STREAM)` tạo trên host; một đầu truyền cho supervisor qua fd kế thừa. Không có socket trên filesystem; process khác không nối vào được. Supervisor đặt `FD_CLOEXEC` để lệnh con không kế thừa.
+- Frame: độ dài 4 byte big-endian + message có version; frame > 1 MiB là lỗi giao thức và host dừng jail.
+- Message host → supervisor: `Exec`, `Signal`, `ListProcesses`, `Shutdown`. Supervisor → host: `Started(pid, start_time)`, `Output(handle, stream, bytes)`, `Exited(handle, status, cwd)`, `Processes`, `Daemon(pid, start_time)`.
+- **Mọi message của supervisor là dữ liệu không tin cậy**: lệnh chạy cùng UID trong cùng jail có thể tác động lên supervisor. Host không dùng chúng cho authorization; cwd được kiểm tra nằm trong workspace; PID và start time chỉ dùng để dọn, sau khi đối chiếu với hệ điều hành.
+- Linux: supervisor gọi `prctl(PR_SET_DUMPABLE, 0)` để giảm khả năng bị ptrace.
+
+## 4. Nền tảng và stop proof
+
+| | Linux | macOS |
+| --- | --- | --- |
+| Sandbox | `bwrap --unshare-pid --die-with-parent` + Landlock; supervisor là init của PID namespace | `sandbox-exec` với profile của session; lệnh con kế thừa profile |
+| Host chết | `--die-with-parent` dừng bwrap; namespace bị dọn | Supervisor thấy socket đóng, kill mọi process group nó biết rồi thoát |
+| Supervisor chết | Kernel kill mọi process trong namespace | Process con còn sống; reaper dọn theo registry |
+| Daemon tự tách (`setsid`, double-fork) | Vẫn trong namespace; dừng cùng jail | Có thể ra khỏi cây process; supervisor ghi PID và start time khi thấy; reaper dọn theo registry |
+| `StopProof` khi dừng jail | `namespace_gone`: host thấy bwrap thoát | `groups_killed` cho các group đã biết; daemon ngoài cây là best-effort |
+
+Cancel một lệnh: supervisor gửi `SIGTERM` cho process group, chờ ân hạn, rồi `SIGKILL`; proof là exit status do supervisor báo. Supervisor không trả lời trong ân hạn thì host `Stop` cả jail.
+
+## 5. Vòng đời
+
+| Sự kiện | Hành vi |
+| --- | --- |
+| Lệnh đầu tiên của session | `Ensure` dựng jail và chụp env snapshot (§7) |
+| Không có lệnh, job hay run trong thời gian rảnh (mặc định 30 phút) | `Stop(idle)`; daemon dừng theo; lệnh sau dựng jail mới |
+| Đóng session, host tắt | `Stop(session_closed)` / `Stop(host_shutdown)` |
+| Đổi sandbox profile ([interaction §6.1](/dev-kit/core-harness/interaction#61-trạng-thái-điều-khiển-của-session)) | Jail cũ dừng trước lệnh kế tiếp; job và daemon dừng có proof. CLI cảnh báo trước khi áp dụng nếu còn job |
+| Escalation ([tool system §6](/dev-kit/core-harness/tool-system#6-sandbox-và-escalation)) | Lời gọi được nới chạy trong **jail dùng một lần** qua `sandbox.Start` với policy rộng hơn; jail của session giữ nguyên |
+| Host khởi động | Reaper đọc `exec_jail_processes` của incarnation cũ; kill process còn khớp PID và start time; xóa row |
+
+Jail đang sống giữ host chạy theo [host API §3](/dev-kit/core-harness/host-api#3-cách-chạy-process); thời gian rảnh bảo đảm host không bị daemon giữ mãi.
+
+## 6. Lưu bền
+
+Bảng `exec_jail_processes`, owner là `internal/jail` (đăng ký trong ADR bảng):
+
+| Cột | Ghi chú |
+| --- | --- |
+| `session_id`, `pid`, `start_time` | Khóa chính; `start_time` lấy từ hệ điều hành để tránh nhầm PID tái sử dụng |
+| `kind` | `supervisor`, `command`, `job`, `daemon` |
+| `incarnation` | Host incarnation đã spawn |
+| `recorded_at` | |
+
+Row chỉ chứa metadata (INV-09): không có argv, env hay output. Output nằm trong memory (J-06): mất khi host chết, cùng lúc với job đã chết theo jail.
+
+## 7. Env snapshot
+
+- Khi dựng jail, host chạy `$SHELL -l -i -c 'env -0'` **ngoài sandbox**, timeout 10 s. Lỗi hoặc treo thì dùng `os.Environ` cộng các thư mục bin phổ biến và báo cho user.
+- **Denylist** (không phân biệt hoa thường), bỏ biến khi:
+  - Tên chứa `TOKEN`, `SECRET`, `PASSWORD`, `PASSWD`, `CREDENTIAL`, `PRIVATE`; tên kết thúc bằng `_KEY`; tên bắt đầu bằng `AWS_`; tên là `GOOGLE_APPLICATION_CREDENTIALS` hoặc `SSH_AUTH_SOCK`.
+  - Giá trị có dạng URL kèm thông tin đăng nhập (`scheme://user:pass@…`).
+- Workspace khai báo tên được giữ (H-34). Giữ `SSH_AUTH_SOCK` thì socket của nó được thêm vào `Policy.AllowUnixSockets`.
+- CLI hiện **tên** các biến bị bỏ, không hiện giá trị.
+- Env được gửi kèm mỗi `Exec`; refresh snapshot không dựng lại jail. Daemon giữ env lúc nó khởi động.
+- Giá trị env không vào journal, log, audit hay registry. Journal chỉ ghi `envRevision` là ID ngẫu nhiên của snapshot, không phải hash của giá trị.
+- Giữ nguyên quy tắc shared-home và giới hạn Gradle/Bazel/sbt dùng daemon của host ở [tool system §7.3](/dev-kit/core-harness/tool-system#73-env-của-host).
+
+## 8. Docker
+
+Chỉ khi sandbox profile là `full-access` (J-05), theo [tool system §8](/dev-kit/core-harness/tool-system#8-network-và-docker):
+
+- Endpoint lấy bằng `docker context inspect --format '{{.Endpoints.docker.Host}}'` **ngoài sandbox**, với env snapshot, timeout 10 s.
+- `unix://`: resolve symlink rồi thêm vào `Policy.AllowUnixSockets`. `tcp://`: qua network `host`. `ssh://`: không hỗ trợ, báo lỗi có kiểu.
+- Thư mục thật của Docker CLI (resolve từ `PATH`) thêm vào `Policy.ReadOnlyPaths`.
+- Jail mang nhãn **host-root**; CLI hiển thị nhãn này.
+- Giới hạn chấp nhận: `credsStore` dùng Keychain có thể bị seatbelt chặn, nên pull từ registry private có thể lỗi.
+
+## 9. Failure và recovery
+
+| Tình huống | Hành vi |
+| --- | --- |
+| Supervisor chết khi đang có lệnh | Linux: có stop proof, attempt kết thúc `failed` kèm lý do `jail_lost`. macOS: không có proof, `Interrupted(effect_unknown)` theo [state machine](/dev-kit/core-harness/state-machine). Lệnh sau dựng jail mới |
+| Host crash | Như §4; recovery của attempt theo state machine §8; job được báo `lost` (shell và job §4) |
+| Vault lock | Jail và job đang chạy không dừng; check mới fail closed theo [interaction §5](/dev-kit/core-harness/interaction#5-vòng-đời-và-recovery) |
+| Lỗi giao thức hoặc frame quá lớn | `Stop` cả jail; lệnh đang chạy xử lý như supervisor chết |
+| Dựng jail thất bại (thiếu bwrap, Landlock không có, profile lỗi) | Lỗi có kiểu `sandbox_unavailable` kèm nguyên nhân; không chạy ngoài sandbox (J-07) |
+| Env snapshot lỗi | Dùng fallback, báo user; jail vẫn dựng |
+
+## 10. Bảo mật
+
+- Chỉ hai lệnh chạy ngoài sandbox: env snapshot và `docker context inspect`. Cả hai do host khởi tạo, argv cố định, không nhận input của model.
+- Thư mục nhạy cảm luôn bị chặn đọc: `~/.ssh`, `~/.gnupg`, `~/.aws`, cấu hình gcloud, data directory của Fugue (`Policy.DenyReadPaths`, cộng phần chặn có sẵn của `internal/sandbox`).
+- Supervisor và mọi message của nó là không tin cậy (§3). Output của lệnh là nội dung không tin cậy (H-26).
+- Network `host` ở giai đoạn A không chặn dữ liệu bị gửi ra ngoài ([phát hành giai đoạn A §2](/dev-kit/core-harness/activation#2-phạm-vi-giai-đoạn-a)).
+
+## 11. Giới hạn
+
+| Thứ | Mặc định (cấu hình theo workspace, H-34) |
+| --- | --- |
+| Rảnh thì dừng jail | 30 phút |
+| Ân hạn khi cancel | 5 s, sau đó `SIGKILL`; supervisor không trả lời thì dừng jail |
+| Env snapshot, `docker context inspect` | timeout 10 s |
+| Frame host–supervisor | ≤ 1 MiB |
+| Jail sống cùng lúc | 1 mỗi session, cộng tối đa 1 jail dùng một lần cho escalation đang chạy |
+
+## 12. Evidence
+
+- Linux: Gradle daemon sống qua nhiều lời gọi dưới `--unshare-pid`; `Stop` không để lại process nào (kiểm tra bằng `/proc`).
+- Kill host: Linux không còn process của jail; macOS reaper dọn được daemon đã `setsid` khi host khởi động lại.
+- Cancel: `SIGTERM` đủ; cần `SIGKILL`; supervisor bị treo dẫn tới `Stop` cả jail.
+- Rảnh 30 phút (fake clock) dừng jail; đổi sandbox profile dựng lại jail; escalation chạy trong jail riêng và không đổi jail của session.
+- Lọc env: mọi mẫu của denylist bị bỏ; tên được workspace cho phép thì giữ; không giá trị nào xuất hiện trong journal, log, audit hay registry.
+- Docker: endpoint chỉ được mở ở `full-access`; `ssh://` bị từ chối.
+- cwd do supervisor báo nằm ngoài workspace bị từ chối.
+- Fuzz cho parser frame; frame quá lớn dừng jail.
+- `sandbox_unavailable` khi thiếu backend; không có đường chạy ngoài sandbox.
+
+## 13. Spike còn mở (giai đoạn B)
+
+| Hạng mục | Cần chứng minh |
+| --- | --- |
+| Egress allowlist | Proxy CONNECT trên macOS (seatbelt) và Linux (forwarder trong jail) |
+| Docker proxy | Lọc API kể cả BuildKit và compose; label và cleanup container |
+| Keychain trong seatbelt | Docker `credsStore` cho registry private |
+| Daemon macOS | Theo dõi đầy đủ daemon tự tách thay cho best-effort |
+
+## 14. Phụ thuộc
+
+- Cần trước: H-16, F1.6 (`internal/sandbox`), [interaction](/dev-kit/core-harness/interaction) (sandbox profile, escalation).
+- Mảng dùng trang này: H-18 ([shell và job](/dev-kit/core-harness/shell-job)); H-34 (thời gian rảnh, allowlist env, timeout); H-45 (hiển thị jail, daemon, nhãn host-root, biến env bị bỏ).

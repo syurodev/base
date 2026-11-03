@@ -1,0 +1,121 @@
+---
+title: Shell và job
+description: H-18 — contract của tool shell và job.*, phân loại risk cho từng lệnh, grantScope, cwd, chuyển timeout thành job, giới hạn output và daemon.
+---
+
+# Shell và job
+
+Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-18 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Trang này cụ thể hóa [tool system §7.1–7.2](/dev-kit/core-harness/tool-system#7-shell-job-và-env); lệnh chạy trong jail của [sandbox runtime](/dev-kit/core-harness/sandbox-runtime); quyết định khi nào hỏi theo [interaction §3](/dev-kit/core-harness/interaction#3-policy).
+
+## 1. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| SH-01 | Mỗi lời gọi `shell` chạy **một lệnh một lần** trong jail của session (T-05); không có shell tương tác giữ trạng thái |
+| SH-02 | `risk` được xác định **theo từng lệnh** trong `Prepare`: lệnh thuộc danh sách chỉ đọc là `read`; khớp luật tĩnh là `destructive`/`external`; còn lại là `write` |
+| SH-03 | `grantScope` chỉ được đề nghị cho **một lệnh đơn**; lệnh ghép chỉ có "cho 1 lần" |
+| SH-04 | Quá timeout thì lệnh **chuyển thành job**, không bị kill (T-11) |
+| SH-05 | Job không phải attempt của kernel; job xong được báo cho model ở ranh giới step kế tiếp |
+
+## 2. Tool `shell`
+
+### 2.1 Args
+
+| Arg | Kiểu | Ràng buộc |
+| --- | --- | --- |
+| `command` | string | Bắt buộc; ≤ 16 KiB |
+| `cwd` | string? | Tương đối với workspace root; sau khi resolve symlink phải nằm trong workspace. Mặc định là cwd cuối của lời gọi `shell` trước trong session (§2.4) |
+| `env` | map? | Ghi đè biến; tên phải trong allowlist override của workspace (H-34); ≤ 32 mục |
+| `timeout_ms` | int? | ≤ mức trần của workspace; mặc định theo workspace (10 phút) |
+| `background` | bool? | `true` thì chạy thẳng thành job |
+| `sandbox_permissions`, `justification` | ? | Escalation theo [tool system §6](/dev-kit/core-harness/tool-system#6-sandbox-và-escalation) |
+
+### 2.2 Descriptor
+
+| Field | Giá trị |
+| --- | --- |
+| `effectClass` | `side_effecting` |
+| `risk` / `confirm` | `write` / `custom`; `Prepare` trả giá trị hiệu lực cho call (§2.3) |
+| `grantScope` | §2.3 |
+| `resultBudget` | 30 KiB mỗi kênh (stdout, stderr) |
+| `timeoutCap` | Mức trần của workspace, tối đa 60 phút |
+
+### 2.3 `Prepare`: phân loại và grant scope
+
+1. Phân tích `command` thành danh sách **lệnh đơn**: tách theo pipeline, `&&`, `||`, `;`, subshell, command substitution, process substitution; ghi nhận redirect.
+2. Không phân tích được (`eval`, heredoc phức tạp, tên lệnh động như `$CMD`) thì `risk = write`, đánh dấu `unparsed`; interaction §3.3 kết luận `ask` ở Auto.
+3. `risk = read` khi **mọi** lệnh đơn thuộc danh sách chỉ đọc **và** không có redirect ghi file (`>`, `>>`, `tee` ra file). Danh sách mặc định: `ls`, `cat`, `head`, `tail`, `wc`, `stat`, `file`, `grep`, `rg`, `find` (không có `-exec`, `-delete`, `-fprint*`), `tree`, `pwd`, `echo`, `which`, `git status|log|diff|show|branch|rev-parse|ls-files|blame`, `go list|env|version`. Workspace bổ sung được (H-34).
+4. Khớp luật tĩnh của [interaction §3.3](/dev-kit/core-harness/interaction#33-luật-tĩnh-cho-shell) thì nâng `risk` theo luật.
+5. Còn lại `risk = write`.
+6. `grantScope`: chỉ khi danh sách có **đúng một** lệnh đơn và không `unparsed`. `key = "shell:prefix:" + program + " " + subcommand` (subcommand là token đầu tiên không bắt đầu bằng `-`, nếu có); `label` có dạng `mọi lệnh go test … trong session này`. Lệnh ghép không có `grantScope`, nên chỉ được đề nghị `allowed_once`.
+7. Summary của request do `Prepare` dựng từ `command` canonical, cwd và các override env (chỉ tên), không lấy mô tả của model.
+
+### 2.4 `Execute`
+
+- `Jail.Exec` với argv `[bash, -c, command]` (không có bash thì `sh`), không login, không tương tác: stdin là `/dev/null`, `CI=1`, `PAGER=cat`, `GIT_PAGER=cat`, `TERM=dumb`.
+- Wrapper ghi cwd cuối ra fd 3; host kiểm tra cwd nằm trong workspace, ngoài workspace thì giữ cwd cũ và ghi cảnh báo trong result.
+- Lệnh xong trong timeout: supervisor kill process group của lệnh (daemon đã tự tách thì sống tiếp, [sandbox runtime §4](/dev-kit/core-harness/sandbox-runtime#4-nền-tảng-và-stop-proof)).
+- Quá timeout: lệnh **không** bị kill; attempt kết thúc với outcome `backgrounded` kèm `job_id`; lệnh tiếp tục là job (§4).
+
+### 2.5 Result
+
+| Kênh | Nội dung |
+| --- | --- |
+| Model | Exit code, stdout và stderr tách riêng trong `resultBudget` (giữ đầu và cuối, marker ghi số byte bị cắt), cwd cuối, thời gian chạy, `job_id` nếu `backgrounded` |
+| Structured | `exit_code`, `cwd`, `duration_ms`, `truncated`, `outcome` ∈ `completed`, `backgrounded`, `cancelled` |
+| Metadata | Không có output hay argv; chỉ outcome, exit code, thời gian (INV-09) |
+
+Output là nội dung không tin cậy (H-26) và đi vào protected payload.
+
+## 3. Tool `job.*`
+
+| Tool | Args | `risk` / `confirm` | Ghi chú |
+| --- | --- | --- | --- |
+| `job.output` | `job_id`, `from?` hoặc `tail?`, `max_bytes?` (≤ 30 KiB) | `read` / `never` | Đọc ring buffer; báo khi phần cũ đã bị đè |
+| `job.status` | `job_id?` | `read` / `never` | Không có `job_id` thì liệt kê job và daemon của session |
+| `job.cancel` | `job_id` | `write` / `never`; `grantScope` key `job:cancel` | `SIGTERM`, ân hạn, `SIGKILL`; result kèm proof ([sandbox runtime §4](/dev-kit/core-harness/sandbox-runtime#4-nền-tảng-và-stop-proof)) |
+
+`job_id` gắn với session và là capability: session khác dùng thì lỗi `job.not_found`, không phân biệt với job không tồn tại.
+
+## 4. Job
+
+- Job là process do supervisor quản lý, sinh từ `shell` với `background` hoặc khi quá timeout. Job **không phải attempt**: không cản `RunFinished`, không có retry.
+- Output: ring buffer trong memory, 8 MiB mỗi kênh, giữ phần mới nhất.
+- Job xong: coordinator đưa thông báo có nhãn (`job_id`, exit code, thời gian, số byte output) vào `Inject` ở ranh giới step kế tiếp, hoặc ở run sau nếu session rảnh ([điều phối input §2](/dev-kit/core-harness/coordination#2-các-loại-input)). Thông báo không đóng vai input của user và không mở run mới.
+- Host chết hoặc jail dừng: job dừng. Sau recovery, model nhận thông báo `job lost` cho mỗi job chưa báo kết thúc.
+- Stop run: lệnh `shell` đang chạy (chưa thành job) bị cancel; job đang chạy nền **không** bị dừng.
+- Giới hạn: tối đa 3 job cùng lúc mỗi session, mỗi job sống tối đa 2 giờ (cấu hình theo workspace). Vượt số job thì `shell` với `background` bị từ chối có kiểu `job.limit_reached`; lệnh quá timeout khi đã đủ job thì bị cancel và báo lý do.
+
+## 5. Daemon
+
+- Daemon là process còn sống trong jail không thuộc lệnh hay job nào đang chạy (ví dụ Gradle, Kotlin, mvnd).
+- Hiện trong `job.status` và trong CLI (H-45); user dừng từng daemon hoặc khởi động lại jail.
+- Daemon giữ env và policy lúc nó khởi động; dừng cùng jail ([sandbox runtime §5](/dev-kit/core-harness/sandbox-runtime#5-vòng-đời)).
+
+## 6. Failure
+
+| Tình huống | Hành vi |
+| --- | --- |
+| Crash giữa `ToolDispatchStarted` và result | `Interrupted(effect_unknown)` theo state machine; không chạy lại |
+| Jail mất khi lệnh đang chạy | Theo [sandbox runtime §9](/dev-kit/core-harness/sandbox-runtime#9-failure-và-recovery) |
+| `cwd` không còn tồn tại | Lỗi args `shell.cwd_missing`; model chọn cwd khác |
+| Lệnh chờ stdin | Đọc `/dev/null` thì nhận EOF; lệnh treo vì lý do khác thì theo timeout |
+
+Mã lỗi công khai: `shell.cwd_outside_workspace`, `shell.cwd_missing`, `shell.env_not_allowed`, `shell.timeout_over_cap`, `job.not_found`, `job.limit_reached`, `sandbox_unavailable`.
+
+## 7. Evidence
+
+- Bảng phân loại: mỗi lệnh trong danh sách chỉ đọc là `read`; có redirect ghi thì `write`; `find -delete` là `write`; mỗi nhóm luật tĩnh nâng đúng `risk`; lệnh `unparsed` là `write`.
+- `grantScope`: lệnh đơn cho key đúng (`go test ./...` → `shell:prefix:go test`); lệnh ghép không có grant scope.
+- cwd: mặc định lấy từ lời gọi trước; ngoài workspace bị từ chối; cwd do wrapper báo ngoài workspace không được nhận.
+- Timeout thành job với fake clock; output trước timeout có trong result; job xong được `Inject` đúng một lần.
+- `job.cancel` có proof; job của session khác trả `job.not_found`.
+- Giới hạn 3 job và 2 giờ; ring buffer bị đè có marker.
+- Stop run cancel lệnh đang chạy nhưng không dừng job nền.
+- Output và argv không xuất hiện trong metadata, log hay audit.
+- Fuzz cho parser lệnh shell.
+
+## 8. Phụ thuộc
+
+- Cần trước: [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (H-25), [interaction](/dev-kit/core-harness/interaction) (H-24), H-16.
+- Mảng liên quan: H-26 (nhãn nội dung không tin cậy cho output), H-34 (timeout, giới hạn job, danh sách chỉ đọc bổ sung, allowlist override env), H-45 (hiển thị job và daemon).

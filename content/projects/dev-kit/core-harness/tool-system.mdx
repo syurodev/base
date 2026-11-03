@@ -134,6 +134,8 @@ Xin lại đúng mode hiện tại thì không hỏi; xin hẹp hơn là args kh
 
 ## 7. Shell, job và env
 
+> Contract chi tiết: [shell và job](/dev-kit/core-harness/shell-job) (H-18) và [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (H-25), v0.13. Khi khác nhau, hai trang đó thắng.
+
 ### 7.1 Shell
 
 - Mỗi lệnh chạy một lần, **bên trong jail sống theo session**: không tương tác (stdin đóng, `CI=1`, `PAGER=cat`), trả exit code, stdout và stderr tách riêng.
@@ -160,7 +162,7 @@ Xin lại đúng mode hiện tại thì không hỏi; xin hẹp hơn là args kh
 ### 7.4 Platform
 
 - macOS: seatbelt gán profile theo từng process, daemon kế thừa profile. DevKit giữ registry process của session (PID kèm thời điểm start, ghi trong journal) và chạy reaper khi khởi động để dọn process mồ côi sau crash.
-- Linux: bwrap `--die-with-parent` cho bằng chứng dừng; giữ daemon qua nhiều lời gọi mà vẫn `--unshare-pid` cần supervisor chung namespace (spike).
+- Linux: bwrap `--die-with-parent` cho bằng chứng dừng; daemon sống qua nhiều lời gọi trong cùng PID namespace nhờ supervisor theo session ([sandbox runtime](/dev-kit/core-harness/sandbox-runtime) §4).
 - Model attempt bị gián đoạn do host crash được tính vào retry budget để crash lặp có điểm dừng.
 
 ## 8. Network và Docker
@@ -233,7 +235,7 @@ Tool file còn hai luật cứng: **đọc trước khi sửa** và **từ chố
 
 | Hạng mục | Cần chứng minh |
 | --- | --- |
-| Daemon trên Linux | Giữ Gradle daemon qua nhiều lời gọi với `--unshare-pid` |
+| ~~Daemon trên Linux~~ | Thành evidence của [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) §12 |
 | Tách registry daemon | Gradle dùng cache chung nhưng registry daemon riêng của session |
 | Egress allowlist | Proxy CONNECT trên macOS (seatbelt) và Linux (forwarder trong jail) |
 | Docker proxy | Lọc API kể cả BuildKit và compose; label và cleanup container |
