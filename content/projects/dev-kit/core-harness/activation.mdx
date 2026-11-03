@@ -28,7 +28,7 @@ Trạng thái: v0.13, viết lại ngày 2026-11-03 để trả lời Q-02 trong
 | Client | CLI/TUI `fugue` là client tin cậy duy nhất: tạo và chạy session, trả lời interaction, mở vault, đăng nhập ChatGPT, xem job và snapshot, mọi hành động failure UX ở [mục 3](#3-failure-ux-bắt-buộc). Thiết kế chi tiết ở H-45 |
 | Provider | OpenAI Responses, auth bằng gói ChatGPT. Đăng nhập từ CLI theo §11.2 (PKCE, `state`, `nonce`, mở trình duyệt hệ thống). Các chữ bắt buộc của §11.6 hiện dạng text trong CLI: "Continue with ChatGPT", thông báo lần đầu bật plan usage, "Using ChatGPT plan" kèm link "Manage usage". Không failover tự động (M-09) |
 | Tool | File: read, grep, glob, edit, write, patch (H-17). Shell và job (H-18, H-25). `ask_user`, plan, todo (H-20). Turn và tool snapshot, restore (H-28) |
-| Preset | Chỉ đọc / Workspace / Full access theo [tool system §5.2](/dev-kit/core-harness/tool-system#52-preset-theo-workspace). Với Workspace và Full access, CLI MUST nói rõ network là `host`: sandbox chặn ghi ngoài workspace nhưng **không chặn dữ liệu bị gửi ra ngoài** |
+| Mode và sandbox | Approval mode Plan / Ask / Auto / Full và sandbox profile theo [interaction §2](/dev-kit/core-harness/interaction#2-hai-trục-sandbox-profile-và-approval-mode); mặc định `workspace-write` + Auto. Với `workspace-write` và `full-access`, CLI MUST nói rõ network là `host`: sandbox chặn ghi ngoài workspace nhưng **không chặn dữ liệu bị gửi ra ngoài** |
 | Lưu trữ | Execution history chỉ local (S-04). Vault phải mở để chạy hoặc resume (S-01, S-02) |
 
 Không có trong giai đoạn A: vendor session, peer message, child session và subagent, tool song song, remote worker, truy cập từ xa, import dữ liệu DevKit, provider-hosted tools (M-07).
@@ -53,7 +53,7 @@ Mỗi tình huống dưới đây MUST hiện trong CLI, dựng từ read model,
 | Data directory đang bị process khác giữ | Execution store unavailable, kèm đường dẫn data directory | Đóng process kia |
 | Schema hoặc protocol không hỗ trợ | Stream chỉ đọc hoặc unavailable, hiện version của CLI và của host | Nâng cấp Fugue (host hoặc CLI) |
 
-Mọi preview chỉ hiện metadata cho phép theo INV-09; nội dung payload chỉ hiện khi vault mở, trong client tin cậy. Host không có answerer tin cậy (headless, nil responder) thì interaction là `unavailable`, fail closed.
+Mọi preview chỉ hiện metadata cho phép theo INV-09; nội dung payload chỉ hiện khi vault mở, trong client tin cậy. Host headless thì interaction là `unavailable`, fail closed; không có client nào đang nối thì request chờ ([interaction](/dev-kit/core-harness/interaction) I-07).
 
 ## 4. Nâng cấp và hạ phiên bản (G-06)
 

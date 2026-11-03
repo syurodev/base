@@ -75,7 +75,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | H-17 | Tool file: read, tìm (grep/glob), edit, write, patch | Chưa | — | A | H-16, H-28 |
 | H-18 | Tool shell và job | Chưa (cấp hệ thống đã có) | Tool system §7 | A | H-16, H-25 |
 | H-19 | Tool đọc code: codegraph, LSP, workspace search. Giai đoạn A chỉ đọc code bằng read, grep, glob (H-17) | Chưa | — | B | H-16 |
-| H-20 | Hỏi user có cấu trúc (`ask_user`), plan và todo | Chưa | — | A | H-24 |
+| H-20 | Hỏi user có cấu trúc (`ask_user`), plan và todo | Một phần | [Interaction](/dev-kit/core-harness/interaction) §2.2, §4.1 (kind `question`, lối thoát Plan mode) | A | H-24 |
 | H-21 | Web fetch và web search: có cần không, và nếu có thì thiết kế ra sao | Chưa | — | B | H-26 |
 | H-22 | ~~Chuyển các group nghiệp vụ của DevKit sang native~~ | Bỏ (A-03): Fugue không có các owner service này | [Activation](/dev-kit/core-harness/activation) §1 | — | — |
 | H-23 | MCP server bên ngoài và plugin làm nguồn tool: adapter, ghim mô tả, trust | Chưa | — | B | H-16, H-26 |
@@ -84,7 +84,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
-| H-24 | Interaction owner API (phần còn lại của G-05): request, receipt, selection; cách từng owner tách luồng | Một phần | Tool system §5, [architecture](/dev-kit/core-harness/architecture#approval-qua-owning-gateway) | A | H-16 |
+| H-24 | Interaction owner API và approval policy (phần còn lại của G-05): approval mode, sandbox profile, policy khi nào hỏi, env tag, grant scope, request/receipt/question, Host API | Đã chốt | [Interaction](/dev-kit/core-harness/interaction) | A | H-16, H-42 |
 | H-25 | Sandbox runtime: jail theo session, process registry, reaper, env snapshot, Docker endpoint | Một phần (còn spike) | Tool system §6–8 | A | H-16 |
 | H-26 | Nội dung không tin cậy và prompt injection: tool result, file, web, mô tả MCP; cách gắn nhãn | Một phần | Bất biến rải rác | A | — |
 | H-27 | Redact secret trong result, log, export | Một phần | Tool system §10 | A | H-26 |
@@ -104,7 +104,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | --- | --- | --- | --- | --- | --- |
 | H-32 | Read model và streaming tới client: timeline, delta, catch-up | Gộp vào H-42 | Event storage §9 | A | H-42 |
 | H-33 | UI desktop cho session: picker tool và preset, failure UX, view job/daemon/snapshot | Một phần | Activation §3 | B | H-32, H-44 |
-| H-34 | Cấu hình theo workspace: preset, hạn mức, timeout, danh sách loại trừ, network | Một phần | Tool system, storage-security | A | — |
+| H-34 | Cấu hình theo workspace: mode và sandbox profile mặc định, luật shell, ánh xạ tag, hạn mức, timeout, danh sách loại trừ, network | Một phần | Tool system, storage-security, [interaction](/dev-kit/core-harness/interaction) §3.3 | A | H-24 |
 | H-35 | Host khác: server mode, CLI, Telegram control cho session native | Gộp vào H-42 | Architecture §7 | A | H-42 |
 | H-42 | **Host API**: contract command, query và event có schema và version, không gắn Wails; transport (Wails, socket local, HTTP/WebSocket loopback, MCP); read model với snapshot và catch-up; tin cậy client (ai được duyệt approval, mở vault); lệch version giữa UI và lõi; cách chạy process (nhúng, daemon hoặc cả hai) | Đã chốt | [Host API](/dev-kit/core-harness/host-api) | A | H-02, H-24 |
 | H-43 | ~~Kiểm kê logic nghiệp vụ ở frontend DevKit~~ | Bỏ (A-03, Q-05): DevKit đóng băng | — | — | — |
@@ -128,7 +128,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 2. ~~**Model adapter, usage, account** (H-07, H-08, H-09)~~: đã chốt ở [model adapter](/dev-kit/core-harness/model-adapter).
 3. ~~**Host API** (H-42, gộp H-32 và H-35)~~: đã chốt ở [Host API](/dev-kit/core-harness/host-api).
 4. **Tool file, shell/job, hỏi user** (H-17, H-18, H-20).
-5. **Interaction API, sandbox runtime, nội dung không tin cậy, redact** (H-24, H-25, H-26, H-27).
+5. ~~**Interaction API**~~ (H-24): đã chốt ở [interaction](/dev-kit/core-harness/interaction). Còn **sandbox runtime, nội dung không tin cậy, redact** (H-25, H-26, H-27).
 6. ~~**Queue/steering** (H-29) và **continuation** (H-31)~~: đã chốt ở [điều phối input](/dev-kit/core-harness/coordination) và [continuation](/dev-kit/core-harness/continuation).
 7. **CLI/TUI client và cấu hình workspace** (H-45, H-34).
 8. ~~**Phát hành giai đoạn A và compatibility** (H-37, H-36)~~: đã chốt ở [activation](/dev-kit/core-harness/activation) v0.13. Còn **budget** (H-06).

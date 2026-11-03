@@ -8,6 +8,7 @@
     "event-storage-recovery",
     "storage-security",
     "tool-system",
+    "interaction",
     "context-engine",
     "model-adapter",
     "coordination",

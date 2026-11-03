@@ -73,7 +73,7 @@ Planning chỉ ghi budget estimate; reservation có hiệu lực được lập 
 | `ToolCallPlanned` | Tool call/source position, validated-or-raw input ref, descriptor/effect-class version, first attempt | Response đã complete/selected; tạo candidate, chưa cấp quyền |
 | `ToolCheckReset` | Old/new check generation, owner invalidation/read-back receipt, resolved dependency refs | Recovery của Checking/AwaitingApproval/Ready chưa dispatch; invalidate request/receipt/reservation và gỡ dependency cùng batch về Planned; không project refusal hoặc chạy check từ replay |
 | `ToolCheckStarted` | Frontier cursor, invocation/attempt, check generation | Chỉ tool tại frontier; chuyển `Checking`, validate input và nối gateway qua adapter |
-| `ToolApprovalRequested` | Check generation, owner request/ref/revision, exact args ref, approver route, expiry | Owner receipt hợp lệ; tạo approval dependency đúng một tool |
+| `ToolApprovalRequested` | Check generation, owner request/ref/revision, exact args ref, approver route, expiry, gate observation ([interaction §6.2](/dev-kit/core-harness/interaction#62-gate-observation)) | Owner receipt hợp lệ; tạo approval dependency đúng một tool |
 | `ToolApprovalResolved` | Check generation, owner resolution/evidence, approved/denied/expired/invalidated | Chỉ receipt đúng request; gỡ dependency và cập nhật approval observation |
 | `ToolReadyRecorded` | Check generation, validated args ref, gate observation, one-use approval receipt ref nếu cần | Sau check/approval đủ điều kiện scheduling; không là durable grant |
 | `ToolDispatchStarted` | Attempt/fence/check generation, current dispatch authorization/receipt ref, budget reservation | Worker slot đã giữ; append trước handoff; gateway revalidate/claim receipt tại execute, không hỏi đôi |

@@ -22,7 +22,7 @@ Tham khảo khi thiết kế: [pi](https://github.com/earendil-works/pi) (`pi-du
 | T-07 | Giai đoạn A dùng network `host`; mở `docker.sock` theo workspace; Docker proxy là hướng dài hạn |
 | T-08 | Mở rộng sandbox có ba lựa chọn: **không cho / cho 1 lần / cho cả session** |
 | T-09 | Interaction request **chỉ giữ trong memory theo incarnation** |
-| T-10 | Preset mặc định: **Chỉ đọc / Workspace / Full access** |
+| T-10 | ~~Preset mặc định: Chỉ đọc / Workspace / Full access~~. Thay bằng hai trục sandbox profile × approval mode ([interaction](/dev-kit/core-harness/interaction) I-01, I-02) |
 | T-11 | Quá timeout thì **chuyển thành background job**; có tool cancel |
 | T-12 | Hai loại snapshot (**turn** và **tool**) với hạn mức riêng, cấu hình theo workspace; shadow git trước, store thuần Go là nâng cấp dài hạn |
 | T-13 | Contract result ba kênh, error có kiểu |
@@ -96,11 +96,13 @@ Không tự gỡ group giữa session để tiết kiệm token. Chỉ gỡ khi 
 
 Interaction owner giữ request **trong memory theo incarnation**, khóa bằng `operationID` (ensure/read-back để không hỏi trùng). Restart hoặc vault lock làm mất mọi request; tool liên quan đi qua `ToolCheckReset`. Không thêm bảng DB: sự thật bền vững là journal (`ToolApprovalRequested/Resolved`) cộng audit sink. Hệ quả chấp nhận: câu hỏi đang chờ biến mất khi restart (kể cả do updater) và được hỏi lại khi resume; grant "cho cả session" mất sau restart.
 
-Kết quả của một request: `allowed_once`, `allowed_session`, `denied`, `cancelled`, `unavailable`, `expired`. Có allow thì owner cấp receipt dùng một lần như [approval protocol](/dev-kit/core-harness/architecture#approval-qua-owning-gateway). Không có answerer tin cậy (headless, server mode, nil responder) thì `unavailable`, fail closed. Mọi request và kết quả vào audit, không chứa args.
+Kết quả của một request: `allowed_once`, `allowed_session`, `denied`, `cancelled`, `unavailable`, `expired`. Có allow thì owner cấp receipt dùng một lần như [approval protocol](/dev-kit/core-harness/architecture#approval-qua-owning-gateway). Host headless thì `unavailable`, fail closed; không có client nào đang nối thì request chờ ([interaction](/dev-kit/core-harness/interaction) I-07). Kind `question` cho `ask_user`, lời nhắn khi từ chối, `grantScope` và policy quyết định khi nào hỏi ở [interaction](/dev-kit/core-harness/interaction). Mọi request và kết quả vào audit, không chứa args.
 
 Selection (chọn profile, account, scope, trả lời group request) đi đúng luồng này: `Prepare` trả `NeedsSelection`, owner tạo request, lựa chọn được ghim vào Plan kèm revision. Lựa chọn của user không cấp quyền thực thi.
 
 ### 5.2 Preset theo workspace
+
+> Bị thay bởi [interaction](/dev-kit/core-harness/interaction) §2 (v0.13). Bảng dưới chỉ còn giá trị lịch sử; ánh xạ sang hai trục ở [interaction](/dev-kit/core-harness/interaction) §2.2.
 
 | Preset | Sandbox | Network | Docker | Hỏi user |
 | --- | --- | --- | --- | --- |
