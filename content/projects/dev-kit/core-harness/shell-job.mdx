@@ -46,6 +46,8 @@ Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-18 tr
 | `resultBudget` | 30 KiB mỗi kênh (stdout, stderr) |
 | `timeoutCap` | Mức trần của workspace, tối đa 60 phút |
 
+Mô tả tool cho model nói: đổi nội dung file thì dùng `edit` hoặc `write` ([tool file §5](/dev-kit/core-harness/file-tools#5-edit)), gom mọi thay đổi của một việc vào một lời gọi `edit`; không dùng script, `sed -i`, `perl -pi` hay heredoc để ghi file. Shell vẫn là đường đúng cho formatter, generator và codemod (`gofmt -w`, `go generate`). Mức model vòng qua shell được đo bằng `files_changed` (§2.5).
+
 ### 2.3 `Prepare`: phân loại và grant scope
 
 1. Phân tích `command` thành danh sách **lệnh đơn**: tách theo pipeline, `&&`, `||`, `;`, subshell, command substitution, process substitution; ghi nhận redirect. Parser có hai lớp: lexer biết quote, escape, operator và redirect; rồi grammar theo program để phân loại argv (§2.6).
@@ -76,7 +78,7 @@ Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-18 tr
 | --- | --- |
 | Model | Exit code; stdout và stderr tách riêng, đã dựng theo chế độ `output` (§3) và trong `resultBudget`; header compact và hint (§3.6) khi có phần bị ẩn; cwd cuối; thời gian chạy; `output_id` khi output gốc được giữ; `job_id` nếu `backgrounded` |
 | Structured | `exit_code`, `cwd`, `duration_ms`, `outcome` ∈ `completed`, `backgrounded`, `cancelled`; `output_id?`; `output_mode`; `filter`; `filter_result`; `raw_bytes`, `model_bytes` mỗi kênh |
-| Metadata | Không có output hay argv (INV-09); chỉ outcome, exit code, thời gian và các số đo ở §3.8 |
+| Metadata | Không có output hay argv (INV-09); chỉ outcome, exit code, thời gian, các số đo ở §3.8 và `files_changed`: số file trong workspace mà lệnh làm thay đổi, lấy từ diff của tool snapshot |
 
 Output là nội dung không tin cậy (H-26) và đi vào protected payload, ở cả chế độ `compact` lẫn `full`. Result được dựng **một lần** lúc attempt kết thúc và không bao giờ dựng lại, nên history gửi model không đổi và không phá prompt cache.
 

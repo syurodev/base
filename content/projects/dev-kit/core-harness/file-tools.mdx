@@ -14,6 +14,7 @@ Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-17 tr
 | FT-01 | Năm tool: `read`, `grep`, `glob`, `edit`, `write`. Xóa và đổi tên file đi qua `shell` theo luật risk của shell |
 | FT-02 | **Một giao diện cho mọi provider.** Không có schema hay tool riêng theo họ model; mỗi giao diện thêm vào là thêm một chỗ có thể sai |
 | FT-03 | `edit` là **thay chuỗi** `old_string` → `new_string`. Mọi phần chống lỗi (so khớp nhiều tầng, chọn chỗ khớp, kiểm tra cú pháp) nằm ở host; model không phải học cú pháp mới |
+| FT-09 | Một lời gọi `edit` nhận **nhiều thay đổi trên nhiều file** và áp dụng theo kiểu tất cả hoặc không gì cả. Tool sửa file bất tiện cho thay đổi nhiều chỗ thì model vòng qua shell (script, `sed -i`) và mất mọi kiểm tra của `edit` |
 | FT-04 | Phạm vi đọc ghi **theo sandbox profile** của session: file tool và shell có cùng quyền. File tool chạy trong process host nên tự kiểm tra quyền, không dựa vào jail |
 | FT-05 | `edit` kiểm tra bằng chính `old_string`: phải khớp nội dung hiện tại. `write` ghi đè file đã có chỉ khi file đã được đọc trong session và chưa đổi kể từ lần đọc |
 | FT-06 | Ghi nguyên tử theo từng lời gọi; giữ encoding, line ending, BOM và quyền file |
@@ -65,13 +66,27 @@ Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-17 tr
 
 | Arg | Kiểu | Ràng buộc |
 | --- | --- | --- |
-| `path` | string | Bắt buộc; file đã tồn tại |
-| `old_string` | string | Bắt buộc, không rỗng; ≤ 64 KiB |
-| `new_string` | string | Bắt buộc; khác `old_string`; ≤ 256 KiB |
+| `edits` | array | Bắt buộc; 1–50 thay đổi; tổng `old_string` ≤ 256 KiB và tổng `new_string` ≤ 1 MiB |
+
+Mỗi phần tử của `edits`:
+
+| Field | Kiểu | Ràng buộc |
+| --- | --- | --- |
+| `path` | string | Bắt buộc; file đã tồn tại. Các phần tử có thể khác file |
+| `old_string` | string | Bắt buộc, không rỗng |
+| `new_string` | string | Bắt buộc; khác `old_string` |
 | `replace_all` | bool? | Thay mọi chỗ khớp |
 | `line` | int? | Số dòng model thấy ở `read` hoặc `grep`; **chỉ dùng để chọn giữa các chỗ khớp**, không bao giờ thay cho việc khớp nội dung |
 
-Mỗi lời gọi là một thay đổi trên một file, áp dụng nguyên tử. Mô tả tool cho model chỉ nói: `old_string` phải là đoạn có trong file, đủ dài để duy nhất, hoặc dùng `line` khi đoạn lặp lại.
+Một thay đổi đơn là mảng một phần tử; chỉ có một dạng schema để model không phải chọn. Mô tả tool cho model nói: `old_string` phải là đoạn có trong file, đủ dài để duy nhất, hoặc dùng `line` khi đoạn lặp lại; gom mọi thay đổi của một việc vào một lời gọi; dùng `edit` thay cho script hay `sed -i` khi đổi nội dung file.
+
+### 5.1.1 Áp dụng một lời gọi
+
+1. Gom các phần tử theo `path`, giữ thứ tự trong mảng.
+2. Với mỗi file, áp lần lượt từng phần tử **trong memory**: phần tử sau so khớp trên kết quả của phần tử trước. `line` của mọi phần tử đều theo phiên bản đã thấy trước lời gọi; host dịch `line` qua các thay đổi đã áp trước đó trong cùng file.
+3. Kiểm tra cú pháp (§5.6) trên **kết quả cuối** của từng file, không trên từng bước.
+4. Bất kỳ phần tử nào không khớp, mơ hồ, bị từ chối vì placeholder hoặc làm hỏng cú pháp: **không file nào bị ghi**. Lỗi ghi chỉ số của phần tử (`edits[3]`), path và lý do; các phần tử khác được báo là chưa áp dụng.
+5. Mọi file đều qua: ghi theo §8.
 
 ### 5.2 So khớp nhiều tầng
 
@@ -104,12 +119,12 @@ Host thử lần lượt; dừng ở tầng đầu tiên có kết quả:
 
 ### 5.5 Không khớp
 
-Lỗi `edit.no_match` trả tối đa 3 đoạn hiện tại giống `old_string` nhất, mỗi đoạn kèm số dòng dạng `42: ` và đánh dấu các dòng khác nhau, để model sửa ngay mà không phải đọc lại. Các đoạn này là nội dung file nên nằm trong envelope.
+Lỗi `edit.no_match` ghi chỉ số của phần tử và trả tối đa 3 đoạn hiện tại giống `old_string` nhất, mỗi đoạn kèm số dòng dạng `42: ` và đánh dấu các dòng khác nhau, để model sửa ngay mà không phải đọc lại. Các đoạn này là nội dung file nên nằm trong envelope.
 
 ### 5.6 Sau khi ghi
 
 - **Kiểm tra cú pháp** theo phần mở rộng: `.go` (`go/parser`), `.json`, `.yaml`/`.yml`, `.toml`. File parse được trước khi sửa mà không parse được sau khi sửa thì **không ghi**, lỗi `edit.syntax_broken` kèm vị trí. File vốn đã không parse được thì vẫn ghi, result kèm cảnh báo.
-- Result trả **diff đã áp dụng**: các dòng bị thay và dòng mới, kèm 3 dòng context, có số dòng của phiên bản mới; cap 200 dòng.
+- Result trả **diff đã áp dụng** theo từng file: các dòng bị thay và dòng mới, kèm 3 dòng context, có số dòng của phiên bản mới; cap 200 dòng mỗi file và 600 dòng mỗi lời gọi, phần vượt chỉ còn số dòng thêm bớt.
 
 ## 6. `write`
 
@@ -139,6 +154,7 @@ Lỗi `edit.no_match` trả tối đa 3 đoạn hiện tại giống `old_string
 
 - `grantScope` cho `edit` và `write` dùng chung họ khóa `edit:dir:`: `key = "edit:dir:" + thư mục cấp đầu + "/"` (ví dụ `edit:dir:internal/`), `label` dạng `sửa mọi file trong internal/ trong session này`.
 - File ở gốc workspace và đích ngoài workspace không có grant scope, chỉ có "cho 1 lần".
+- Lời gọi `edit` nhiều file: risk và confirm hiệu lực là mức **cao nhất** trong các file; grant scope chỉ có khi mọi file cùng một thư mục cấp đầu, còn lại chỉ có "cho 1 lần". Summary của request liệt kê mọi path và số thay đổi mỗi path.
 
 ## 8. Ghi file
 
@@ -146,37 +162,40 @@ Lỗi `edit.no_match` trả tối đa 3 đoạn hiện tại giống `old_string
 - Giữ line ending của file (LF hoặc CRLF, theo đa số dòng), BOM và việc có hay không newline cuối file. `new_string` và `content` được chuyển sang line ending của file.
 - Tool snapshot `before`/`after` bao quanh mỗi lời gọi ghi theo [tool system §9](/dev-kit/core-harness/tool-system#9-snapshot).
 - File đã đổi giữa lúc `Prepare` và lúc ghi (so hash ngay trước `rename`): không ghi, lỗi `file.changed_during_write`.
+- **Nhiều file trong một lời gọi:** mọi kiểm tra (§5.1.1) xong trước khi ghi file nào. Host ghi mọi file tạm, so hash của mọi file gốc lần cuối, rồi `rename` lần lượt. Hệ điều hành không cho `rename` nhiều file nguyên tử, nên crash giữa các `rename` có thể để lại một phần: `Reconcile` so hash từng file với bản trước và bản sau đã ghi trong protected payload, báo file nào đã ghi, và user restore bằng tool snapshot `before`. File tạm còn sót được dọn khi host khởi động.
 
 ## 9. Result và mã lỗi
 
 | Kênh | Nội dung |
 | --- | --- |
 | Model | Header do harness viết (path, khoảng dòng, tổng số dòng, cảnh báo) và nội dung file, kết quả tìm, diff hoặc đoạn trích lỗi trong envelope ([an toàn nội dung §4](/dev-kit/core-harness/content-safety#4-envelope)) |
-| Structured | `path`, `lines_total`, `range`, `match_tier`, `matches`, `diff_stat`, `encoding` |
+| Structured | `path`, `lines_total`, `range`, `match_tier`, `matches`, `diff_stat`, `encoding`; với `edit`: mỗi phần tử có `index`, `path`, `status` ∈ `applied`, `failed`, `not_applied`, `match_tier` |
 | Metadata | Không có path hay nội dung (INV-09); chỉ tên tool, kết quả, `match_tier`, số dòng thêm bớt, thời gian |
 
-Mã lỗi công khai: `file.not_found`, `file.is_directory`, `file.path_denied`, `file.path_protected`, `file.encoding_unsupported`, `file.too_large`, `file.changed_during_write`, `edit.no_match`, `edit.ambiguous`, `edit.no_change`, `edit.syntax_broken`, `write.not_read`, `write.stale`, `write.content_loss`, `secret.placeholder_not_allowed`.
+Mã lỗi công khai: `file.not_found`, `file.is_directory`, `file.path_denied`, `file.path_protected`, `file.encoding_unsupported`, `file.too_large`, `file.changed_during_write`, `edit.no_match`, `edit.ambiguous`, `edit.no_change`, `edit.syntax_broken`, `edit.too_many`, `write.not_read`, `write.stale`, `write.content_loss`, `secret.placeholder_not_allowed`.
 
 ## 10. Benchmark sửa file
 
 `fugue bench edit` đo **một bước sửa file**, không chạy cả vòng agent:
 
 1. Lấy file Go thật từ repo được chỉ định; tạo task bằng đột biến, kèm mô tả lỗi bằng lời.
-2. Gửi một request cho model: kết quả `read` của file, mô tả lỗi, schema của biến thể tool đang đo.
-3. Model trả đúng một tool call; engine sửa file chạy như thư viện, không cần host hay jail.
+2. Gửi một request cho model: kết quả `read` của các file liên quan, mô tả việc cần làm, schema của biến thể tool đang đo **và schema của `shell`**.
+3. Model trả đúng một tool call; engine sửa file chạy như thư viện, không cần host hay jail. Lời gọi `shell` không được chạy; nó được tính là **vòng qua shell** và task thất bại.
 4. Cho thử lại một lần với thông báo lỗi của engine.
 5. So kết quả với file gốc sau `gofmt`; chạy test của package nếu có.
 
 | Nhóm task | Tạo bằng cách | Đo |
 | --- | --- | --- |
 | Đột biến nhỏ | Đổi toán tử, lật bool, lệch 1, đổi tên | Sửa chính xác một chỗ |
-| Nhiều chỗ | 3–5 đột biến trong một file | Sửa liên tiếp |
+| Nhiều chỗ | 3–5 đột biến trong một file | Gom trong một lời gọi, áp lần lượt |
+| Nhiều file | Đổi tên một hàm hoặc field dùng ở 3–8 file | Thay đổi nhiều file, tất cả hoặc không gì cả |
 | File lớn | File trên 800 dòng | Token, mất nội dung |
 | Formatter | Đổi indent hoặc chạy `gofmt` giữa lúc đọc và lúc sửa | Tầng so khớp |
 | File đã đổi | Sửa chỗ khác giữa lúc đọc và lúc sửa | Dịch `line`, phát hiện thay đổi |
 | Dòng trùng | Đột biến cạnh các dòng lặp (`}`, `return nil`) | Chọn đúng chỗ khớp |
 
-- Số đo: tỉ lệ đúng ở lần đầu và sau khi thử lại; tỉ lệ bị từ chối; **tỉ lệ áp nhầm** (engine chấp nhận nhưng kết quả sai); token input và output, quy ra chi phí theo bảng giá của model.
+- Số đo: tỉ lệ đúng ở lần đầu và sau khi thử lại; tỉ lệ bị từ chối; **tỉ lệ áp nhầm** (engine chấp nhận nhưng kết quả sai); **tỉ lệ vòng qua shell**; số phần tử trung bình mỗi lời gọi; token input và output, quy ra chi phí theo bảng giá của model.
+- Ngoài benchmark, tỉ lệ vòng qua shell trong session thật được đo bằng số file đã theo dõi mà lệnh `shell` làm thay đổi ([shell và job §2.5](/dev-kit/core-harness/shell-job#25-result)); CLI (H-45) hiện số này.
 - Biến thể: `edit` không có tầng lỏng; `edit` đầy đủ; từng tầng T1–T4 và `line` bật tắt riêng; biến thể anchor theo hash dòng chỉ có trong benchmark.
 - Tầng hoặc tính năng không cải thiện số đo thì bị bỏ. Đổi format sửa file chỉ khi một biến thể tốt hơn rõ rệt về tỉ lệ đúng mà không tăng tỉ lệ áp nhầm.
 
@@ -196,6 +215,8 @@ Mã lỗi công khai: `file.not_found`, `file.is_directory`, `file.path_denied`,
 
 - Mỗi tầng T0–T4 có fixture khớp đúng; tầng lỏng có nhiều chỗ khớp thì từ chối; `replace_all` không dùng tầng T2 trở đi.
 - `line` chọn đúng chỗ khớp; `line` được dịch khi file đã đổi; không có `line` thì `edit.ambiguous` kèm danh sách dòng.
+- Nhiều phần tử: phần tử sau thấy kết quả của phần tử trước trong cùng file; `line` được dịch qua các thay đổi trước đó; một phần tử lỗi thì không file nào bị ghi và lỗi chỉ đúng `edits[i]`; cú pháp kiểm tra trên kết quả cuối; quá 50 phần tử thì `edit.too_many`.
+- Nhiều file: risk hiệu lực là mức cao nhất; grant scope chỉ khi cùng thư mục cấp đầu; crash giữa các `rename` được `Reconcile` báo đúng file đã ghi; file tạm còn sót được dọn.
 - `edit.no_match` trả đoạn giống nhất có số dòng.
 - Sửa làm hỏng cú pháp file Go, JSON, YAML, TOML bị từ chối; file vốn hỏng vẫn ghi kèm cảnh báo.
 - `write`: tạo mới; ghi đè khi chưa đọc hoặc file đã đổi bị từ chối; chặn mất nội dung đúng ngưỡng.
