@@ -1,82 +1,106 @@
 ---
-title: Activation và failure UX
-description: Quyết định G-07 — opt-in theo session, failure UX, rollback và tiêu chí chuyển hẳn sang harness core.
+title: Phát hành giai đoạn A và failure UX
+description: Quyết định Q-02 và G-07 cho Fugue — phạm vi giai đoạn A, failure UX trên CLI, nâng cấp và hạ phiên bản, evidence để phát hành và danh sách hoãn sang B.
 ---
 
-# Activation và failure UX (G-07)
+# Phát hành giai đoạn A và failure UX (G-07)
 
-Trạng thái: foundation decision v0.12. **Thiết kế G-07 đã chốt**; gate chỉ đóng khi evidence ở [mục 5](#5-evidence-để-bật-giai-đoạn-a) đạt. G-07 vẫn đứng sau G-04 đến G-06: chưa có tool, provider và compatibility path được review thì không có gì để bật.
+Trạng thái: v0.13, viết lại ngày 2026-11-03 để trả lời Q-02 trong roadmap của Fugue. Trang này thay toàn bộ bản v0.12, vốn giả định native runtime chạy cạnh vendor runtime bên trong DevKit. **Fugue là sản phẩm riêng**: không có vendor session, không có cờ opt-in, không rollback về vendor. G-07 chỉ đóng khi evidence ở [mục 5](#5-evidence-để-phát-hành-giai-đoạn-a) đạt.
 
-## 1. Hai giai đoạn
+## 1. Quyết định của người dùng
 
-Quyết định của người dùng: native runtime bật **theo từng session** cho đến khi test xong, rồi **chuyển hẳn sang harness core của DevKit**.
+| ID | Quyết định |
+| --- | --- |
+| A-01 | Giai đoạn A **chỉ có native runtime**. Không chạy Claude Code hay Codex CLI trong Fugue; DevKit đóng băng và không liên quan. G-06 và H-36 chỉ còn nghĩa là tương thích giữa các phiên bản của chính Fugue ([mục 4](#4-nâng-cấp-và-hạ-phiên-bản-g-06)) |
+| A-02 | Provider duy nhất của giai đoạn A là **OpenAI Responses với Sign in with ChatGPT** ([model adapter §11](/dev-kit/core-harness/model-adapter#11-openai-và-sign-in-with-chatgpt)). Quyết định này đảo M-01 cho Fugue (ghi ở M-11). API key OpenAI, Anthropic và failover giữa account sang B |
+| A-03 | Bỏ khỏi Fugue: chuyển group nghiệp vụ của DevKit (H-22), kiểm kê frontend DevKit (H-43, Q-05), ratchet `prompt_sites_test.go`, tool `harness.profile.propose`, peer message (Q-04) |
+| A-04 | Người dùng giai đoạn A **chỉ là chủ dự án** (dogfood). Cài từ build tự làm; không ký code, không auto-update, không onboarding |
+| A-05 | Nền tảng: **Linux và macOS**, evidence phải đạt trên cả hai. Windows sang B vì chưa có backend sandbox |
+| A-06 | Client của giai đoạn A là **CLI/TUI `fugue`** qua [Host API](/dev-kit/core-harness/host-api) (H-45). Electron (H-44) và UI desktop (H-33) sang B |
+| A-07 | **Một cổng phát hành**: chỉ dùng trên repo thật với ChatGPT thật khi đủ bộ tool ở [mục 2](#2-phạm-vi-giai-đoạn-a) và đủ evidence ở [mục 5](#5-evidence-để-phát-hành-giai-đoạn-a). Không có mốc chỉ đọc riêng |
+| A-08 | Giai đoạn A được coi là **ổn định khi chủ dự án duyệt** sau khi tự dùng, kèm các ngưỡng an toàn ở [mục 6](#6-a-ổn-định). Không có ngưỡng số ngày hay số run. Tiêu chí của B quyết định sau |
 
-| Giai đoạn | Hành vi | Điều kiện vào |
-| --- | --- | --- |
-| A — Opt-in theo session | Preference `harness.nativeRuntime` (mặc định tắt) chỉ hiện lựa chọn runtime khi tạo session. User chọn native hoặc vendor; vendor vẫn là mặc định | Evidence [mục 5](#5-evidence-để-bật-giai-đoạn-a) |
-| B — Native mặc định | Session mới mặc định native; vendor còn chọn được để so sánh hoặc fallback | Tiêu chí [mục 6](#6-tiêu-chí-chuyển-hẳn-giai-đoạn-b) |
-| C — Chỉ native cho session mới | Không tạo session vendor mới; session vendor cũ vẫn đọc được | Quyết định riêng sau B, kèm kế hoạch gỡ vendor runtime. **Không áp dụng cho subscription Claude**: native runtime không được dùng nó ([model adapter](/dev-kit/core-harness/model-adapter) M-03), nên Claude Code vẫn là đường dùng subscription. Với Codex, gói ChatGPT dùng được trong native runtime ([model adapter §11](/dev-kit/core-harness/model-adapter#11-openai-và-sign-in-with-chatgpt)), nên giai đoạn C có thể áp dụng |
+## 2. Phạm vi giai đoạn A
 
-Runtime **ghim theo session** từ lúc tạo, không đổi giữa chừng (G-06). Không chuyển session vendor thành native, không phản chiếu vendor history thành native events.
+| Mảng | Trong giai đoạn A |
+| --- | --- |
+| Process | Một host `fugue serve` giữ data directory ([host API §3](/dev-kit/core-harness/host-api#3-cách-chạy-process)); CLI tự khởi động host nếu chưa có |
+| Client | CLI/TUI `fugue` là client tin cậy duy nhất: tạo và chạy session, trả lời interaction, mở vault, đăng nhập ChatGPT, xem job và snapshot, mọi hành động failure UX ở [mục 3](#3-failure-ux-bắt-buộc). Thiết kế chi tiết ở H-45 |
+| Provider | OpenAI Responses, auth bằng gói ChatGPT. Đăng nhập từ CLI theo §11.2 (PKCE, `state`, `nonce`, mở trình duyệt hệ thống). Các chữ bắt buộc của §11.6 hiện dạng text trong CLI: "Continue with ChatGPT", thông báo lần đầu bật plan usage, "Using ChatGPT plan" kèm link "Manage usage". Không failover tự động (M-09) |
+| Tool | File: read, grep, glob, edit, write, patch (H-17). Shell và job (H-18, H-25). `ask_user`, plan, todo (H-20). Turn và tool snapshot, restore (H-28) |
+| Mode và sandbox | Approval mode Plan / Ask / Auto / Full và sandbox profile theo [interaction §2](/dev-kit/core-harness/interaction#2-hai-trục-sandbox-profile-và-approval-mode); mặc định `workspace-write` + Auto. Với `workspace-write` và `full-access`, CLI MUST nói rõ network là `host`: sandbox chặn ghi ngoài workspace nhưng **không chặn dữ liệu bị gửi ra ngoài** |
+| Lưu trữ | Execution history chỉ local (S-04). Vault phải mở để chạy hoặc resume (S-01, S-02) |
 
-## 2. Phạm vi một session native ở giai đoạn A
-
-- Bộ tool cơ bản của native ([tool system](/dev-kit/core-harness/tool-system)): file, tìm kiếm, shell, `job.*`, codegraph đọc, `harness.profile.propose`; tự chạy trong phạm vi grant theo preset của workspace.
-- Tool nghiệp vụ (db, git, ssh…) chỉ được advertise khi version của nó `nativeCompatible`. Ratchet `prompt_sites_test.go` cho thấy mọi prompt site hiện còn `native-blocked`, nên các group này chưa có trong session native cho đến khi từng owner tách xong luồng confirm/select.
-- Chỉ provider và account đã qua G-04; provider-hosted tools bị tắt.
-- Không parallel tools, không team automation, không remote worker (ngoài v1).
-- Execution history chỉ local (S-04). Vault phải mở để chạy hoặc resume (S-01, S-02).
-- Client duy nhất là desktop trên **shell ngoài Wails** (Electron), nối với host qua [Host API](/dev-kit/core-harness/host-api). CLI, web, Telegram và truy cập từ xa để sau (truy cập từ xa ở giai đoạn B).
+Không có trong giai đoạn A: vendor session, peer message, child session và subagent, tool song song, remote worker, truy cập từ xa, import dữ liệu DevKit, provider-hosted tools (M-07).
 
 ## 3. Failure UX bắt buộc
 
-Mỗi trạng thái dưới đây MUST có một màn hình hoặc banner trong Agent Hub, dùng read model, nói rõ chuyện gì đã xảy ra và hành động nào có thể làm. Không dùng thông báo lỗi chung chung.
+Mỗi tình huống dưới đây MUST hiện trong CLI, dựng từ read model, nói rõ chuyện gì đã xảy ra và hành động nào có thể làm. Không dùng thông báo lỗi chung chung. Tên lệnh chốt ở H-45.
 
 | Tình huống | Hiển thị | Hành động |
 | --- | --- | --- |
+| Mất kết nối với host | "Mất kết nối với lõi Fugue", kèm đường dẫn data directory | CLI nối lại; không được thì khởi động `fugue serve` theo host API §3 |
 | Vault khóa sau process start | `Waiting(vault_locked)` kèm số run đang chờ | Mở vault; sau đó vẫn cần resume |
 | Chờ resume sau restart | `Waiting(recovery_admission)` | `ResumeRun`, hoặc đóng run |
-| Tác động không rõ | `Interrupted(effect_unknown)`: tool, attempt, thời điểm dispatch | Đối soát nếu owner hỗ trợ; `AcceptUnknown(close)` với preview đúng tham số khi vault mở; `CloseRunWithoutPayload` khi không xem được |
+| Tác động không rõ | `Interrupted(effect_unknown)`: tool, attempt, thời điểm dispatch | Đối soát nếu tool hỗ trợ `Reconcile`; `AcceptUnknown(close)` với preview đúng tham số khi vault mở; `CloseRunWithoutPayload` khi không xem được |
 | Mất hoặc hỏng payload | `Interrupted(payload_unavailable)` | `CloseRunWithoutPayload`; run sau bắt buộc fresh context |
 | Chọn context cho run mới | Lựa chọn fresh hoặc continue, khóa continue khi `fresh_required` | `SelectRunContext` |
-| Worker treo, không có stop proof | "Cần khởi động lại DevKit để đóng run này"; nói rõ restart không chứng minh tác động bên ngoài đã dừng | Restart |
+| Worker treo, không có stop proof | "Cần khởi động lại host Fugue để đóng run này"; nói rõ restart không chứng minh tác động bên ngoài đã dừng | Restart host |
+| Hết hạn mức gói ChatGPT | Run chờ user, danh tính ChatGPT, link "Manage usage"; không đoán thời điểm hạn mức được làm mới ([model adapter §11.4–11.5](/dev-kit/core-harness/model-adapter#114-lỗi-của-gói-chatgpt)) | Đợi, hoặc chọn rõ một account ChatGPT khác cho các attempt tiếp theo |
+| Đăng nhập ChatGPT hết hiệu lực | Refresh lỗi lần cuối hoặc token bị thu hồi; run chờ, không thất bại | Đăng nhập lại với `client_id` đã lưu |
 | Hết budget | Outcome `budget_exceeded` kèm loại budget (token, thời gian, tool calls, storage) | Tạo run mới với budget mới |
 | Chờ worker | `Waiting(worker_capacity)` | Không cần làm gì |
 | Data directory đang bị process khác giữ | Execution store unavailable, kèm đường dẫn data directory | Đóng process kia |
-| Schema/protocol không hỗ trợ | Stream chỉ đọc, giải thích phiên bản | Nâng cấp DevKit |
+| Schema hoặc protocol không hỗ trợ | Stream chỉ đọc hoặc unavailable, hiện version của CLI và của host | Nâng cấp Fugue (host hoặc CLI) |
 
-Mọi preview chỉ hiện metadata cho phép theo INV-09; nội dung payload chỉ hiện khi vault mở, trong UI trusted.
+Mọi preview chỉ hiện metadata cho phép theo INV-09; nội dung payload chỉ hiện khi vault mở, trong client tin cậy. Host headless thì interaction là `unavailable`, fail closed; không có client nào đang nối thì request chờ ([interaction](/dev-kit/core-harness/interaction) I-07).
 
-## 4. Rollback
+## 4. Nâng cấp và hạ phiên bản (G-06)
 
-- Tắt `harness.nativeRuntime` ẩn lựa chọn native cho session mới. Session native đã có **không** bị xóa và không chuyển sang vendor.
-- Khi tắt, session native cũ ở chế độ chỉ đọc: xem history, `CloseRunWithoutPayload`, `AcceptUnknown(close)`, xóa session. Không admit run mới.
-- Execution store và bảng `exec_*` giữ nguyên; bật lại thì session tiếp tục theo guards hiện hành.
-- Downgrade sang build không hiểu protocol: stream unavailable/read-only như [event storage §9](/dev-kit/core-harness/event-storage-recovery#9-payload-security-compatibility-và-client-delivery); không append, không đoán.
+Thay cho mục rollback của v0.12. G-06 với Fugue nghĩa là: **lịch sử đọc được sau nâng cấp, hạ phiên bản không bao giờ ghi, lệch protocol được xử lý ở bước bắt tay**.
 
-## 5. Evidence để bật giai đoạn A
+- Không có cờ bật hay tắt. Ngừng dùng là không chạy Fugue nữa; data directory giữ nguyên.
+- Migration chỉ đi tới. Fugue **không tự sao lưu** `fugue.db` trước migration: bản sao lưu giữ lại wrapped key, nên session bị xóa sau đó vẫn phục hồi được từ bản sao, đúng giới hạn đã ghi ở [storage-security §7](/dev-kit/core-harness/storage-security#7-xóa-export-và-backup).
+- Binary cũ gặp schema hoặc protocol mới hơn: unavailable hoặc chỉ đọc theo [event storage §9](/dev-kit/core-harness/event-storage-recovery#9-payload-security-compatibility-và-client-delivery); không append, không đoán.
+- CLI và host lệch version: `Hello` ([host API §8](/dev-kit/core-harness/host-api#8-version)) quyết định. Không hỗ trợ thì từ chối kết nối và hiện cả hai version.
+- Runtime và provider ghim theo run như state machine đã chốt; nâng cấp không đổi chúng giữa run.
 
-Mọi mục kèm revision cụ thể; spike dữ liệu giả không tính.
+## 5. Evidence để phát hành giai đoạn A
 
-- G-01 đến G-06 đã đóng; [evidence G-03](/dev-kit/core-harness/storage-security#10-evidence-để-đóng-g-03) đạt.
+Mọi mục kèm revision cụ thể; spike dùng dữ liệu giả không tính.
+
+- G-01 đến G-06 đã đóng; [evidence G-03](/dev-kit/core-harness/storage-security#10-evidence-để-đóng-g-03) đạt. G-04 tính trên adapter ChatGPT và bộ tool ở [mục 2](#2-phạm-vi-giai-đoạn-a).
 - Toàn bộ nhóm trong [tiêu chí kiểm chứng](/dev-kit/core-harness/decisions-and-validation#tiêu-chí-kiểm-chứng) đạt bằng test headless, với deterministic clock và fault injection.
 - Mutation probes ở cùng trang đều làm test fail: bỏ CAS, bỏ current-authority check, dispatch khi replay, retry unknown, coi cancellation là stop proof.
-- Một invariant checker SM-01–SM-12 chạy sau mỗi batch trong build test và dogfood; không có vi phạm.
-- Mỗi hàng failure UX ở [mục 3](#3-failure-ux-bắt-buộc) có test UI hoặc e2e ở server mode, kể cả host headless (nil responder fail closed).
-- Rollback ở [mục 4](#4-rollback) được chạy thử: bật, tạo session native, tắt, mở lại, bật lại.
+- Invariant checker SM-01 đến SM-12 chạy sau mỗi batch trong build test và build dogfood. Ở build dogfood, vi phạm dừng run đó và ghi chẩn đoán; không có vi phạm nào trong evidence.
+- Mỗi hàng ở [mục 3](#3-failure-ux-bắt-buộc) có test e2e: CLI chạy với `fugue serve` thật, model là faux provider; kể cả host headless fail closed.
+- Fault injection kill host ở các điểm: model stream, tool dispatch, chờ approval, commit unknown, job shell đang chạy. Chạy trên Linux và macOS trong CI.
+- Smoke sandbox với ba preset trên Linux và macOS.
+- Upgrade drill: đang có run thì dừng host, cài build mới, resume; run đi qua `Waiting(recovery_admission)` và tiếp tục đúng guards. Downgrade drill: build cũ mở data directory mới thì không append.
+- [Spike OpenAI §11.7](/dev-kit/core-harness/model-adapter#117-spike-riêng-cho-openai) và luồng đăng nhập §11.2 từ CLI đã chạy với account ChatGPT thật.
 
-## 6. Tiêu chí chuyển hẳn (giai đoạn B)
+## 6. A ổn định
 
-Chuyển từ A sang B khi **tất cả** đạt; con số dưới đây chỉ đổi bằng quyết định ghi lại.
+Chủ dự án tự dùng giai đoạn A và **duyệt** khi thấy ổn định; quyết định ghi kèm ngày và revision. Trước khi duyệt, các ngưỡng sau MUST đạt; con số chỉ đổi bằng quyết định ghi lại.
 
 | Tiêu chí | Ngưỡng |
 | --- | --- |
-| Dogfood | ≥ 14 ngày và ≥ 200 run native thật |
-| Recovery drill | ≥ 20 lần crash hoặc kill có chủ đích ở các điểm: model stream, tool dispatch, chờ approval, commit unknown |
-| An toàn | 0 vi phạm SM-01–SM-12; 0 effect bị dispatch hai lần; 0 lần `Interrupted` mà không giải thích được nguyên nhân |
-| Tool coverage | Mọi tool user dùng thường xuyên trong session vendor đã có version native-compatible |
-| Provider coverage | Mọi loại account đang dùng **mà điều khoản cho phép dùng trong ứng dụng bên thứ ba** đã có adapter qua G-04; subscription Claude không tính (M-03). Session mới chỉ mặc định native khi user có credential hợp lệ cho model đó, không thì mặc định vendor |
-| Độ trễ | Từ lúc gửi prompt đến lúc model request rời DevKit, p50 không chậm hơn vendor nhanh nhất đã đo (Codex ≈ 2 s; Claude 4–7 s) |
-| Compatibility | Session vendor cũ đọc được sau nâng cấp; rollback ở mục 4 vẫn chạy |
+| Recovery drill | ≥ 20 lần kill có chủ đích với ChatGPT thật, phủ các điểm kill ở [mục 5](#5-evidence-để-phát-hành-giai-đoạn-a); trong đó ≥ 5 lần trên macOS |
+| An toàn | 0 vi phạm SM-01 đến SM-12; 0 effect bị dispatch hai lần; 0 lần `Interrupted` không giải thích được nguyên nhân |
+| Độ trễ | Từ lúc gửi prompt đến lúc model request rời host: p50 ≤ 2 s, p95 ≤ 5 s |
 
-Giai đoạn C (không tạo session vendor mới, gỡ vendor runtime) là quyết định riêng sau B, không suy ra từ việc B đạt.
+A ổn định không tự mở giai đoạn B.
+
+## 7. Hoãn sang B
+
+Chỉ là danh sách; phạm vi và tiêu chí của B là quyết định riêng sau khi A ổn định.
+
+- Electron desktop và UI session (H-44, H-33).
+- API key OpenAI, Anthropic (M-01), failover giữa account (M-04).
+- Đọc code bằng LSP và codegraph (H-19), web (H-21), MCP và plugin (H-23), attachment (H-14), tham chiếu session cũ (H-15).
+- Observability (H-38), hiệu năng ngoài ngưỡng ở mục 6 (H-40).
+- Windows; đóng gói, ký code, auto-update; người dùng ngoài chủ dự án; truy cập từ xa; import dữ liệu DevKit.
+
+## 8. Phụ thuộc
+
+Giai đoạn A cần mọi mảng có giai đoạn A trong [bản đồ thiết kế](/dev-kit/core-harness/design-map) ở trạng thái Đã chốt, gồm các mảng còn mở: H-05 (đóng bằng evidence), H-17, H-18, H-20, H-24, H-25, H-26, H-27, H-34, H-45 và H-06.

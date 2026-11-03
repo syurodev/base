@@ -25,14 +25,17 @@ Tài liệu này đặc tả nền tảng để DevKit sở hữu vòng gọi mo
 | [Event storage và recovery](/dev-kit/core-harness/event-storage-recovery) | Nguồn dữ liệu gốc, transaction, replay, ambiguity, bảo vệ payload và compatibility |
 | [Storage và bảo mật payload](/dev-kit/core-harness/storage-security) | G-03: devkit.db, logical DDL, khóa theo session, crypto-shred, codec, vault observation và data-directory lock |
 | [Tool system](/dev-kit/core-harness/tool-system) | Contract tool, nạp tool theo group, interaction và preset, sandbox escalation, shell/job/env, Docker, snapshot, result và version |
+| [Sandbox runtime](/dev-kit/core-harness/sandbox-runtime) | H-25: jail theo session với supervisor, stop proof, vòng đời, registry, env snapshot, Docker |
+| [Shell và job](/dev-kit/core-harness/shell-job) | H-18: tool `shell`, `shell.output` và `job.*`, phân loại risk theo lệnh, grant scope, output compact và full, timeout thành job |
+| [Interaction và approval policy](/dev-kit/core-harness/interaction) | H-24: approval mode, sandbox profile, policy khi nào hỏi, env tag, grant scope, request/receipt/question, interaction service |
 | [Context engine](/dev-kit/core-harness/context-engine) | Bố cục prompt cho cache, tầng rule R0–R3, context bền của workspace, đo token, pruning, compaction và kiểm tra ngôn ngữ |
 | [Model adapter](/dev-kit/core-harness/model-adapter) | Contract gọi model, phân loại lỗi và retry, converter, catalog, usage và cost, account, auth pluggable và failover |
 | [Điều phối input](/dev-kit/core-harness/coordination) | Queue, steer, chen ngang, ngắt, peer message và input khi đang chờ |
 | [Continuation và điều kiện dừng](/dev-kit/core-harness/continuation) | Khi nào run chạy tiếp hay dừng, giới hạn step, phát hiện lặp, chế độ goal tự chạy nhiều vòng |
 | [Host API](/dev-kit/core-harness/host-api) | API duy nhất giữa lõi Go và mọi UI: cách chạy process, contract Connect/protobuf, event stream, principal, version, lộ trình bỏ Wails |
-| [Activation và failure UX](/dev-kit/core-harness/activation) | G-07: opt-in theo session, failure UX, rollback và tiêu chí chuyển hẳn sang harness core |
+| [Phát hành giai đoạn A và failure UX](/dev-kit/core-harness/activation) | G-07 và Q-02 của Fugue: phạm vi giai đoạn A, failure UX trên CLI, nâng cấp và hạ phiên bản, evidence phát hành |
 | [Quyết định và kiểm chứng](/dev-kit/core-harness/decisions-and-validation) | Phương án thay thế, so sánh Pi/Harness², rollout gates, failure scenarios và các điểm còn mở |
-| [Phụ lục: bản đồ thiết kế](/dev-kit/core-harness/design-map) | Danh mục mọi mảng thiết kế (H-01–H-41), trạng thái, phụ thuộc và tiêu chí một trang thiết kế đầy đủ |
+| [Phụ lục: bản đồ thiết kế](/dev-kit/core-harness/design-map) | Danh mục mọi mảng thiết kế (H-01–H-45), trạng thái, phụ thuộc và tiêu chí một trang thiết kế đầy đủ |
 | [Lộ trình triển khai](/dev-kit/core-harness/implementation-roadmap) | Bảng việc theo phase, trạng thái và evidence; agent triển khai cập nhật trang này |
 
 ## Mục tiêu

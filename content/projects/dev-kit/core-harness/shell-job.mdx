@@ -1,0 +1,307 @@
+---
+title: Shell và job
+description: H-18 — contract của tool shell, shell.output và job.*, phân loại risk cho từng lệnh, grantScope, cwd, output compact và full, chuyển timeout thành job, giới hạn output và daemon.
+---
+
+# Shell và job
+
+Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-18 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Trang này cụ thể hóa [tool system §7.1–7.2](/dev-kit/core-harness/tool-system#7-shell-job-và-env); lệnh chạy trong jail của [sandbox runtime](/dev-kit/core-harness/sandbox-runtime); quyết định khi nào hỏi theo [interaction §3](/dev-kit/core-harness/interaction#3-policy).
+
+## 1. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| SH-01 | Mỗi lời gọi `shell` chạy **một lệnh một lần** trong jail của session (T-05); không có shell tương tác giữ trạng thái |
+| SH-02 | `risk` được xác định **theo từng lệnh** trong `Prepare`: lệnh thuộc danh sách chỉ đọc là `read`; khớp luật tĩnh là `destructive`/`external`; còn lại là `write` |
+| SH-03 | `grantScope` chỉ được đề nghị cho **một lệnh đơn** có subcommand xác định được theo grammar của program; lệnh ghép chỉ có "cho 1 lần" |
+| SH-04 | Quá timeout thì lệnh **chuyển thành job**, không bị kill (T-11) |
+| SH-05 | Job không phải attempt của kernel; job xong được báo cho model ở ranh giới step kế tiếp |
+| SH-06 | Kênh Model của `shell` có hai chế độ: `compact` (mặc định) và `full`. Chế độ chỉ đổi cách dựng result, không đổi `risk`, `grantScope` hay quyết định hỏi |
+| SH-07 | Output gốc bị ẩn khỏi kênh Model được giữ trong memory và đọc lại bằng `shell.output`; **không cần chạy lại lệnh** để xem output đầy đủ |
+| SH-08 | Fugue **không sửa lệnh** để lấy output dễ lọc: lệnh chạy đúng là lệnh đã hiện trong request duyệt |
+| SH-09 | Filter là code Go trong binary, tất định; giai đoạn A không có filter do user hay workspace định nghĩa, vì đó là logic không tin cậy chạy trên output và cần cơ chế trust riêng (giai đoạn B) |
+| SH-10 | Filter chỉ được làm output nhỏ đi và không được làm mất tín hiệu lỗi; khi không chắc thì trả output chưa lọc theo program (§3.4) |
+
+## 2. Tool `shell`
+
+### 2.1 Args
+
+| Arg | Kiểu | Ràng buộc |
+| --- | --- | --- |
+| `command` | string | Bắt buộc; ≤ 16 KiB |
+| `cwd` | string? | Tương đối với workspace root; sau khi resolve symlink phải nằm trong workspace. Mặc định là cwd cuối của lời gọi `shell` trước trong session (§2.4) |
+| `env` | map? | Ghi đè biến; tên phải trong allowlist override của workspace (H-34); ≤ 32 mục |
+| `timeout_ms` | int? | ≤ mức trần của workspace; mặc định theo workspace (10 phút) |
+| `background` | bool? | `true` thì chạy thẳng thành job |
+| `output` | `compact` \| `full`? | Chế độ kênh Model (§3); mặc định theo workspace (H-34), mặc định của workspace là `compact` |
+| `sandbox_permissions`, `justification` | ? | Escalation theo [tool system §6](/dev-kit/core-harness/tool-system#6-sandbox-và-escalation) |
+
+### 2.2 Descriptor
+
+| Field | Giá trị |
+| --- | --- |
+| `effectClass` | `side_effecting` |
+| `risk` / `confirm` | `write` / `custom`; `Prepare` trả giá trị hiệu lực cho call (§2.3) |
+| `grantScope` | §2.3 |
+| `resultBudget` | 30 KiB mỗi kênh (stdout, stderr) |
+| `timeoutCap` | Mức trần của workspace, tối đa 60 phút |
+
+### 2.3 `Prepare`: phân loại và grant scope
+
+1. Phân tích `command` thành danh sách **lệnh đơn**: tách theo pipeline, `&&`, `||`, `;`, subshell, command substitution, process substitution; ghi nhận redirect. Parser có hai lớp: lexer biết quote, escape, operator và redirect; rồi grammar theo program để phân loại argv (§2.6).
+2. Không phân tích được (`eval`, heredoc phức tạp, tên lệnh động như `$CMD`) thì `risk = write`, đánh dấu `unparsed`; interaction §3.3 kết luận `ask` ở Auto.
+3. `risk = read` khi **mọi** lệnh đơn thuộc danh sách chỉ đọc **và** không có redirect ghi file (`>`, `>>`, `tee` ra file). Danh sách mặc định: `ls`, `cat`, `head`, `tail`, `wc`, `stat`, `file`, `grep`, `rg`, `find` (không có `-exec`, `-delete`, `-fprint*`), `tree`, `pwd`, `echo`, `which`, `git status|log|diff|show|branch|rev-parse|ls-files|blame`, `go list|env|version`. Workspace bổ sung được (H-34).
+4. Khớp luật tĩnh của [interaction §3.3](/dev-kit/core-harness/interaction#33-luật-tĩnh-cho-shell) thì nâng `risk` theo luật.
+5. Còn lại `risk = write`.
+6. `grantScope` chỉ có khi đủ cả bốn điều kiện:
+   - danh sách có **đúng một** lệnh đơn và không `unparsed`;
+   - lệnh không có gán biến inline (`FOO=1 go test`), vì biến đổi được hành vi của program (ví dụ `GOFLAGS`); override env đi qua arg `env`;
+   - wrapper đứng trước, nếu có, thuộc bảng wrapper đã biết và chỉ dùng option đã biết; wrapper được bóc ra trước khi tính key (`timeout 300 go test ./...` có key của `go test`);
+   - subcommand xác định được (§2.6).
+
+   `key = "shell:prefix:" + program + " " + subcommand`. Program không có subcommand theo grammar của nó thì `key = "shell:prefix:" + program`. `label` có dạng `mọi lệnh go test … trong session này`. Lệnh ghép không có `grantScope`, nên chỉ được đề nghị `allowed_once`.
+7. Summary của request do `Prepare` dựng từ `command` canonical, cwd và các override env (chỉ tên), không lấy mô tả của model.
+
+### 2.4 `Execute`
+
+- `Jail.Exec` với argv `[bash, -c, command]` (không có bash thì `sh`), không login, không tương tác: stdin là `/dev/null`, `CI=1`, `PAGER=cat`, `GIT_PAGER=cat`, `TERM=dumb`.
+- Wrapper ghi cwd cuối ra fd 3; host kiểm tra cwd nằm trong workspace, ngoài workspace thì giữ cwd cũ và ghi cảnh báo trong result.
+- Lệnh xong trong timeout: supervisor kill process group của lệnh (daemon đã tự tách thì sống tiếp, [sandbox runtime §4](/dev-kit/core-harness/sandbox-runtime#4-nền-tảng-và-stop-proof)).
+- Quá timeout: lệnh **không** bị kill; attempt kết thúc với outcome `backgrounded` kèm `job_id`; lệnh tiếp tục là job (§5).
+- `Execute` nhận stdout và stderr đầy đủ (giới hạn 8 MiB mỗi kênh, phần vượt bị bỏ có marker); result được dựng theo §3.
+
+### 2.5 Result
+
+| Kênh | Nội dung |
+| --- | --- |
+| Model | Exit code; stdout và stderr tách riêng, đã dựng theo chế độ `output` (§3) và trong `resultBudget`; header compact và hint (§3.6) khi có phần bị ẩn; cwd cuối; thời gian chạy; `output_id` khi output gốc được giữ; `job_id` nếu `backgrounded` |
+| Structured | `exit_code`, `cwd`, `duration_ms`, `outcome` ∈ `completed`, `backgrounded`, `cancelled`; `output_id?`; `output_mode`; `filter`; `filter_result`; `raw_bytes`, `model_bytes` mỗi kênh |
+| Metadata | Không có output hay argv (INV-09); chỉ outcome, exit code, thời gian và các số đo ở §3.8 |
+
+Output là nội dung không tin cậy (H-26) và đi vào protected payload, ở cả chế độ `compact` lẫn `full`. Result được dựng **một lần** lúc attempt kết thúc và không bao giờ dựng lại, nên history gửi model không đổi và không phá prompt cache.
+
+### 2.6 Grammar theo program
+
+Grammar cho biết option nào của program nhận giá trị và subcommand nằm ở đâu. Không có nó thì `git -C /tmp push` bị đọc thành subcommand `/tmp`, và `git log --grep -p` bị hiểu là có cờ `-p`.
+
+- Mỗi program (và subcommand khi cần) có **một** bảng riêng, chép từ `--help` của chính tool và kiểm tra với binary thật. Không dùng chung bảng giữa các tool trông giống nhau: `-T` của `grep` khác `-T` của `rg`.
+- Phân loại dừng ở `--`; mọi thứ sau `--` là positional.
+- Bảng có ở giai đoạn A: `git` (global option `-C`, `-c`, `--git-dir`, `--work-tree`, `--no-pager` …), `go`, `gradle`/`./gradlew`, `mvn`/`./mvnw`/`mvnd`, `docker`, `kubectl`, `npm`, `grep`, `rg`, `find`.
+- Program **không có bảng**: subcommand là token ngay sau program nếu token đó không bắt đầu bằng `-`. Token đầu bắt đầu bằng `-` thì không xác định được subcommand, và lệnh không có `grantScope`.
+- Option chưa có trong bảng đứng trước subcommand: không xác định được subcommand, không có `grantScope`. Không đoán.
+- Wrapper đã biết ở giai đoạn A: `timeout`, `nice`, `time`, `env` không có option. Wrapper dùng option chưa biết thì không bóc.
+
+Cùng grammar này được §3.3 dùng để chọn filter và nhận cờ bypass.
+
+## 3. Output compact và full
+
+### 3.1 Hai chế độ
+
+| Chế độ | Kênh Model |
+| --- | --- |
+| `full` | Output gốc, không lọc; vượt `resultBudget` thì giữ đầu và cuối, kèm hint `shell.output` cho phần giữa |
+| `compact` | Qua tầng chung (§3.2), rồi qua filter theo program nếu chọn được (§3.3); vẫn trong `resultBudget` |
+
+Hai chế độ cùng một `risk`, một request duyệt và một attempt. Model chọn `full` khi cần nguyên văn, ví dụ để so khớp một chuỗi lỗi lạ; mặc định nên để `compact`. Mô tả tool cho model ghi rõ điều này và cách dùng `shell.output`.
+
+### 3.2 Tầng chung
+
+Áp dụng cho mọi lệnh ở chế độ `compact`, theo thứ tự:
+
+1. Bỏ escape ANSI.
+2. Dòng ghi đè bằng `\r` (progress bar, spinner) chỉ giữ trạng thái cuối.
+3. Các dòng giống hệt nhau liền nhau gộp thành một dòng kèm `(×N)`.
+4. Vượt `resultBudget` thì giữ đầu và cuối, kèm hint cho phần giữa.
+
+### 3.3 Chọn filter theo program
+
+Filter theo program chỉ áp dụng khi xác định chắc chắn được **lệnh sinh ra output**:
+
+| Dạng lệnh | Lệnh sinh output |
+| --- | --- |
+| Một lệnh đơn, có thể có wrapper đã biết và gán biến inline | Chính lệnh đó |
+| Chuỗi `&&` hoặc `;` mà các đoạn trước đoạn cuối đều là lệnh setup im lặng (`cd`, `pushd`, `export`, `set -e`, `set -o …`) | Đoạn cuối |
+| Pipeline, `\|\|`, subshell, command substitution, lệnh `unparsed` | Không xác định; chỉ tầng chung |
+| Có redirect stdout ra file | Không xác định; chỉ tầng chung |
+
+`2>&1` được chấp nhận; khi đó filter nhận stdout đã trộn stderr. Pipeline không dùng filter theo program vì model đã tự định hình output (`… | tail -20`), và filter chạy trên output đã bị cắt sẽ đọc sai.
+
+Đã có lệnh sinh output thì tìm filter theo program và subcommand (§2.6). Filter có thể khai báo **cờ bypass**: lệnh có cờ đó thì không lọc theo program. Có hai loại cờ bypass:
+
+- **Output có cấu trúc** mà filter có thể làm hỏng: `--porcelain`, `--json`, `--format`, `--pretty`, `-o json`, `--jq`, `--template`.
+- **Model xin chi tiết**: `--info`, `--debug`, `--stacktrace` của Gradle; `-X`, `-e`, `--debug`, `--errors` của Maven.
+
+Workspace có danh sách program loại trừ, không bao giờ lọc theo program (H-34).
+
+### 3.4 Luật an toàn của filter
+
+1. **Không sửa lệnh** (SH-08). Filter đọc đúng format mà lệnh của model sinh ra. Model tự thêm `-json` cho `go test` thì filter đọc NDJSON; không thêm thì đọc text.
+2. **Nhận diện trước khi lọc.** Mỗi filter có bước nhận diện. Output không khớp format mong đợi (locale khác, version khác, footer `BUILD SUCCESS`/`BUILD FAILED` không có) thì filter trả `unrecognized`, và kênh Model dùng kết quả của tầng chung.
+3. **Không làm mất lỗi.** Không bao giờ bỏ exit code. Khi exit code khác 0 hoặc output có dấu hiệu fail, mọi khối fail, dòng `file:line` lỗi và dòng tổng kết đều được giữ (trong cap §3.5). Luật dạng "output khớp mẫu thì thay bằng một dòng" phải có điều kiện `unless` cho dấu hiệu lỗi.
+4. **Không bao giờ to hơn.** Kết quả của filter lớn hơn kết quả tầng chung thì dùng kết quả tầng chung (`filter_result = never_worse`).
+5. **Lỗi trong filter.** Filter panic hoặc trả lỗi thì host recover, dùng tầng chung và ghi `filter_result = failed`. Filter có giới hạn thời gian CPU; vượt thì xử lý như lỗi.
+6. **Không lọc hai lần.** `shell.output` ở chế độ `full` trả byte gốc, không qua filter nào.
+
+### 3.5 Cap theo loại dữ liệu
+
+Filter không tự đặt số. Mỗi loại dữ liệu có một cap chung, workspace chỉnh được (H-34):
+
+| Cap | Dùng cho | Mặc định |
+| --- | --- | --- |
+| `failures` | Test fail, lỗi compile, khối lỗi nhiều dòng | 20 mục |
+| `list` | Danh sách file của `git status`, commit của `git log` | 50 mục |
+| `matches` | Kết quả `grep`/`rg`/`find` | 200 dòng tổng, 25 dòng mỗi file hoặc thư mục |
+| `line` | Độ dài một dòng | 400 ký tự |
+
+- Phần vượt cap được thay bằng một dòng `… +N <loại> khác` kèm hint (§3.6).
+- Cap `0` nghĩa là chỉ in tổng kết: vẫn in số đếm và hint, không in mục nào.
+- Filter muốn in ít hơn cap của loại (ví dụ vì mỗi mục nhiều dòng) phải dùng hàm `reduced(cap, by)`: hàm trả `cap - by`, nhưng trả `cap` nếu `by ≥ cap`, nên không bao giờ ẩn hết mọi mục. Mỗi lần dùng có một dòng comment giải thích.
+
+### 3.6 Header và hint
+
+Kênh Model ở chế độ `compact` mở đầu bằng một header khi filter hoặc cap đã ẩn bớt nội dung:
+
+```text
+[compact go-test: 412.0 KiB → 2.9 KiB · full: shell.output("out_7")]
+```
+
+Bên trong output, mỗi chỗ bị cắt có hint trỏ đúng phần bị ẩn:
+
+```text
+… +38 package pass khác
+[+120 dòng ẩn: shell.output("out_7", from_line: 231)]
+```
+
+- Hint chỉ xuất hiện khi thật sự có phần bị ẩn. Output không bị đổi thì không có header, không có `output_id`, và không có gì được giữ.
+- Hint `from_line` dùng số dòng của output gốc, để lời gọi `shell.output` chỉ trả phần bị ẩn.
+
+### 3.7 Giữ output gốc
+
+- Output gốc được giữ khi kênh Model không chứa toàn bộ output gốc (đã lọc, đã cap hoặc vượt `resultBudget`).
+- Giữ trong memory của host, không bao giờ ghi ra đĩa ([sandbox runtime](/dev-kit/core-harness/sandbox-runtime) J-06). Mất khi host restart.
+- Mỗi output được nén khi đưa vào bộ giữ; `raw_bytes` và kích thước sau nén được ghi kèm.
+- Giới hạn tính theo **dung lượng sau nén**, không theo số output, vì một session có thể có hàng trăm lời gọi `shell` mà phần lớn output nhỏ:
+
+| Giới hạn | Mặc định | Vượt thì |
+| --- | --- | --- |
+| Mỗi output | 8 MiB mỗi kênh trước khi nén (giới hạn thu output của §2.4) | Phần vượt đã bị bỏ lúc thu, có marker |
+| Mỗi session | 64 MiB | Bỏ output cũ nhất của session đó cho tới khi đủ chỗ |
+| Toàn host | 512 MiB | Bỏ output cũ nhất trên mọi session, trừ output mới nhất của mỗi session |
+
+- Workspace chỉnh được giới hạn mỗi session (H-34); giới hạn toàn host là cấu hình của host.
+- Output bị bỏ khi: vượt giới hạn; session kết thúc hoặc bị xóa; vault khóa (cùng lúc với việc xóa session key khỏi cache, [storage-security §8](/dev-kit/core-harness/storage-security#8-vault-observation-owner-api)), vì output gốc có cùng mức nhạy cảm với protected payload.
+- Không có TTL theo thời gian: output còn trong giới hạn thì còn đọc được trong suốt session.
+- `output_id` gắn với session và là capability, như `job_id` (§4).
+- Output của job nằm trong ring buffer của job (§5), đọc qua cùng tool `shell.output` với `job_id`.
+
+### 3.8 Đo hiệu quả
+
+Mỗi attempt `shell` ghi vào metadata (chỉ số đếm, không nội dung, INV-09):
+
+- `output_mode`, `filter` (ID của filter hoặc `generic`), `filter_result` ∈ `applied`, `unrecognized`, `bypassed`, `never_worse`, `failed`, `not_applicable`;
+- `raw_bytes`, `model_bytes` mỗi kênh.
+
+Mỗi lời gọi `shell.output` ghi `output_id` đó đến từ filter nào. Hai số đo dùng để chỉnh filter:
+
+- **Tỉ lệ tiết kiệm** của mỗi filter: `1 - model_bytes / raw_bytes`.
+- **Tỉ lệ đọc lại** của mỗi filter: số output của filter đó bị đọc lại bằng `shell.output` chia cho số lần filter được áp dụng. Tỉ lệ cao nghĩa là filter đang ẩn thứ model cần.
+
+CLI (H-45) hiện hai số đo này theo session và theo filter. `unrecognized` và `failed` cũng được đếm để phát hiện format mới.
+
+### 3.9 Danh mục filter ban đầu
+
+| Filter | Lệnh | Cách rút gọn | Bypass |
+| --- | --- | --- | --- |
+| `go-test` | `go test` | Text hoặc NDJSON (`-json`). Giữ test fail cùng output của chúng, build fail của package, panic, `FAIL` và dòng tổng kết; package pass gộp thành số đếm. Đọc NDJSON theo event, chịu được event của nhiều package xen nhau | — |
+| `go-build` | `go build`, `go vet` | Giữ header `# package` và dòng `file:line:col: message`, gom theo file; cap `failures` | — |
+| `git-status` | `git status` | Gom theo trạng thái (staged, modified, untracked, conflict); cap `list` cho mỗi nhóm; giữ dòng branch và ahead/behind | `--porcelain`, `-s`, `--short` |
+| `git-log` | `git log` | Mỗi commit một dòng: hash ngắn, tác giả, ngày, tiêu đề; cap `list` | `--format`, `--pretty`, `--oneline`, `-p`, `--patch`, `--stat` |
+| `git-diff` | `git diff`, `git show` | Bỏ dòng `index …` và dòng mode; giữ nguyên header file và mọi hunk. File nhiều hunk vượt cap thì ẩn phần sau kèm hint | `--stat`, `--name-only`, `--name-status`, `--word-diff` |
+| `git-transfer` | `git push`, `pull`, `fetch`, `clone`, `commit`, `add` | Bỏ dòng progress (`Counting`, `Compressing`, `Enumerating`, `Receiving`, `Resolving`, `Writing objects` …); giữ dòng kết quả, lỗi, `remote:` không phải progress (có URL tạo PR), hint của git | — |
+| `gradle` | `gradle`, `./gradlew` | Lọc theo dòng: bỏ task `UP-TO-DATE`, `NO-SOURCE`, `SKIPPED`, `FROM-CACHE` và progress; giữ task `FAILED`, khối `What went wrong`, lỗi compile, test fail, dòng `BUILD SUCCESSFUL/FAILED`; bỏ khối `* Try:` và `* Get more help`. Nhận diện bằng footer `BUILD` | `--info`, `-i`, `--debug`, `-d`, `--stacktrace`, `-s`, `--scan` |
+| `maven` | `mvn`, `./mvnw`, `mvnd` | Theo phase. Test: gộp khối Surefire pass, giữ khối có `Failures > 0` hoặc `Errors > 0`, bỏ stack frame của framework theo deny-list (`at org.junit.`, `at java.`, `at sun.reflect.` …). Giữ `Failed to execute goal`, gợi ý `-rf :module`, `Reactor Summary`; bỏ boilerplate help. Nhận diện bằng footer `BUILD SUCCESS/FAILURE`; với `mvnd` dòng `[INFO]` trống được coi là dòng trống | `-X`, `--debug`, `-e`, `--errors` |
+| `grep` | `grep`, `rg` | Chỉ nhận dạng `path:line:text` hoặc `path:text`; gom theo file, cap `matches`, cắt dòng theo cap `line` | `-c`, `--count`, `--json`, `-o`, `-Z` |
+| `find` | `find`, `fd` | Gom path liền nhau theo thư mục, có số đếm; cap `matches` | `-print0`, `-printf`, `-ls` |
+
+Không lọc ở giai đoạn A:
+
+- **`cat`, `head`, `tail`.** Model đọc file bằng tool file (H-17), có kiểm soát riêng.
+- **`docker`, `kubectl`, `npm` và các ecosystem khác.** Đã có grammar (§2.6) nhưng chưa có filter; để sang B, ưu tiên theo số đo `generic` có `raw_bytes` lớn.
+- **Lọc code nguồn** (bỏ comment, bỏ thân hàm). Không thuộc tool shell.
+
+## 4. Tool `shell.output` và `job.*`
+
+| Tool | Args | `risk` / `confirm` | Ghi chú |
+| --- | --- | --- | --- |
+| `shell.output` | `id` (`output_id` hoặc `job_id`); `output?` (mặc định `full`); `stream?` ∈ `stdout`, `stderr`, `both`; `from_line?` hoặc `tail_lines?`; `max_bytes?` (≤ 30 KiB) | `read` / `never` | Đọc output đã giữ (§3.7) hoặc ring buffer của job. Với job đang chạy, `compact` chỉ qua tầng chung; filter theo program chỉ chạy khi job đã xong. Báo khi phần cũ đã bị đè |
+| `job.status` | `job_id?` | `read` / `never` | Không có `job_id` thì liệt kê job và daemon của session |
+| `job.cancel` | `job_id` | `write` / `never`; `grantScope` key `job:cancel` | `SIGTERM`, ân hạn, `SIGKILL`; result kèm proof ([sandbox runtime §4](/dev-kit/core-harness/sandbox-runtime#4-nền-tảng-và-stop-proof)) |
+
+`output_id` và `job_id` gắn với session và là capability: session khác dùng thì lỗi `shell.output_not_found` hoặc `job.not_found`, không phân biệt với id không tồn tại. Output đã bị bỏ khỏi bộ giữ (§3.7) thì lỗi `shell.output_expired`; model phải tự quyết có chạy lại lệnh hay không.
+
+## 5. Job
+
+- Job là process do supervisor quản lý, sinh từ `shell` với `background` hoặc khi quá timeout. Job **không phải attempt**: không cản `RunFinished`, không có retry.
+- Output: ring buffer trong memory, 8 MiB mỗi kênh, giữ phần mới nhất.
+- Job xong: coordinator đưa thông báo có nhãn (`job_id`, exit code, thời gian, số byte output) vào `Inject` ở ranh giới step kế tiếp, hoặc ở run sau nếu session rảnh ([điều phối input §2](/dev-kit/core-harness/coordination#2-các-loại-input)). Thông báo không đóng vai input của user và không mở run mới. Model đọc output bằng `shell.output`.
+- Host chết hoặc jail dừng: job dừng. Sau recovery, model nhận thông báo `job lost` cho mỗi job chưa báo kết thúc.
+- Stop run: lệnh `shell` đang chạy (chưa thành job) bị cancel; job đang chạy nền **không** bị dừng.
+- Giới hạn: tối đa 3 job cùng lúc mỗi session, mỗi job sống tối đa 2 giờ (cấu hình theo workspace). Vượt số job thì `shell` với `background` bị từ chối có kiểu `job.limit_reached`; lệnh quá timeout khi đã đủ job thì bị cancel và báo lý do.
+
+## 6. Daemon
+
+- Daemon là process còn sống trong jail không thuộc lệnh hay job nào đang chạy (ví dụ Gradle, Kotlin, mvnd).
+- Hiện trong `job.status` và trong CLI (H-45); user dừng từng daemon hoặc khởi động lại jail.
+- Daemon giữ env và policy lúc nó khởi động; dừng cùng jail ([sandbox runtime §5](/dev-kit/core-harness/sandbox-runtime#5-vòng-đời)).
+
+## 7. Failure
+
+| Tình huống | Hành vi |
+| --- | --- |
+| Crash giữa `ToolDispatchStarted` và result | `Interrupted(effect_unknown)` theo state machine; không chạy lại |
+| Jail mất khi lệnh đang chạy | Theo [sandbox runtime §9](/dev-kit/core-harness/sandbox-runtime#9-failure-và-recovery) |
+| `cwd` không còn tồn tại | Lỗi args `shell.cwd_missing`; model chọn cwd khác |
+| Lệnh chờ stdin | Đọc `/dev/null` thì nhận EOF; lệnh treo vì lý do khác thì theo timeout |
+| Filter lỗi hoặc không nhận ra output | Dùng tầng chung (§3.4); attempt vẫn `completed` |
+| Host restart hoặc vault khóa sau khi trả result | Output đã giữ mất; `shell.output` trả `shell.output_expired` |
+
+Mã lỗi công khai: `shell.cwd_outside_workspace`, `shell.cwd_missing`, `shell.env_not_allowed`, `shell.timeout_over_cap`, `shell.output_not_found`, `shell.output_expired`, `job.not_found`, `job.limit_reached`, `sandbox_unavailable`.
+
+## 8. Evidence
+
+**Phân loại và grant**
+
+- Bảng phân loại: mỗi lệnh trong danh sách chỉ đọc là `read`; có redirect ghi thì `write`; `find -delete` là `write`; mỗi nhóm luật tĩnh nâng đúng `risk`; lệnh `unparsed` là `write`.
+- `grantScope`: `go test ./...` → `shell:prefix:go test`; `git -C sub push` → `shell:prefix:git push`; `timeout 300 go test` → `shell:prefix:go test`; lệnh ghép, gán biến inline, option chưa biết trước subcommand và wrapper có option lạ đều không có grant scope.
+- Grammar: bảng test theo từng program cho option nhận giá trị, giá trị gắn liền (`--flag=v`), cụm cờ ngắn và `--`.
+
+**Thực thi và job**
+
+- cwd: mặc định lấy từ lời gọi trước; ngoài workspace bị từ chối; cwd do wrapper báo ngoài workspace không được nhận.
+- Timeout thành job với fake clock; output trước timeout có trong result; job xong được `Inject` đúng một lần.
+- `job.cancel` có proof; job của session khác trả `job.not_found`.
+- Giới hạn 3 job và 2 giờ; ring buffer bị đè có marker.
+- Stop run cancel lệnh đang chạy nhưng không dừng job nền.
+
+**Output**
+
+- Mỗi filter có fixture là output thật (lưu nén), gồm cả trường hợp pass và fail, và assertion giữ lại: mọi tên test fail, mọi dòng `file:line` lỗi, exit code, dòng tổng kết. Mỗi filter có ngưỡng tiết kiệm tối thiểu trên fixture của nó (mặc định ≥ 60%).
+- Output khác format (locale khác, version khác, thiếu footer) → `unrecognized`, kênh Model bằng kết quả tầng chung.
+- Cờ bypass của từng filter → `bypassed`.
+- Bảng chọn lệnh sinh output (§3.3): lệnh đơn, `cd x && go test`, pipeline, `||`, redirect ra file.
+- `never_worse`: filter cho kết quả lớn hơn tầng chung thì kênh Model là kết quả tầng chung.
+- Header và hint có khi và chỉ khi có phần bị ẩn; `from_line` trỏ đúng dòng đầu bị ẩn.
+- `shell.output` với `full` trả byte giống hệt output gốc (qua nén và giải nén); output bị đẩy khỏi bộ giữ trả `shell.output_expired`; `output_id` của session khác trả `shell.output_not_found`.
+- Bộ giữ: vượt giới hạn session bỏ output cũ nhất của session đó; vượt giới hạn host không bỏ output mới nhất của session nào; vault khóa, session kết thúc hoặc bị xóa thì mọi output của session bị bỏ; 300 lời gọi với output nhỏ vẫn đọc lại được hết trong giới hạn mặc định.
+- Result dựng lại từ cùng output gốc cho kết quả giống hệt (tất định).
+- Fuzz cho parser lệnh shell và cho từng filter: không panic, không vượt giới hạn CPU, kết quả không lớn hơn input.
+- Output, argv và nội dung đã giữ không xuất hiện trong metadata, log hay audit.
+
+## 9. Phụ thuộc
+
+- Cần trước: [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (H-25), [interaction](/dev-kit/core-harness/interaction) (H-24), H-16.
+- Mảng liên quan:
+  - H-26: nhãn nội dung không tin cậy cho output, cả compact lẫn full.
+  - H-34: timeout, giới hạn job, danh sách chỉ đọc bổ sung, allowlist override env, chế độ `output` mặc định, cap, dung lượng giữ output mỗi session, program loại trừ khỏi filter.
+  - H-45: hiển thị job và daemon; số đo tiết kiệm và tỉ lệ đọc lại.
+- Giai đoạn B: filter cho thêm ecosystem; filter do workspace định nghĩa kèm cơ chế trust.

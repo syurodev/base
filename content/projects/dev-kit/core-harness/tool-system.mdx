@@ -22,7 +22,7 @@ Tham khảo khi thiết kế: [pi](https://github.com/earendil-works/pi) (`pi-du
 | T-07 | Giai đoạn A dùng network `host`; mở `docker.sock` theo workspace; Docker proxy là hướng dài hạn |
 | T-08 | Mở rộng sandbox có ba lựa chọn: **không cho / cho 1 lần / cho cả session** |
 | T-09 | Interaction request **chỉ giữ trong memory theo incarnation** |
-| T-10 | Preset mặc định: **Chỉ đọc / Workspace / Full access** |
+| T-10 | ~~Preset mặc định: Chỉ đọc / Workspace / Full access~~. Thay bằng hai trục sandbox profile × approval mode ([interaction](/dev-kit/core-harness/interaction) I-01, I-02) |
 | T-11 | Quá timeout thì **chuyển thành background job**; có tool cancel |
 | T-12 | Hai loại snapshot (**turn** và **tool**) với hạn mức riêng, cấu hình theo workspace; shadow git trước, store thuần Go là nâng cấp dài hạn |
 | T-13 | Contract result ba kênh, error có kiểu |
@@ -41,7 +41,7 @@ Tham khảo khi thiết kế: [pi](https://github.com/earendil-works/pi) (`pi-du
 | `group` | Tool group của harness (W/S) |
 | `resultBudget`, `timeoutCap` | Giới hạn result cho model và timeout tối đa |
 | `prompts` | Loại tương tác có thể cần: confirmation, selection, escalation |
-| `nativeCompatible` | Chỉ `true` khi mọi đường prompt của tool đã tách theo §5; ratchet `prompt_sites_test.go` là baseline |
+| `nativeCompatible` | Chỉ `true` khi mọi đường prompt của tool đi qua interaction owner theo §5 (Fugue không có ratchet prompt site của DevKit, A-03) |
 
 **Ba pha:**
 
@@ -74,7 +74,7 @@ Shell luôn là `side_effecting` + `touchesWorkspace`, không bao giờ `pure_re
 
 ## 4. Registry và nạp tool
 
-**Lúc tạo session.** Bộ cơ bản luôn bật, không tắt được: đọc, tìm, sửa và ghi file; shell; nhóm `job.*`; codegraph đọc; tool goal (`goal.get`, `goal.create`, `goal.update`, [continuation](/dev-kit/core-harness/continuation) §5.4); `harness.profile.propose`. User chọn thêm group (db, git, ssh, kafka, tasks…) trong picker, xuất phát từ workspace profile W; lựa chọn thành session override S. Picker hiển thị chi phí định nghĩa của mỗi group (đã có ở `harness.profile.get`).
+**Lúc tạo session.** Bộ cơ bản luôn bật, không tắt được: đọc, tìm, sửa và ghi file; shell và `shell.output`; nhóm `job.*`; codegraph đọc; tool goal (`goal.get`, `goal.create`, `goal.update`, [continuation](/dev-kit/core-harness/continuation) §5.4); `harness.profile.propose`. User chọn thêm group (db, git, ssh, kafka, tasks…) trong picker, xuất phát từ workspace profile W; lựa chọn thành session override S. Picker hiển thị chi phí định nghĩa của mỗi group (đã có ở `harness.profile.get`).
 
 **Danh mục trong system prompt.** Tên mỗi group chưa bật kèm một dòng mô tả, không kèm schema, để agent biết còn gì có thể xin.
 
@@ -96,11 +96,13 @@ Không tự gỡ group giữa session để tiết kiệm token. Chỉ gỡ khi 
 
 Interaction owner giữ request **trong memory theo incarnation**, khóa bằng `operationID` (ensure/read-back để không hỏi trùng). Restart hoặc vault lock làm mất mọi request; tool liên quan đi qua `ToolCheckReset`. Không thêm bảng DB: sự thật bền vững là journal (`ToolApprovalRequested/Resolved`) cộng audit sink. Hệ quả chấp nhận: câu hỏi đang chờ biến mất khi restart (kể cả do updater) và được hỏi lại khi resume; grant "cho cả session" mất sau restart.
 
-Kết quả của một request: `allowed_once`, `allowed_session`, `denied`, `cancelled`, `unavailable`, `expired`. Có allow thì owner cấp receipt dùng một lần như [approval protocol](/dev-kit/core-harness/architecture#approval-qua-owning-gateway). Không có answerer tin cậy (headless, server mode, nil responder) thì `unavailable`, fail closed. Mọi request và kết quả vào audit, không chứa args.
+Kết quả của một request: `allowed_once`, `allowed_session`, `denied`, `cancelled`, `unavailable`, `expired`. Có allow thì owner cấp receipt dùng một lần như [approval protocol](/dev-kit/core-harness/architecture#approval-qua-owning-gateway). Host headless thì `unavailable`, fail closed; không có client nào đang nối thì request chờ ([interaction](/dev-kit/core-harness/interaction) I-07). Kind `question` cho `ask_user`, lời nhắn khi từ chối, `grantScope` và policy quyết định khi nào hỏi ở [interaction](/dev-kit/core-harness/interaction). Mọi request và kết quả vào audit, không chứa args.
 
 Selection (chọn profile, account, scope, trả lời group request) đi đúng luồng này: `Prepare` trả `NeedsSelection`, owner tạo request, lựa chọn được ghim vào Plan kèm revision. Lựa chọn của user không cấp quyền thực thi.
 
 ### 5.2 Preset theo workspace
+
+> Bị thay bởi [interaction](/dev-kit/core-harness/interaction) §2 (v0.13). Bảng dưới chỉ còn giá trị lịch sử; ánh xạ sang hai trục ở [interaction](/dev-kit/core-harness/interaction) §2.2.
 
 | Preset | Sandbox | Network | Docker | Hỏi user |
 | --- | --- | --- | --- | --- |
@@ -132,9 +134,12 @@ Xin lại đúng mode hiện tại thì không hỏi; xin hẹp hơn là args kh
 
 ## 7. Shell, job và env
 
+> Contract chi tiết: [shell và job](/dev-kit/core-harness/shell-job) (H-18) và [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (H-25), v0.13. Khi khác nhau, hai trang đó thắng.
+
 ### 7.1 Shell
 
 - Mỗi lệnh chạy một lần, **bên trong jail sống theo session**: không tương tác (stdin đóng, `CI=1`, `PAGER=cat`), trả exit code, stdout và stderr tách riêng.
+- Output cho model có hai chế độ, `compact` (mặc định) và `full`; output gốc bị ẩn được giữ trong memory và đọc lại bằng `shell.output` mà không chạy lại lệnh ([shell và job §3](/dev-kit/core-harness/shell-job#3-output-compact-và-full)).
 - Policy áp theo từng lời gọi: grant mới có hiệu lực ngay từ lời gọi tiếp theo.
 - **cwd do DevKit giữ trong journal**: wrapper ghi cwd cuối ra kênh riêng, lưu trong result; lời gọi sau mặc định dùng cwd đó, chỉ trong workspace. Env không giữ giữa các lời gọi; model truyền qua tham số `env` theo allowlist.
 - Khi lệnh xong, process group **của lệnh đó** bị kill. Daemon đã tự tách (Gradle, Kotlin, mvnd) sống tiếp trong jail của session, hiện trong session view, bị dừng khi session kết thúc. Daemon không phải attempt nên không cản `RunFinished`.
@@ -143,7 +148,7 @@ Xin lại đúng mode hiện tại thì không hỏi; xin hẹp hơn là args kh
 ### 7.2 Job
 
 - Timeout của shell cấu hình theo workspace, mặc định 10 phút. Quá timeout thì lệnh **chuyển thành background job**, không bị kill; model nhận job handle. Model cũng có thể chạy ngay ở nền.
-- Tool: `job.output` (đọc phần cuối hoặc theo khoảng), `job.status`, `job.cancel`. Job ID gắn với session và là capability: chỉ session sở hữu mới đọc hoặc cancel được, nên tự chạy.
+- Tool: `shell.output` (đọc output của job hoặc output đã giữ của lệnh, phần cuối hoặc theo khoảng), `job.status`, `job.cancel`. Job ID gắn với session và là capability: chỉ session sở hữu mới đọc hoặc cancel được, nên tự chạy.
 - `job.cancel` gửi SIGTERM cho process group, chờ ân hạn rồi SIGKILL; result có bằng chứng dừng. User cũng cancel được từ UI.
 - Giới hạn mặc định (cấu hình theo workspace): tối đa 3 job cùng lúc mỗi session, mỗi job sống tối đa 2 giờ. Session kết thúc thì mọi job bị dừng.
 - Job xong thì model nhận một thông báo có nhãn ở ranh giới step kế tiếp; thông báo này không đóng vai input của user.
@@ -158,7 +163,7 @@ Xin lại đúng mode hiện tại thì không hỏi; xin hẹp hơn là args kh
 ### 7.4 Platform
 
 - macOS: seatbelt gán profile theo từng process, daemon kế thừa profile. DevKit giữ registry process của session (PID kèm thời điểm start, ghi trong journal) và chạy reaper khi khởi động để dọn process mồ côi sau crash.
-- Linux: bwrap `--die-with-parent` cho bằng chứng dừng; giữ daemon qua nhiều lời gọi mà vẫn `--unshare-pid` cần supervisor chung namespace (spike).
+- Linux: bwrap `--die-with-parent` cho bằng chứng dừng; daemon sống qua nhiều lời gọi trong cùng PID namespace nhờ supervisor theo session ([sandbox runtime](/dev-kit/core-harness/sandbox-runtime) §4).
 - Model attempt bị gián đoạn do host crash được tính vào retry budget để crash lặp có điểm dừng.
 
 ## 8. Network và Docker
@@ -231,7 +236,7 @@ Tool file còn hai luật cứng: **đọc trước khi sửa** và **từ chố
 
 | Hạng mục | Cần chứng minh |
 | --- | --- |
-| Daemon trên Linux | Giữ Gradle daemon qua nhiều lời gọi với `--unshare-pid` |
+| ~~Daemon trên Linux~~ | Thành evidence của [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) §12 |
 | Tách registry daemon | Gradle dùng cache chung nhưng registry daemon riêng của session |
 | Egress allowlist | Proxy CONNECT trên macOS (seatbelt) và Linux (forwarder trong jail) |
 | Docker proxy | Lọc API kể cả BuildKit và compose; label và cleanup container |

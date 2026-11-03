@@ -1,0 +1,250 @@
+---
+title: Interaction và approval policy
+description: H-24 — approval mode, sandbox profile, policy quyết định khi nào hỏi user, contract của interaction owner, vòng đời request và interaction service trên Host API.
+---
+
+# Interaction và approval policy
+
+Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-24 (phần còn lại của G-05) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue ([phát hành giai đoạn A](/dev-kit/core-harness/activation)). Trang này thay [tool system §5.2](/dev-kit/core-harness/tool-system#52-preset-theo-workspace) (preset) và mở rộng §5.1; semantics của approval protocol ở [architecture](/dev-kit/core-harness/architecture#approval-qua-owning-gateway) và lifecycle tool ở [event catalog §4](/dev-kit/core-harness/event-catalog#4-tool-invocation-và-attempts) giữ nguyên.
+
+Tham khảo: approval mode của Claude Code (default, acceptEdits, plan, auto, bypass), sandbox mode và approval policy của Codex, env tag registry và `ops.Confirm` của DevKit (`internal/environments`, `internal/ops`).
+
+## 1. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| I-01 | Tách **hai trục độc lập**: sandbox profile (kỹ thuật được làm gì) và approval mode (khi nào hỏi). Preset của T-10 bị thay |
+| I-02 | Bốn approval mode **Plan / Ask / Auto / Full**. Session mới mặc định `workspace-write` + **Auto**. Đổi mode có hiệu lực từ lần check kế tiếp sau ranh giới step |
+| I-03 | **Luật cứng đứng trên mọi mode**, kể cả Full: target có env tag yêu cầu xác nhận (`prod`, tag rỗng, tag không biết) với `risk ≠ read`, và việc quan trọng của tool system §5.3, luôn hỏi mỗi execution với chỉ lựa chọn "cho 1 lần". Env tag registry giữ semantics của DevKit (§3.4) |
+| I-04 | Auto quyết định bằng **luật tĩnh** (descriptor + luật lệnh shell). Classifier bằng model để giai đoạn B |
+| I-05 | Grant "cho cả session" phủ **`grantScope` do tool khai báo**, không theo target revision |
+| I-06 | Thêm kind **`question`** cho `ask_user`. Từ chối một confirmation **có thể kèm lời nhắn** cho model |
+| I-07 | Request **không có hạn mặc định**. Không có client nào đang nối thì request **chờ**; `unavailable` chỉ khi host được cấu hình headless |
+| I-08 | Policy là **một hàm thuần ở tool gateway**; factory bọc `Prepare` của mọi tool để policy luôn chạy. Interaction owner chỉ giữ request, grant và receipt; kernel không tự cấp receipt |
+
+## 2. Hai trục: sandbox profile và approval mode
+
+### 2.1 Sandbox profile
+
+| Profile | Filesystem | Network (giai đoạn A) | Docker |
+| --- | --- | --- | --- |
+| `read-only` | Chỉ đọc | `none` | Không |
+| `workspace-write` (mặc định) | Ghi trong workspace và thư mục tạm của session | `host` | Không |
+| `full-access` | Như user | `host` | `docker.sock`, nhãn **host-root** |
+
+Profile là cấu hình của jail theo session ([tool system §6](/dev-kit/core-harness/tool-system#6-sandbox-và-escalation), H-25). Đổi profile giữa session có hiệu lực khi jail được dựng lại trước lệnh kế tiếp ([sandbox runtime §5](/dev-kit/core-harness/sandbox-runtime#5-vòng-đời)).
+
+### 2.2 Approval mode
+
+| Mode | Hành vi |
+| --- | --- |
+| **Plan** | Chỉ chạy tool `risk = read`. Mọi tool khác bị từ chối ở check, không hỏi. Thoát Plan qua tool `plan` (H-20): model nộp kế hoạch, user duyệt và chọn mode kế tiếp |
+| **Ask** | Hỏi mọi tool `risk ≠ read` chưa có grant phủ `grantScope` |
+| **Auto** (mặc định) | Tự chạy trong sandbox; chỉ hỏi `risk ∈ {destructive, external}`, lệnh shell khớp luật tĩnh (§3.3) và escalation |
+| **Full** | Không hỏi ngoài luật cứng (I-03) và escalation |
+
+Ánh xạ từ preset cũ: Chỉ đọc = `read-only` + Ask; Workspace = `workspace-write` + Auto; Full access = `full-access` + Full. Giá trị mặc định theo workspace thuộc H-34.
+
+## 3. Policy
+
+### 3.1 Descriptor
+
+Bổ sung vào descriptor của [tool system §2](/dev-kit/core-harness/tool-system#2-contract-của-một-tool); mọi field có version như phần còn lại của descriptor.
+
+| Field | Giá trị | Ý nghĩa |
+| --- | --- | --- |
+| `risk` | `read`, `write`, `destructive`, `external` | Mức tác động cao nhất mà tool **có thể** gây ra. `external` là tác động ra ngoài máy không đảo ngược được |
+| `confirm` | `never`, `env_tag`, `always`, `custom` | `never`: chỉ mode quyết định. `env_tag`: hỏi theo tag của target. `always`: việc quan trọng, hỏi mỗi execution. `custom`: `Prepare` trả `risk` và `confirm` hiệu lực cho call cụ thể (ví dụ shell), không được thấp hơn kết quả của luật cứng |
+| `grantScope(args)` | `(key, label)` | Khóa canonical và nhãn hiển thị của phạm vi mà "cho cả session" sẽ phủ. Bắt buộc khi descriptor đề nghị `allowed_session` |
+
+Luật của `grantScope`:
+
+- Hàm thuần và xác định theo canonical args; `key` có tiền tố tên tool (ví dụ `edit:dir:src/`, `shell:prefix:go test`, `escalation:network`).
+- Một call được grant phủ khi và chỉ khi `grantScope(args).key` **bằng đúng** key đã grant. Độ rộng của phạm vi do tool chọn khi tính key, được định nghĩa ở trang của từng tool (H-17, H-18).
+- `label` MUST mô tả đúng và không hẹp hơn phạm vi thật của `key`. Key MUST NOT phủ đường dẫn ngoài workspace.
+
+### 3.2 Thứ tự quyết định
+
+`Decide(mode, profile, descriptor, call, tagPolicy, grants) → {run, ask(offers), refuse(reason)}` chạy trong `Prepare`, sau validate args và resolve target. Gặp kết luận đầu tiên thì dừng.
+
+| # | Điều kiện | Kết luận |
+| --- | --- | --- |
+| 1 | `confirm = always`; hoặc `confirm ∈ {env_tag, custom}`, target có tag yêu cầu xác nhận và `risk ≠ read`; hoặc việc quan trọng của tool system §5.3 | `ask`, chỉ đề nghị `allowed_once` |
+| 2 | Mode Plan và `risk ≠ read` | `refuse(plan_mode)` |
+| 3 | Call cần quyền ngoài sandbox profile hiện tại | `ask` escalation với `denied` / `allowed_once` / `allowed_session` (T-08) |
+| 4 | Mode Full | `run` |
+| 5 | Mode Auto: `risk ∈ {destructive, external}` hoặc luật shell (§3.3) trả `ask` | `ask`, đề nghị `allowed_once` và `allowed_session` |
+| 6 | Mode Ask: `risk ≠ read` và không có grant với `key` của call | `ask`, đề nghị `allowed_once` và `allowed_session` |
+| 7 | Còn lại | `run` |
+
+- Bước 3 đến 6: có grant với đúng `key` thì kết luận là `run` với outcome `allowed_session` và receipt do owner cấp (hành vi hiện tại của owner), không hỏi.
+- Kết luận `run` không cần receipt khi không có bước nào yêu cầu hỏi; gate observation vẫn được ghi (§6.2).
+- Mode được đọc **một lần ở đầu check**, kèm revision. Đổi mode chỉ áp dụng cho check bắt đầu sau ranh giới step; tool đã `Ready` hoặc đang chờ trong step hiện tại không bị đánh giá lại.
+
+### 3.3 Luật tĩnh cho shell
+
+- Áp dụng cho tool có `confirm = custom` chạy lệnh shell (H-18). Lệnh được phân tích thành danh sách lệnh đơn (pipeline, `&&`, `||`, `;`, subshell, command substitution); mỗi lệnh đơn được so với luật.
+- Lệnh **không phân tích được** (heredoc phức tạp, `eval`, chuỗi động) thì kết luận `ask` ở Auto.
+- Bộ luật mặc định, mỗi luật kết luận `ask` và gán `risk`:
+
+| Nhóm | Ví dụ | `risk` |
+| --- | --- | --- |
+| Đẩy ra remote | `git push`, `gh pr merge`, `npm publish`, `docker push` | `external` |
+| Xóa hoặc ghi ngoài workspace | `rm`, `mv`, `cp` với đích ngoài workspace; `rm -rf` với biến chưa rõ giá trị | `destructive` |
+| Tải và chạy | `curl … \| sh`, `wget … \| bash` | `external` |
+| Deploy và hạ tầng | `kubectl apply/delete`, `terraform apply`, `helm upgrade` | `external` |
+| Target có tag | Lệnh trỏ tới context/host khớp ánh xạ tag của workspace (H-34) | Theo luật cứng I-03 |
+
+- Workspace thêm luật `ask` hoặc `allow` theo tiền tố lệnh (H-34). Luật `allow` của workspace không thắng luật cứng.
+- Rủi ro chấp nhận ở giai đoạn A: luật tĩnh có thể bị lách bằng cách viết lệnh khác đi, và network `host` không chặn dữ liệu bị gửi ra ngoài ([tool system §8](/dev-kit/core-harness/tool-system#8-network-và-docker)).
+
+### 3.4 Env tag registry
+
+Giữ semantics của `internal/environments` trong DevKit; owner trong Fugue là package `environments`, được hiện thực khi tool đầu tiên có target mang tag ra đời (sau giai đoạn A). Giai đoạn A chỉ chốt contract:
+
+- Tag có sẵn `dev`, `stg`, `prod`; user tạo thêm tag. Mỗi tag có `requires_confirmation`. `prod` bị khóa `requires_confirmation = true`, không sửa hay xóa được.
+- `RequiresConfirmation(name)`: tag rỗng hoặc không tồn tại trả `true` (fail closed).
+- `PolicyRevision(name)` đổi sau **mọi** thay đổi policy của tag trong process, kể cả đổi qua rồi đổi lại.
+- `Prepare` của tool có target ghi `envTag` và `PolicyRevision` vào `Binding`. Grant key gồm revision này, nên mọi grant cũ mất hiệu lực khi policy của tag đổi.
+
+## 4. Interaction owner
+
+Owner là `internal/interaction` (F1.5). Mục này chỉ ghi phần thay đổi so với code đã port.
+
+### 4.1 Kind và outcome
+
+| Kind | Dùng cho | Outcome hợp lệ | Receipt |
+| --- | --- | --- | --- |
+| `confirm` | Duyệt thực thi, escalation | `allowed_once`, `allowed_session` (chỉ khi được đề nghị), `denied`, `cancelled`, `unavailable`, `expired` | Cho phép **đúng một** attempt khớp `Binding` |
+| `select` | Chọn target, profile, account | Một `option_id` đã đề nghị; `cancelled`, `unavailable`, `expired` | Ghi lựa chọn cho `Prepare`; **không** cho phép thực thi |
+| `question` (mới) | `ask_user` (H-20) | `answered` (text, có thể kèm `option_id` gợi ý), `cancelled`, `unavailable`, `expired` | Mang câu trả lời cho `Execute`; không cho phép tác động khác |
+
+`denied` của `confirm` có thể kèm `text` (lời nhắn). Lời nhắn và câu trả lời là nội dung (§7).
+
+### 4.2 Thay đổi type
+
+| Type | Thay đổi |
+| --- | --- |
+| `Kind` | Thêm `KindQuestion` |
+| `Outcome` | Thêm `OutcomeAnswered` |
+| `Spec` | Thêm `Offers` (tập outcome được đề nghị cho `confirm`), `GrantScopeKey`, `GrantScopeLabel`, `Prompt` (câu hỏi của `question`). `Important` được thay bằng `Offers` không chứa `allowed_session` |
+| `Binding` | Thêm `PolicyRevision`, `GrantScopeKey`; giữ `EnvTag` |
+| `Decision` | Thêm `Text` (lời nhắn khi `denied`, câu trả lời khi `answered`) |
+| `Receipt` | Thêm `AnswerText` cho `question`; xóa khỏi memory khi claim hoặc khi invalidate |
+| `grantKey` | `(sessionID, workspaceID, toolName, grantScopeKey, envTag, policyRevision)`; bỏ `targetRevision`, `envRevision` |
+| `Config` | `Responder = nil` **không** còn nghĩa là fail closed; chỉ `Headless = true` cho `unavailable` (I-07). `TestNilResponderAndHeadlessFailClosed` đổi theo |
+
+### 4.3 Bất biến
+
+- `operationID = (invocationID, attemptID, checkGeneration)`. `Ensure` với cùng `operationID` và cùng spec trả request cũ; spec khác thì từ chối có kiểu.
+- Mỗi request được trả lời **tối đa một lần**; receipt được claim **tối đa một lần** và chỉ khi `Binding` khớp chính xác.
+- Restart (incarnation mới) và vault lock làm mất **mọi** request, grant và receipt chưa claim, đồng bộ tại owner.
+- Owner MUST NOT ghi nội dung (summary, prompt, text) vào audit; audit chỉ có metadata như hiện tại.
+
+## 5. Vòng đời và recovery
+
+| Tình huống | Hành vi |
+| --- | --- |
+| Crash sau `Ensure`, trước khi `ToolApprovalRequested` commit | Incarnation mới không còn request. Recovery ghi `ToolCheckReset`, check generation mới, hỏi lại |
+| Crash sau khi user trả lời, trước khi `ToolApprovalResolved` commit | Receipt mất cùng incarnation. `ToolCheckReset`, hỏi lại. Chi phí chấp nhận: user bị hỏi lại một lần; không có tác động nào chạy |
+| Crash sau `ToolReadyRecorded`, trước dispatch | `ToolCheckReset` theo state machine §8; receipt cũ không dùng được ở incarnation mới |
+| Vault lock khi request đang chờ hoặc user đang trả lời | Owner invalidate đồng bộ; `Answer` đến sau lock bị từ chối. Run vào `Waiting(vault_locked)`; mở vault thì check lại với generation mới |
+| Stop hoặc cancel run | `InvalidateOperation` → `cancelled`; tool kết thúc bằng refusal |
+| Interject khi đang chờ | Request bị coi là từ chối (coordination Q-04) |
+| Đổi mode khi có request chờ | Request giữ nguyên; mode mới áp dụng cho check sau |
+| Không có client nào đang nối | Request chờ; client nối vào nhận trong snapshot |
+| Nhiều client cùng trả lời | Câu trả lời đầu tiên thắng; các câu sau nhận `interaction.already_answered` |
+| Host headless | `Ensure` trả `unavailable` ngay; tool kết thúc bằng refusal |
+
+Thời gian chờ request không tính vào active-time budget ([state machine §7](/dev-kit/core-harness/state-machine)).
+
+## 6. State, event và lưu trữ
+
+### 6.1 Trạng thái điều khiển của session
+
+Approval mode và sandbox profile là **control state của session**, không phải execution history (cùng loại với `exec_queue` của [điều phối input](/dev-kit/core-harness/coordination#3-queue)). Bảng `exec_session_policy`, owner là execution store:
+
+| Cột | Ghi chú |
+| --- | --- |
+| `session_id` | Khóa chính |
+| `approval_mode` | `plan`, `ask`, `auto`, `full` |
+| `sandbox_profile` | `read-only`, `workspace-write`, `full-access` |
+| `revision` | Tăng mỗi lần đổi; lệnh đổi mang revision mong đợi, lệch thì từ chối có kiểu |
+| `updated_at` | |
+
+Không thêm event vào kernel. Đổi mode trong lúc có run thì coordinator chèn `ContextInjected` (nguồn `approval_mode`) ở ranh giới step kế tiếp để model biết.
+
+### 6.2 Gate observation
+
+`ToolApprovalRequested`, `ToolApprovalResolved` và `ToolReadyRecorded` mang **gate observation** (metadata, theo INV-09):
+
+| Field | Nội dung |
+| --- | --- |
+| `mode`, `modeRevision` | Mode và revision đọc ở đầu check |
+| `sandboxProfile` | Profile hiệu lực |
+| `rule` | Số bước ở §3.2 đã kết luận |
+| `risk`, `confirm` | Giá trị hiệu lực của call |
+| `envTag`, `policyRevision` | Khi tool có target |
+| `grantScopeKey` | Khi kết luận dùng hoặc tạo grant; key không chứa nội dung file hay args thô ngoài phạm vi đã khai báo |
+
+Câu trả lời của `question` và lời nhắn khi `denied` đi vào `ToolResultRecorded` qua protected payload, không vào gate observation.
+
+## 7. Bảo mật
+
+- **Authority ở owner**: chỉ interaction owner cấp receipt; `Execute` claim receipt và revalidate theo [architecture](/dev-kit/core-harness/architecture#approval-qua-owning-gateway). Không có cờ "đã duyệt" truyền qua args.
+- **Summary do tool dựng** từ canonical args trong `Prepare`, không lấy mô tả do model viết. Riêng `question`, câu hỏi là output của model và MUST được hiển thị có nhãn là câu hỏi của agent.
+- Summary, prompt, câu trả lời và lời nhắn là **nội dung**: chỉ ở memory của owner, chỉ gửi tới principal tin cậy, không vào audit, log, journal metadata hay URL.
+- Principal được trả lời là client local cùng UID ([host API §7](/dev-kit/core-harness/host-api#7-principal-và-tin-cậy)); giai đoạn A là CLI (H-45).
+- Grant không bao giờ được tạo cho kết luận của bước 1 (§3.2).
+
+## 8. Host API
+
+Service `fugue.interaction.v1`:
+
+| RPC | Input | Ghi chú |
+| --- | --- | --- |
+| `ListPending` | — | Snapshot các request đang chờ của incarnation hiện tại, kèm sequence của topic |
+| `Answer` | `command_id`, `incarnation`, `request_id`, `outcome`, `option_id?`, `text?` | Dedup theo `command_id`; từ chối nếu incarnation lệch, request không tồn tại, đã trả lời, outcome hay option không được đề nghị, hoặc `text` vượt giới hạn |
+
+Topic `interaction` (host API §6) phát `requested`, `resolved` (kèm outcome, không kèm nội dung) với sequence, snapshot và catch-up.
+
+View của một request: `request_id`, `incarnation`, `session_id`, tool, kind, `risk`, `envTag`, summary hoặc prompt, các outcome được đề nghị, option, và **nhãn `grantScope`** cho lựa chọn "cho cả session".
+
+Service session bổ sung `SetSessionPolicy(command_id, session_id, expected_revision, approval_mode?, sandbox_profile?)`.
+
+Mã lỗi công khai mới: `interaction.not_found`, `interaction.already_answered`, `interaction.stale_incarnation`, `interaction.option_not_offered`, `interaction.text_too_large`, `session.policy_revision_conflict`.
+
+## 9. Giới hạn
+
+| Thứ | Giới hạn mặc định |
+| --- | --- |
+| Summary của request | 2 KiB |
+| Câu hỏi (`prompt`) | 8 KiB |
+| Câu trả lời | 16 KiB |
+| Lời nhắn khi `denied` | 4 KiB |
+| Số option | ≤ 20 |
+| Request đang chờ | ≤ 1 mỗi session (tool frontier tuần tự); ≤ 64 mỗi host |
+| Hạn của request | Không có (I-07); spec có thể đặt `ExpiresAt` riêng |
+
+## 10. UX
+
+Chi tiết hiển thị thuộc H-45. Yêu cầu tối thiểu: CLI luôn hiện mode và sandbox profile hiện tại; mỗi request hiện tool, risk, env tag, summary, các lựa chọn được phép và nhãn `grantScope`; đổi mode bằng một lệnh, hiệu lực từ step kế tiếp; khi từ chối có thể nhập lời nhắn; refusal ở Plan mode nói rõ cách thoát Plan.
+
+## 11. Evidence
+
+- Bảng test của `Decide` phủ mọi tổ hợp mode × `risk` × `confirm` × tag (`dev`, `prod`, rỗng, không biết) × có/không grant × có/không escalation.
+- Luật cứng vẫn hỏi ở Full và không bao giờ tạo grant; Plan từ chối mọi `risk ≠ read`.
+- Grant chỉ phủ đúng `grantScopeKey`; đổi `PolicyRevision` của tag làm grant cũ mất hiệu lực.
+- Luật shell: mỗi nhóm mặc định có ca khớp và ca không khớp; lệnh không phân tích được thì `ask` ở Auto.
+- Crash ở hai thời điểm của §5 (sau `Ensure`, sau khi trả lời) dẫn tới `ToolCheckReset` và hỏi lại, không dispatch.
+- Vault lock chen giữa `Answer` và claim thì fail closed.
+- Ngắt rồi nối lại client: request còn trong snapshot. Hai client trả lời cùng lúc: đúng một câu được nhận. `Answer` trùng `command_id` trả cùng kết quả.
+- Audit, log và gate observation không chứa summary, prompt, câu trả lời hay lời nhắn.
+- `SetSessionPolicy` với revision cũ bị từ chối; đổi mode không đánh giá lại tool đã `Ready`.
+- Mutation probes làm test fail: bỏ bước 1 của §3.2, bỏ so khớp `grantScopeKey`, coi `Responder = nil` là headless.
+
+## 12. Phụ thuộc
+
+- Cần trước: H-16 (tool system), H-42 (Host API), F1.5 (`internal/interaction`).
+- Mảng dùng trang này: H-17 và H-18 định nghĩa `grantScope` và luật shell cụ thể; H-20 dùng kind `question` và lối thoát Plan; H-25 định nghĩa thời điểm đổi sandbox profile; H-34 lưu mode mặc định, luật shell và ánh xạ tag của workspace; H-45 hiển thị và trả lời.
+- Gate: đóng phần thiết kế còn lại của G-05; evidence của G-05 đạt khi §11 đạt.
