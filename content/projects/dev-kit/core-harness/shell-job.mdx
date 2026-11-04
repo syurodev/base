@@ -29,11 +29,11 @@ Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-18 tr
 | Arg | Kiểu | Ràng buộc |
 | --- | --- | --- |
 | `command` | string | Bắt buộc; ≤ 16 KiB |
-| `cwd` | string? | Tương đối với workspace root; sau khi resolve symlink phải nằm trong workspace. Mặc định là cwd cuối của lời gọi `shell` trước trong session (§2.4) |
-| `env` | map? | Ghi đè biến; tên phải trong allowlist override của workspace (H-34); ≤ 32 mục |
+| `cwd` | string? | Tương đối với thư mục workspace; sau khi resolve symlink phải nằm trong một root hoặc thư mục workspace ([workspace §2.2](/dev-kit/core-harness/workspace#22-quyền-của-agent)). Mặc định là cwd cuối của lời gọi `shell` trước trong session (§2.4); lời gọi đầu tiên dùng thư mục workspace |
+| `env` | map? | Ghi đè biến; tên phải trong allowlist override của workspace ([workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)); ≤ 32 mục |
 | `timeout_ms` | int? | ≤ mức trần của workspace; mặc định theo workspace (10 phút) |
 | `background` | bool? | `true` thì chạy thẳng thành job |
-| `output` | `compact` \| `full`? | Chế độ kênh Model (§3); mặc định theo workspace (H-34), mặc định của workspace là `compact` |
+| `output` | `compact` \| `full`? | Chế độ kênh Model (§3); mặc định theo workspace ([workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)), mặc định của workspace là `compact` |
 | `sandbox_permissions`, `justification` | ? | Escalation theo [tool system §6](/dev-kit/core-harness/tool-system#6-sandbox-và-escalation) |
 
 ### 2.2 Descriptor
@@ -52,7 +52,7 @@ Mô tả tool cho model nói: đổi nội dung file thì dùng `edit` hoặc `w
 
 1. Phân tích `command` thành danh sách **lệnh đơn**: tách theo pipeline, `&&`, `||`, `;`, subshell, command substitution, process substitution; ghi nhận redirect. Parser có hai lớp: lexer biết quote, escape, operator và redirect; rồi grammar theo program để phân loại argv (§2.6).
 2. Không phân tích được (`eval`, heredoc phức tạp, tên lệnh động như `$CMD`) thì `risk = write`, đánh dấu `unparsed`; interaction §3.3 kết luận `ask` ở Auto.
-3. `risk = read` khi **mọi** lệnh đơn thuộc danh sách chỉ đọc **và** không có redirect ghi file (`>`, `>>`, `tee` ra file). Danh sách mặc định: `ls`, `cat`, `head`, `tail`, `wc`, `stat`, `file`, `grep`, `rg`, `find` (không có `-exec`, `-delete`, `-fprint*`), `tree`, `pwd`, `echo`, `which`, `git status|log|diff|show|branch|rev-parse|ls-files|blame`, `go list|env|version`. Workspace bổ sung được (H-34).
+3. `risk = read` khi **mọi** lệnh đơn thuộc danh sách chỉ đọc **và** không có redirect ghi file (`>`, `>>`, `tee` ra file). Danh sách mặc định: `ls`, `cat`, `head`, `tail`, `wc`, `stat`, `file`, `grep`, `rg`, `find` (không có `-exec`, `-delete`, `-fprint*`), `tree`, `pwd`, `echo`, `which`, `git status|log|diff|show|branch|rev-parse|ls-files|blame`, `go list|env|version`. Workspace bổ sung được ([workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)).
 4. Khớp luật tĩnh của [interaction §3.3](/dev-kit/core-harness/interaction#33-luật-tĩnh-cho-shell) thì nâng `risk` theo luật.
 5. Còn lại `risk = write`.
 6. `grantScope` chỉ có khi đủ cả bốn điều kiện:
@@ -133,7 +133,7 @@ Filter theo program chỉ áp dụng khi xác định chắc chắn được **l
 - **Output có cấu trúc** mà filter có thể làm hỏng: `--porcelain`, `--json`, `--format`, `--pretty`, `-o json`, `--jq`, `--template`.
 - **Model xin chi tiết**: `--info`, `--debug`, `--stacktrace` của Gradle; `-X`, `-e`, `--debug`, `--errors` của Maven.
 
-Workspace có danh sách program loại trừ, không bao giờ lọc theo program (H-34).
+Workspace có danh sách program loại trừ, không bao giờ lọc theo program ([workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)).
 
 ### 3.4 Luật an toàn của filter
 
@@ -146,7 +146,7 @@ Workspace có danh sách program loại trừ, không bao giờ lọc theo progr
 
 ### 3.5 Cap theo loại dữ liệu
 
-Filter không tự đặt số. Mỗi loại dữ liệu có một cap chung, workspace chỉnh được (H-34):
+Filter không tự đặt số. Mỗi loại dữ liệu có một cap chung, workspace chỉnh được ([workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)):
 
 | Cap | Dùng cho | Mặc định |
 | --- | --- | --- |
@@ -190,7 +190,7 @@ Bên trong output, mỗi chỗ bị cắt có hint trỏ đúng phần bị ẩn
 | Mỗi session | 64 MiB | Bỏ output cũ nhất của session đó cho tới khi đủ chỗ |
 | Toàn host | 512 MiB | Bỏ output cũ nhất trên mọi session, trừ output mới nhất của mỗi session |
 
-- Workspace chỉnh được giới hạn mỗi session (H-34); giới hạn toàn host là cấu hình của host.
+- Workspace chỉnh được giới hạn mỗi session ([workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)); giới hạn toàn host là cấu hình của host.
 - Output bị bỏ khi: vượt giới hạn; session kết thúc hoặc bị xóa; vault khóa (cùng lúc với việc xóa session key khỏi cache, [storage-security §8](/dev-kit/core-harness/storage-security#8-vault-observation-owner-api)), vì output gốc có cùng mức nhạy cảm với protected payload.
 - Không có TTL theo thời gian: output còn trong giới hạn thì còn đọc được trong suốt session.
 - `output_id` gắn với session và là capability, như `job_id` (§4).
@@ -304,6 +304,6 @@ Mã lỗi công khai: `shell.cwd_outside_workspace`, `shell.cwd_missing`, `shell
 - Cần trước: [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (H-25), [interaction](/dev-kit/core-harness/interaction) (H-24), H-16.
 - Mảng liên quan:
   - H-26, H-27: redact và envelope cho output, cả compact lẫn full ([an toàn nội dung](/dev-kit/core-harness/content-safety)).
-  - H-34: timeout, giới hạn job, danh sách chỉ đọc bổ sung, allowlist override env, chế độ `output` mặc định, cap, dung lượng giữ output mỗi session, program loại trừ khỏi filter.
+  - [workspace](/dev-kit/core-harness/workspace) (H-34): timeout, giới hạn job, danh sách chỉ đọc bổ sung, allowlist override env, chế độ `output` mặc định, cap, dung lượng giữ output mỗi session, program loại trừ khỏi filter.
   - H-45: hiển thị job và daemon; số đo tiết kiệm và tỉ lệ đọc lại.
 - Giai đoạn B: filter cho thêm ecosystem; filter do workspace định nghĩa kèm cơ chế trust.

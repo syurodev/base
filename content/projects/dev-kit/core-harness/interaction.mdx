@@ -43,7 +43,7 @@ Profile là cấu hình của jail theo session ([tool system §6](/dev-kit/core
 | **Auto** (mặc định) | Tự chạy trong sandbox; chỉ hỏi `risk ∈ {destructive, external}`, lệnh shell khớp luật tĩnh (§3.3) và escalation |
 | **Full** | Không hỏi ngoài luật cứng (I-03) và escalation |
 
-Ánh xạ từ preset cũ: Chỉ đọc = `read-only` + Ask; Workspace = `workspace-write` + Auto; Full access = `full-access` + Full. Giá trị mặc định theo workspace thuộc H-34.
+Ánh xạ từ preset cũ: Chỉ đọc = `read-only` + Ask; Workspace = `workspace-write` + Auto; Full access = `full-access` + Full. Giá trị mặc định theo workspace ở [workspace §5.2](/dev-kit/core-harness/workspace#52-khóa).
 
 ## 3. Policy
 
@@ -59,7 +59,7 @@ Bổ sung vào descriptor của [tool system §2](/dev-kit/core-harness/tool-sys
 
 Luật của `grantScope`:
 
-- Hàm thuần và xác định theo canonical args; `key` có tiền tố tên tool, hoặc tên họ tool khi nhiều tool dùng chung một phạm vi (ví dụ `edit:dir:src/` dùng chung cho `edit` và `write`, `shell:prefix:go test`, `escalation:network`).
+- Hàm thuần và xác định theo canonical args; `key` có tiền tố tên tool, hoặc tên họ tool khi nhiều tool dùng chung một phạm vi (ví dụ `edit:dir:fugue/src/` dùng chung cho `edit` và `write`, với `fugue` là tên root, `shell:prefix:go test`, `escalation:network`).
 - Một call được grant phủ khi và chỉ khi `grantScope(args).key` **bằng đúng** key đã grant. Độ rộng của phạm vi do tool chọn khi tính key, được định nghĩa ở trang của từng tool (H-17, H-18).
 - `label` MUST mô tả đúng và không hẹp hơn phạm vi thật của `key`. Key MUST NOT phủ đường dẫn ngoài workspace.
 
@@ -93,9 +93,9 @@ Luật của `grantScope`:
 | Xóa hoặc ghi ngoài workspace | `rm`, `mv`, `cp` với đích ngoài workspace; `rm -rf` với biến chưa rõ giá trị | `destructive` |
 | Tải và chạy | `curl … \| sh`, `wget … \| bash` | `external` |
 | Deploy và hạ tầng | `kubectl apply/delete`, `terraform apply`, `helm upgrade` | `external` |
-| Target có tag | Lệnh trỏ tới context/host khớp ánh xạ tag của workspace (H-34) | Theo luật cứng I-03 |
+| Target có tag | Lệnh trỏ tới context/host khớp ánh xạ tag của workspace ([workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)) | Theo luật cứng I-03 |
 
-- Workspace thêm luật `ask` hoặc `allow` theo tiền tố lệnh (H-34). Luật `allow` của workspace không thắng luật cứng.
+- Workspace thêm luật `ask` hoặc `allow` theo tiền tố lệnh ([workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)). Luật `allow` của workspace không thắng luật cứng.
 - Rủi ro chấp nhận ở giai đoạn A: luật tĩnh có thể bị lách bằng cách viết lệnh khác đi, và network `host` không chặn dữ liệu bị gửi ra ngoài ([tool system §8](/dev-kit/core-harness/tool-system#8-network-và-docker)).
 
 ### 3.4 Env tag registry
@@ -247,5 +247,5 @@ Chi tiết hiển thị thuộc H-45. Yêu cầu tối thiểu: CLI luôn hiện
 ## 12. Phụ thuộc
 
 - Cần trước: H-16 (tool system), H-42 (Host API), F1.5 (`internal/interaction`).
-- Mảng dùng trang này: H-17 và H-18 định nghĩa `grantScope` và luật shell cụ thể; H-20 dùng kind `question` và lối thoát Plan; H-25 định nghĩa thời điểm đổi sandbox profile; H-34 lưu mode mặc định, luật shell và ánh xạ tag của workspace; H-45 hiển thị và trả lời.
+- Mảng dùng trang này: H-17 và H-18 định nghĩa `grantScope` và luật shell cụ thể; H-20 dùng kind `question` và lối thoát Plan; H-25 định nghĩa thời điểm đổi sandbox profile; H-34 lưu mode mặc định, luật shell và ánh xạ tag của workspace ([workspace](/dev-kit/core-harness/workspace)); H-45 hiển thị và trả lời.
 - Gate: đóng phần thiết kế còn lại của G-05; evidence của G-05 đạt khi §11 đạt.

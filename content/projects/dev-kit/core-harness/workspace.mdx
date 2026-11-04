@@ -1,0 +1,247 @@
+---
+title: Workspace và cấu hình
+description: H-34 — workspace là thư mục ~/Fugue/workspaces/<id>/ cùng các root có tên ở bất kỳ đâu; quyền của agent, thay đổi root khi có session đang chạy, bốn tầng cấu hình TOML, schema, validate, nạp lại và bảo mật.
+---
+
+# Workspace và cấu hình
+
+Trạng thái: v0.13, ngày 2026-11-04. **Thiết kế đã chốt** cho H-34 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Trang này định nghĩa workspace và là nơi duy nhất chứa các giá trị "cấu hình theo workspace" mà các trang khác nhắc tới.
+
+## 1. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| WS-01 | Workspace là thư mục `~/Fugue/workspaces/<id>/` (`id` là UUIDv7) cộng **các root có tên**, nằm ở bất kỳ đâu, không cần chung thư mục cha. Các root ngang hàng; mỗi root `rw` hoặc `ro` |
+| WS-02 | Thư mục workspace là **cwd ban đầu** của session và gốc của path tương đối. Code được truy cập bằng path thật của root; không có symlink |
+| WS-03 | Thư mục đặt theo `id`, không theo tên; đổi tên workspace chỉ sửa `fugue.toml` |
+| WS-04 | **File là nguồn gốc** của cấu hình; `fugue.db` chỉ giữ định danh, revision và hash để phát hiện thay đổi |
+| WS-05 | Bốn tầng, tầng sau thắng tầng trước: mặc định có sẵn, `~/Fugue/config.toml`, `fugue.toml` của workspace, session. Không có cấu hình đi kèm repo ở giai đoạn A |
+| WS-06 | Format TOML, decode chặt: key lạ là lỗi |
+| WS-07 | Agent không sửa được cấu hình: jail mount chỉ đọc, tool file có `confirm: always`, workspace khác bị chặn đọc |
+| WS-08 | Cấu hình không nới được luật cứng và không chứa secret |
+| WS-09 | Đổi cấu hình áp dụng ở ranh giới step kế tiếp; đổi khóa policy thì mọi grant của workspace bị bỏ |
+
+## 2. Thư mục và root
+
+```text
+~/Fugue/                              ← gốc của Fugue cho user; đổi bằng SYNX_FUGUE_HOME
+  config.toml                         ← cấu hình chung (tầng 2), gồm [host]
+  workspaces/<id>/
+    fugue.toml                        ← cấu hình workspace (tầng 3)
+    AGENTS.md                         ← rule cá nhân của workspace (R3), tùy chọn
+    WORKSPACE.md                      ← Fugue sinh khi root đổi; không sửa tay
+    scratch/                          ← nháp dùng chung cho các session của workspace
+```
+
+- `~/Fugue/` khác **data dir** (`fugue.db`, vault, socket; `SYNX_FUGUE_DATA_DIR`). Data dir luôn bị chặn với agent; `~/Fugue/` được mount có chọn lọc (§2.2).
+- `WORKSPACE.md` ghi tên workspace, `id`, và mỗi root với tên, path thật, quyền; dùng cho cả user lẫn model.
+
+### 2.1 Root
+
+```toml
+[[roots]]
+name = "kong-outbound"
+path = "/home/ptvu3/Workspace/fsap/fsap-kong-outbound"
+access = "rw"
+```
+
+- `name`: `[a-z0-9][a-z0-9-]{0,31}`, duy nhất trong workspace.
+- `path`: tuyệt đối sau khi mở `~` và resolve symlink; thư mục phải tồn tại lúc thêm.
+- Root không lồng nhau trong cùng workspace; không nằm trong `~/Fugue/` hay data dir.
+- Hai workspace được dùng chung một root. Shadow git của snapshot tách theo (workspace, root).
+- Workspace được phép không có root nào (chỉ dùng `scratch/`).
+
+### 2.2 Quyền của agent
+
+Áp dụng cho cả jail ([sandbox runtime](/dev-kit/core-harness/sandbox-runtime)) lẫn [tool file](/dev-kit/core-harness/file-tools):
+
+| Path | Đọc | Ghi |
+| --- | --- | --- |
+| Root `rw` | Có | Theo sandbox profile |
+| Root `ro` | Có | Không, ở mọi profile |
+| `workspaces/<id>/scratch/` | Có | Có, ở mọi profile trừ `read-only` |
+| `workspaces/<id>/AGENTS.md` | Có | Hỏi ở Auto (file instruction) |
+| `fugue.toml`, `WORKSPACE.md` của workspace, `~/Fugue/config.toml` | Có | Không trong jail (mount chỉ đọc); tool file `confirm: always` |
+| Workspace khác trong `~/Fugue/workspaces/` | Không | Không |
+| Data dir | Không | Không |
+
+"Trong workspace" (cwd của shell, đích của `edit`/`write`, phạm vi grant) nghĩa là nằm trong **một root** hoặc trong **thư mục workspace**, sau khi resolve symlink. `full-access` mở ghi ra ngoài các vùng trên nhưng không bao giờ mở root `ro`, các path của `~/Fugue/` ở bảng trên hay data dir.
+
+### 2.3 Path cho model
+
+- Path tương đối của tool file và cwd ban đầu của shell tính từ thư mục workspace.
+- System prompt có khối danh sách root (tag ổn định, [context engine §2.1](/dev-kit/core-harness/context-engine#21-patch-và-runtime-context)) với tên, path thật, quyền; model dùng path thật để tới code.
+- Grant scope có tên root: `edit:dir:<root>/<thư mục cấp đầu>/`; file ở gốc root hoặc trong thư mục workspace chỉ có "cho 1 lần" ([tool file §7](/dev-kit/core-harness/file-tools#7-risk-confirm-và-grant-scope)).
+
+## 3. Định danh và vòng đời
+
+| Bảng | Khóa / cột | Ghi chú |
+| --- | --- | --- |
+| `workspaces` | PK `workspace_id`; `config_revision`, `policy_revision`, `config_hash`, `missing_roots`, `created_at` | Owner `internal/workspace`. Không chứa tên hay path (nằm trong file) |
+
+Session ghi `workspace_id` lúc tạo và không đổi workspace trong đời của nó.
+
+| Lệnh | Việc |
+| --- | --- |
+| `fugue workspace new <name> --root kong=~/Workspace/fsap/fsap-kong-outbound --root doc=~/…:ro` | Tạo thư mục, `fugue.toml`, `WORKSPACE.md` |
+| `fugue workspace list`, `show [--effective]` | Liệt kê; xem cấu hình cuối cùng kèm tầng cung cấp mỗi giá trị; có `--json` |
+| `fugue workspace root add/rm/set/rename/access` | Thay đổi root (§4) |
+| `fugue workspace edit` | Mở `fugue.toml` bằng `$EDITOR`; validate khi lưu; lỗi thì mở lại với lỗi ở đầu file dạng comment |
+| `fugue workspace rm` | Có xác nhận; xóa thư mục và board của workspace; giữ lịch sử session |
+
+**Chọn workspace khi chạy `fugue`:** cwd thuộc root của đúng một workspace thì dùng workspace đó; nhiều workspace thì hỏi chọn; không thuộc workspace nào thì đề nghị tạo workspace một root với cwd. Chỉ định thẳng bằng `fugue -w <tên|id>`.
+
+**Root mất** (thư mục bị xóa hoặc đổi chỗ): đánh dấu `missing`; session vẫn mở được, CLI cảnh báo; thao tác trên root đó lỗi `workspace.root_missing`; user sửa bằng `root set`.
+
+## 4. Thay đổi root
+
+Lệnh `root …` và việc sửa thẳng `fugue.toml` đi chung một đường:
+
+1. Validate cấu hình mới (§6).
+2. So root cũ và mới, rút ra thao tác: thêm, gỡ, đổi path, đổi tên, đổi quyền.
+3. Tăng `config_revision`; sinh lại `WORKSPACE.md`.
+4. Áp dụng ở **ranh giới step kế tiếp** của mỗi session đang chạy.
+
+Lệnh CLI kiểm tra `config_hash` trước khi ghi; file đã bị sửa ở chỗ khác thì từ chối `workspace.config_changed`, không ghi đè.
+
+### 4.1 Thêm root
+
+| Phần | Xử lý |
+| --- | --- |
+| Tool file, `grep`, `glob` | Thấy root mới từ step kế tiếp |
+| Jail | Mount cố định lúc jail khởi động, nên jail được **khởi động lại** ở ranh giới step kế tiếp nếu không có job hay daemon đang chạy; có thì hoãn tới khi chúng xong. User ép bằng `fugue session restart-jail`. Lệnh shell chạy trong lúc hoãn chưa thấy root mới, result ghi rõ |
+| Model | Khối danh sách root được patch qua `ContextInjected` |
+| Snapshot | Turn snapshot đang có không phủ root mới; root vào snapshot từ turn kế tiếp |
+| `AGENTS.md` của root | Kích hoạt theo path |
+| Grant | Không ảnh hưởng |
+
+### 4.2 Gỡ root
+
+| Phần | Xử lý |
+| --- | --- |
+| Job, daemon, lệnh shell đang chạy có cwd trong root | CLI liệt kê và hỏi **chờ** hoặc **gỡ ngay**; gỡ ngay thì cancel có proof dừng |
+| Tool file, jail | Từ step kế tiếp không truy cập được (`file.path_denied`); jail khởi động lại như §4.1 |
+| cwd của shell trong root | Reset về thư mục workspace; result kế tiếp ghi rõ |
+| Request duyệt đang chờ có path trong root | Invalidate; check lại bị từ chối |
+| Grant có tên root | Bị bỏ |
+| Phiên bản đã thấy của tool file trong root | Bị bỏ khỏi bộ nhớ đệm |
+| Snapshot của root | Giữ tới hết hạn; không restore vào root đã gỡ; `--purge-snapshots` xóa ngay |
+| Lịch sử session, task | Giữ nguyên |
+
+### 4.3 Thay đổi khác
+
+- **Đổi path** (`root set`): như gỡ rồi thêm cùng tên; grant và phiên bản đã thấy bị bỏ.
+- **Đổi tên** (`root rename`): grant của root bị bỏ vì key có tên root; khối danh sách root được patch.
+- **Đổi quyền** `rw` ↔ `ro`: từ step kế tiếp, jail khởi động lại; sang `ro` thì grant ghi của root bị bỏ.
+
+## 5. Tầng cấu hình và schema
+
+### 5.1 Tầng
+
+| Tầng | Nguồn | Phạm vi |
+| --- | --- | --- |
+| 1 | Mặc định trong binary | Mọi khóa |
+| 2 | `~/Fugue/config.toml` | Mọi khóa của workspace làm mặc định chung, cộng `[host]` (chỉ ở tầng này) |
+| 3 | `workspaces/<id>/fugue.toml` | Khóa của workspace, cộng `name` và `[[roots]]` (chỉ ở tầng này) |
+| 4 | Session | Approval mode và sandbox profile (`SetSessionPolicy`), model, reasoning, `max_rounds` của goal; đặt khi tạo session hoặc đổi giữa chừng; không ghi ngược vào file |
+
+**Luật gộp:** giá trị đơn và table ghi đè theo từng key. Mảng thay cả mảng, trừ các danh sách có dạng `xxx_add` (§5.2) dùng để thêm vào mảng của tầng dưới. Một tầng chỉ dùng một trong `xxx` và `xxx_add` cho mỗi danh sách.
+
+### 5.2 Khóa
+
+| Khóa | Mặc định | Dùng ở | Khóa policy |
+| --- | --- | --- | --- |
+| `policy.approval_mode` | `auto` | Mode của session mới ([interaction §2](/dev-kit/core-harness/interaction#2-hai-trục-sandbox-profile-và-approval-mode)) | Có |
+| `policy.sandbox_profile` | `workspace-write` | Profile của session mới | Có |
+| `policy.shell_ask`, `policy.shell_allow` (+ `_add`) | `[]` | Luật shell theo tiền tố ([interaction §3.3](/dev-kit/core-harness/interaction#33-luật-tĩnh-cho-shell)); `allow` không thắng luật cứng | Có |
+| `policy.env_tags` | `[]` | `{ match, tag }`; contract, tool có target mang tag ở giai đoạn B | Có |
+| `env.keep` (+ `_add`) | `[]` | Tên giữ lại dù khớp denylist (J-04) | Có |
+| `env.override_allow` (+ `_add`) | `[]` | Tên model được ghi đè qua arg `env` của shell | Có |
+| `shell.timeout`, `shell.timeout_cap` | `10m`, `60m` (trần 60m) | [Shell và job §2](/dev-kit/core-harness/shell-job#2-tool-shell) | Không |
+| `shell.output` | `compact` | Chế độ output mặc định | Không |
+| `shell.output_retention` | `64MiB` | Giữ output mỗi session | Không |
+| `shell.filter_exclude` (+ `_add`) | `[]` | Program không lọc | Không |
+| `shell.read_only_add` | `[]` | Thêm vào danh sách lệnh chỉ đọc | Có |
+| `shell.caps` | `failures=20, list=50, matches=200, matches_per_group=25, line=400` | Cap theo loại dữ liệu | Không |
+| `jobs.max`, `jobs.max_lifetime` | `3` (trần 10), `2h` | Job | Không |
+| `sandbox.idle_stop` | `30m` | Dừng jail khi rảnh | Không |
+| `files.exclude` (+ `_add`) | `[]` | Loại trừ cho `grep`, `glob`, snapshot | Không |
+| `redact.allow_keys`, `redact.allow_paths` (+ `_add`) | `[]` | Ngoại lệ redact ([an toàn nội dung §3.2](/dev-kit/core-harness/content-safety#32-nhận-diện)) | Có |
+| `tasks.key_prefix` | Chữ cái đầu của tên workspace, viết hoa, tối đa 6 | Key task | Không |
+| `tasks.verify` | Không có | `{ command, timeout = "15m", root }`; `root` phải là root `rw` ([task và checklist §7](/dev-kit/core-harness/tasks#7-cổng-sang-terminal)) | Có |
+| `run.max_steps` | `100` | [Continuation §3](/dev-kit/core-harness/continuation) | Không |
+| `run.loop_remind_at`, `run.loop_exclude` | `[3, 5, 8]`, `[]` | Phát hiện lặp | Không |
+| `goal.max_rounds` | `20` | Goal mode | Không |
+| `snapshot.turn_max`, `tool_max`, `turn_keep`, `tool_keep` | `200`, `500`, `30d`, `7d` | [Tool system §9](/dev-kit/core-harness/tool-system#9-snapshot) | Không |
+| `model.default`, `model.reasoning` | Theo catalog | [Model adapter](/dev-kit/core-harness/model-adapter) | Không |
+
+`[host]`, chỉ ở `~/Fugue/config.toml`:
+
+| Khóa | Mặc định |
+| --- | --- |
+| `host.output_retention_total` | `512MiB` |
+| `host.seen_versions_per_session` | `32MiB` |
+| `host.snapshot_disk` | `1GiB` |
+| `host.workspaces_dir` | `~/Fugue/workspaces` |
+
+Kích thước viết có đơn vị (`64MiB`), thời lượng viết dạng `10m`, `2h`, `7d`.
+
+## 6. Validate
+
+- Khi nạp, khi `fugue workspace edit` lưu, khi host phát hiện file đổi.
+- Decode chặt: key lạ, sai kiểu, ngoài khoảng, enum sai đều là lỗi; lỗi ghi `file:dòng:cột` và tên key.
+- Kiểm tra root theo §2.1; `tasks.verify.root` là root `rw`; pattern của `env_tags`, `files.exclude`, `redact.allow_paths` compile được.
+- Từ chối mọi khóa nới luật cứng: không có khóa nào bỏ hỏi cho prod, tag không rõ hay việc quan trọng của [tool system §5.3](/dev-kit/core-harness/tool-system#53-việc-quan-trọng-luôn-hỏi).
+- Thiếu file thì dùng tầng dưới; file rỗng hợp lệ.
+
+| File lỗi lúc | Hành vi |
+| --- | --- |
+| Tạo session | Từ chối `workspace.config_invalid` kèm vị trí |
+| Session đang chạy | Giữ cấu hình hợp lệ gần nhất; CLI cảnh báo; không áp dụng phần nào của file lỗi |
+| `fugue workspace edit` | Mở lại editor kèm lỗi tới khi hợp lệ hoặc user bỏ |
+
+## 7. Nạp lại
+
+- Host theo dõi `~/Fugue/config.toml` và mọi `fugue.toml`. File đổi và hợp lệ thì tăng `config_revision`; đổi `config.toml` thì tăng cho mọi workspace.
+- Cấu hình mới áp dụng ở ranh giới step kế tiếp; lệnh, job, tool đang chạy giữ cấu hình lúc bắt đầu.
+- Đổi **khóa policy** (§5.2) hoặc quyền của root thì tăng `policy_revision`; mọi grant của các session trong workspace bị bỏ (grant key có `PolicyRevision`, [interaction §4.2](/dev-kit/core-harness/interaction#42-thay-đổi-type)); model được báo qua `ContextInjected` (nguồn `workspace_config`).
+- Khóa khác áp dụng lặng lẽ.
+- `policy.approval_mode` và `policy.sandbox_profile` chỉ là mặc định cho session mới; session đang chạy giữ mode và profile của nó.
+- Thay đổi root theo §4.
+
+## 8. Bảo mật
+
+- Agent không có đường sửa cấu hình (WS-07); không đọc được workspace khác.
+- Không có cấu hình đi kèm repo: repo clone về không tự nới quyền hay đổi luật.
+- Cấu hình là plaintext và không chứa secret; lệnh verify và lệnh shell lấy biến từ env snapshot.
+- Audit chỉ ghi `workspace_id`, revision và tên các section đã đổi, không ghi giá trị (INV-09).
+
+## 9. Evidence
+
+**Workspace và root**
+
+- Tạo workspace: thư mục theo `id`, `fugue.toml`, `WORKSPACE.md`; đổi tên không đổi thư mục.
+- Validate root: lồng nhau, trong `~/Fugue/` hay data dir, tên trùng, path không tồn tại đều bị từ chối; hai workspace dùng chung root được.
+- Bảng quyền §2.2 cho jail và tool file ở mỗi profile; root `ro` không ghi được ở `full-access`; workspace khác bị chặn đọc; agent không ghi được `fugue.toml` qua shell hay tool file.
+- Chọn workspace theo cwd: một, nhiều, không có.
+- Root mất: đánh dấu, cảnh báo, lỗi có kiểu.
+
+**Thay đổi root khi có session**
+
+- Thêm: tool file thấy từ step kế tiếp; jail khởi động lại hoặc hoãn khi có job; khối danh sách root được patch.
+- Gỡ: hỏi khi có job; gỡ ngay có proof dừng; cwd reset; request chờ bị invalidate; grant và phiên bản đã thấy của root bị bỏ; không restore vào root đã gỡ.
+- Đổi path, tên, quyền theo §4.3.
+- Sửa thẳng `fugue.toml` và dùng lệnh `root …` cho cùng kết quả; lệnh ghi khi file đã đổi bị từ chối.
+
+**Cấu hình**
+
+- Key lạ, sai kiểu, ngoài khoảng bị từ chối với vị trí đúng; khóa nới luật cứng bị từ chối.
+- Gộp tầng: ghi đè theo key; mảng thay cả mảng; `_add` thêm vào; dùng cả hai trong một tầng là lỗi; `show --effective` ghi đúng tầng.
+- File lỗi: session đang chạy giữ bản hợp lệ gần nhất; session mới bị từ chối.
+- Nạp lại ở ranh giới step; job đang chạy giữ timeout cũ; đổi khóa policy bỏ grant và báo model; đổi cap giữ grant.
+
+## 10. Phụ thuộc
+
+- Cần trước: [interaction](/dev-kit/core-harness/interaction) (H-24), [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (H-25).
+- Mảng dùng trang này: mọi trang có giá trị theo workspace — [tool file](/dev-kit/core-harness/file-tools), [shell và job](/dev-kit/core-harness/shell-job), [an toàn nội dung](/dev-kit/core-harness/content-safety), [task và checklist](/dev-kit/core-harness/tasks), [hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan), [context engine](/dev-kit/core-harness/context-engine), [continuation](/dev-kit/core-harness/continuation), [tool system §9](/dev-kit/core-harness/tool-system#9-snapshot).
+- Mảng liên quan: H-45 (lệnh `fugue workspace`, cảnh báo, chọn workspace), H-06 (budget theo workspace).

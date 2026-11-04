@@ -26,19 +26,19 @@ Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-17 tr
 | Thao tác | Được phép khi |
 | --- | --- |
 | Đọc (`read`, `grep`, `glob`) | Path nằm trong vùng đọc của sandbox profile hiện tại, kể cả ngoài workspace (Go module cache, `~/.m2`, `/usr/include`) |
-| Ghi (`edit`, `write`) | Path nằm trong vùng ghi của profile: workspace với `workspace-write`, mọi nơi với `full-access`, không nơi nào với `read-only` |
+| Ghi (`edit`, `write`) | Path nằm trong vùng ghi của profile: root `rw` và `scratch/` của workspace với `workspace-write`, thêm mọi nơi khác (trừ root `ro` và các path của `~/Fugue/`) với `full-access`, không nơi nào với `read-only` ([workspace §2.2](/dev-kit/core-harness/workspace#22-quyền-của-agent)) |
 
 - **Luôn bị chặn đọc và ghi**, mọi profile: `~/.ssh`, `~/.gnupg`, `~/.aws`, thư mục credential của gcloud, data dir của Fugue (`fugue.db`, vault, socket). Danh sách trùng với danh sách chặn của [tool system §7.3](/dev-kit/core-harness/tool-system#73-env-của-host) và lấy từ cùng một nguồn trong code.
 - Path được resolve tuyệt đối, theo symlink tới **đích cuối**; đích cuối mới là thứ được kiểm tra. Symlink trong workspace trỏ ra ngoài vùng ghi thì ghi bị từ chối như ghi ra ngoài.
 - Ghi ngoài vùng ghi: interaction §3.2 bước 3 hỏi escalation, giống shell.
-- `.git/` trong workspace: đọc được; ghi bị từ chối (`file.path_protected`). Thao tác git đi qua `shell`.
-- `grep` và `glob` tôn trọng `.gitignore` và danh sách loại trừ của workspace (H-34); `read` một path cụ thể thì không bị `.gitignore` chặn.
+- `.git/` trong root: đọc được; ghi bị từ chối (`file.path_protected`). Thao tác git đi qua `shell`.
+- `grep` và `glob` tôn trọng `.gitignore` và danh sách loại trừ của workspace (`files.exclude`, [workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)); `read` một path cụ thể thì không bị `.gitignore` chặn.
 
 ## 3. `read`
 
 | Arg | Kiểu | Ràng buộc |
 | --- | --- | --- |
-| `path` | string | Bắt buộc; tương đối với workspace root hoặc tuyệt đối |
+| `path` | string | Bắt buộc; tương đối với thư mục workspace hoặc tuyệt đối ([workspace §2.3](/dev-kit/core-harness/workspace#23-path-cho-model)) |
 | `offset` | int? | Dòng bắt đầu, từ 1 |
 | `limit` | int? | Số dòng; mặc định 2000, tối đa 2000 |
 
@@ -149,12 +149,12 @@ Lỗi `edit.no_match` ghi chỉ số của phần tử và trả tối đa 3 đo
 | --- | --- |
 | File thường trong vùng ghi | `write` / `never` |
 | File instruction mà [context engine §3](/dev-kit/core-harness/context-engine#3-tầng-rule) nạp (`AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, thư mục rule) | `destructive` / `never`: hỏi ở Auto, vì nội dung không tin cậy có thể khiến model cài instruction tồn tại qua các session |
-| Thư mục cấu hình workspace của Fugue (H-34) | `write` / `always`: việc quan trọng, chỉ có "cho 1 lần"; model không được tự nới policy |
+| `fugue.toml`, `WORKSPACE.md` của workspace, `~/Fugue/config.toml` ([workspace](/dev-kit/core-harness/workspace)) | `write` / `always`: việc quan trọng, chỉ có "cho 1 lần"; model không được tự nới policy |
 | Ngoài vùng ghi | Escalation theo interaction §3.2 bước 3 |
 
-- `grantScope` cho `edit` và `write` dùng chung họ khóa `edit:dir:`: `key = "edit:dir:" + thư mục cấp đầu + "/"` (ví dụ `edit:dir:internal/`), `label` dạng `sửa mọi file trong internal/ trong session này`.
-- File ở gốc workspace và đích ngoài workspace không có grant scope, chỉ có "cho 1 lần".
-- Lời gọi `edit` nhiều file: risk và confirm hiệu lực là mức **cao nhất** trong các file; grant scope chỉ có khi mọi file cùng một thư mục cấp đầu, còn lại chỉ có "cho 1 lần". Summary của request liệt kê mọi path và số thay đổi mỗi path.
+- `grantScope` cho `edit` và `write` dùng chung họ khóa `edit:dir:`: `key = "edit:dir:" + tên root + "/" + thư mục cấp đầu trong root + "/"` (ví dụ `edit:dir:fugue/internal/`), `label` dạng `sửa mọi file trong fugue/internal/ trong session này`.
+- File ở gốc root, trong thư mục workspace và đích ngoài workspace không có grant scope, chỉ có "cho 1 lần".
+- Lời gọi `edit` nhiều file: risk và confirm hiệu lực là mức **cao nhất** trong các file; grant scope chỉ có khi mọi file cùng một thư mục cấp đầu của cùng một root, còn lại chỉ có "cho 1 lần". Summary của request liệt kê mọi path và số thay đổi mỗi path.
 
 ## 8. Ghi file
 
@@ -204,7 +204,7 @@ Mã lỗi công khai: `file.not_found`, `file.is_directory`, `file.path_denied`,
 **Phạm vi và quyền**
 
 - Bảng path theo từng profile: đọc ngoài workspace được ở `workspace-write`; ghi ngoài workspace hỏi escalation; thư mục bị chặn bị từ chối ở mọi profile; symlink trỏ ra ngoài bị từ chối khi ghi; `.git/` chỉ đọc.
-- Risk hiệu lực: file instruction hỏi ở Auto; thư mục cấu hình của Fugue luôn hỏi và chỉ có "cho 1 lần"; grant `edit:dir:internal/` phủ `edit` và `write` trong `internal/`, không phủ file ở gốc.
+- Risk hiệu lực: file instruction hỏi ở Auto; thư mục cấu hình của Fugue luôn hỏi và chỉ có "cho 1 lần"; grant `edit:dir:fugue/internal/` phủ `edit` và `write` trong `internal/` của root `fugue`, không phủ file ở gốc root hay root khác.
 
 **`read`, `grep`, `glob`**
 
@@ -230,4 +230,4 @@ Mã lỗi công khai: `file.not_found`, `file.is_directory`, `file.path_denied`,
 ## 12. Phụ thuộc
 
 - Cần trước: [interaction](/dev-kit/core-harness/interaction) (H-24), [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (H-25, vùng đọc ghi và danh sách chặn), [an toàn nội dung](/dev-kit/core-harness/content-safety) (H-26, H-27), tool snapshot (H-28), H-16.
-- Mảng liên quan: H-34 (danh sách loại trừ, đường dẫn thư mục cấu hình của Fugue), H-12 (danh sách file instruction), H-19 (đọc code theo symbol, giai đoạn B).
+- Mảng liên quan: [workspace](/dev-kit/core-harness/workspace) (H-34: root, quyền, danh sách loại trừ, file cấu hình), H-12 (danh sách file instruction), H-19 (đọc code theo symbol, giai đoạn B).

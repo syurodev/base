@@ -9,6 +9,7 @@
     "storage-security",
     "tool-system",
     "interaction",
+    "workspace",
     "sandbox-runtime",
     "shell-job",
     "file-tools",

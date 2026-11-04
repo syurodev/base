@@ -188,7 +188,8 @@ Native runtime gọi snapshot qua một **interface** (chụp, diff, lên kế h
 | Hạn mức mặc định | 200 mỗi session | 500 mỗi session, vòng tròn |
 | Giữ | 30 ngày | 7 ngày |
 
-- Hạn mức, thời gian giữ và **danh sách loại trừ** (ví dụ `target/`, `build/`, `dist/`) cấu hình theo workspace; danh sách loại trừ áp dụng cả khi project có `.gitignore`.
+- Shadow git tách theo (workspace, root); turn snapshot chụp mọi root `rw` của workspace ([workspace §4](/dev-kit/core-harness/workspace#4-thay-đổi-root)).
+- Hạn mức, thời gian giữ và **danh sách loại trừ** (ví dụ `target/`, `build/`, `dist/`) cấu hình theo workspace ([workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)); danh sách loại trừ áp dụng cả khi project có `.gitignore`.
 - Chỉ đếm tree khác nhau. Giới hạn đĩa 1 GiB dùng chung, đầy thì tỉa tool snapshot trước; tool snapshot không bao giờ lấn hạn mức của turn snapshot.
 - Tool sửa file còn giữ bản trước trong payload (nhờ đọc trước khi sửa); bản này không tính vào hạn mức snapshot.
 - Tự chạy thao tác phá hủy trong workspace cần **ít nhất turn snapshot** của run. Turn snapshot thất bại (git không có, vượt giới hạn) thì tool ghi của run đó phải hỏi user, kèm hướng dẫn cài git.
