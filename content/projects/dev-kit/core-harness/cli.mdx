@@ -1,0 +1,270 @@
+---
+title: CLI và TUI
+description: H-45 — client `fugue` của giai đoạn A: host dùng chung tự khởi động và tự tắt theo client, TUI inline bằng Bubble Tea, scrollback và vùng sống, phím, lệnh /, lệnh con có --json, chạy không tương tác, exit code, failure UX.
+---
+
+# CLI và TUI
+
+Trạng thái: v0.13, ngày 2026-11-04. **Thiết kế đã chốt** cho H-45 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Client nói chuyện với host qua [Host API](/dev-kit/core-harness/host-api); hiển thị failure theo [phát hành giai đoạn A §3](/dev-kit/core-harness/activation#3-failure-ux-bắt-buộc); trả lời interaction theo ràng buộc CLI-first ở [hỏi user và kế hoạch §5](/dev-kit/core-harness/ask-plan#5-ràng-buộc-cli-first).
+
+## 1. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| CL-01 | Client là **TUI inline** kiểu hội thoại: mục đã xong in vào scrollback của terminal, chỉ vùng sống ở dưới được vẽ lại. Không dùng alternate screen |
+| CL-02 | Thư viện: Bubble Tea v2, Lip Gloss v2, Bubbles v2 (`charm.land/*/v2`), Glamour cho markdown |
+| CL-03 | **Client mỏng**: mọi trạng thái và hành động đi qua Host API. TUI không có logic nghiệp vụ hay đường ghi riêng, vì đích đến là app đa nền tảng (H-44) dùng cùng host |
+| CL-04 | **Một host dùng chung** cho TUI, lệnh con và app sau này. Client nào chạy trước mà chưa có host thì tự khởi động host |
+| CL-05 | Host tồn tại theo client: hết client thì sau 10 s ân hạn host tắt có trật tự. TUI không giữ host sống sau khi thoát; app sau này có chế độ chạy nền làm việc đó |
+| CL-06 | Mọi thứ có lệnh con không tương tác với `--json`; TUI chỉ là lớp thêm |
+| CL-07 | Mọi chuỗi trên giao diện là **tiếng Anh**; giai đoạn A không có đa ngôn ngữ cho UI |
+| CL-08 | Gõ `fugue` tạo session mới; `fugue -c` tiếp tục session gần nhất của workspace |
+| CL-09 | Khi có run đang chạy: Enter là steer, Tab là xếp hàng |
+
+## 2. Host
+
+### 2.1 Khởi động
+
+- Lệnh nào cần host mà chưa có host thì CLI khởi động `fugue serve` **tách riêng** (process riêng, tách khỏi terminal, stdout và stderr ghi vào log trong data dir), chờ host báo sẵn sàng tối đa 10 s, rồi gửi `Hello` ([host API §3](/dev-kit/core-harness/host-api#3-cách-chạy-process)). Hai client cùng khởi động thì data-dir lock bảo đảm chỉ một host.
+- `fugue serve` chạy foreground và tự giữ chính nó (debug, systemd, launchd); host này không tự tắt khi hết client.
+
+### 2.2 Vòng đời theo client
+
+- Host đếm **lease**: mỗi kết nối đã `Hello` thành công là một lease, kể cả lệnh ngắn như `fugue tasks`.
+- Lease về 0 thì host chờ **10 s ân hạn**; có client mới trong lúc chờ thì hủy; không có thì tắt có trật tự:
+  - run đang chạy nhận stop intent `shutdown`;
+  - job bị cancel kèm proof dừng ([sandbox runtime §4](/dev-kit/core-harness/sandbox-runtime#4-nền-tảng-và-stop-proof));
+  - request đang chờ duyệt bị bỏ;
+  - run đang chờ `quota_refresh` hoặc `budget(kind)` giữ nguyên trạng thái bền và tiếp tục chờ khi host khởi động lại.
+- **TUI cuối cùng thoát** mà còn run, job, goal hoặc verify đang chạy thì hỏi trước:
+
+```text
+1 run is still running and 2 background jobs are active. Exiting will stop them.
+  [1] Stop everything and exit   [2] Stay
+```
+
+- Lệnh ngắn không hỏi; chúng chỉ là lease trong lúc chạy.
+- `fugue stop`: gửi `Shutdown`; có việc đang chạy thì hỏi giống trên; `--force` bỏ qua câu hỏi.
+- App sau này (H-44) có chế độ chạy nền: một client `app-background` luôn nối, nên host sống tiếp khi đóng cửa sổ.
+
+### 2.3 Version
+
+- `Hello` mang `client_kind` ∈ `tui`, `cli`, `app`, `app-background` và version.
+- Host API tương thích: dùng host đang chạy.
+- Host cũ hơn mức client cần: host rảnh (không run, job, goal, verify) thì client đề nghị khởi động lại host bằng binary của client; host có việc thì báo `Fugue host vX is busy; upgrade when it is idle` và không làm gì.
+- Host mới hơn mức client hiểu: báo `Update the fugue CLI to vY or later` và thoát với exit code 8.
+
+## 3. Vault, account, workspace, session
+
+**Vault**
+
+- Vault khóa mà lệnh cần nó: TUI và lệnh tương tác hỏi master password, nhập ẩn, gửi `Unlock`. Password không bao giờ nằm trong argv hay biến env.
+- Lệnh không tương tác gặp vault khóa: lỗi `vault.locked`, exit code 3; chỉ đọc password từ stdin khi có `--password-stdin`.
+- `fugue lock` khóa vault. Vault khóa giữa chừng thì TUI hiện `Vault locked` và ô nhập đổi thành ô nhập password.
+
+**Account**
+
+- `fugue account login`: hiện "Continue with ChatGPT", mở trình duyệt hệ thống (PKCE, `state`, `nonce`, callback loopback); không mở được thì in URL. Lần đầu bật plan usage hiện thông báo xác nhận một lần ([model adapter §11.6](/dev-kit/core-harness/model-adapter#116-ui-bắt-buộc-theo-hướng-dẫn-của-openai)).
+- `fugue account list`, `logout`, `resume <account>` ([budget và quota §3.1](/dev-kit/core-harness/budget#31-gói-chatgpt)).
+
+**Workspace và session**
+
+- Workspace chọn theo cwd hoặc `-w <name|id>` ([workspace §3](/dev-kit/core-harness/workspace#3-định-danh-và-vòng-đời)).
+- `fugue` tạo session mới; `fugue -c` tiếp tục session gần nhất của workspace; `fugue resume` (và `/sessions` trong TUI) chọn từ danh sách.
+- Một session mở được ở nhiều terminal; mọi client thấy cùng read model; câu trả lời duyệt đến trước thắng.
+
+## 4. TUI
+
+```text
+› fix TestLoad in internal/x
+• Read internal/x/load.go (1–120/340)
+• Edited internal/x/load.go  +2 −1
+    42  -   return fmt.Errorf("load: %w", err)
+    42  +   return errcode.Wrap(err, "load")
+• Ran go test ./internal/x/...  ok · 3.1s  [compact go-test]
+Load now returns a typed error; tests pass.
+◐ Running go vet ./...   12s
+┌ Approval needed ──────────────────────────────────────────┐
+│ shell  git push origin fix/load   external                 │
+│ [1] Allow once  [2] Allow all `git push` this session  [3] Deny  (n: deny with note) │
+└────────────────────────────────────────────────────────────┘
+> █
+fsap-event · auto · workspace-write · a@… 62% (resets 14:20) · run 210k/2M · ☑ 2/4 · ⏎ steer ⇥ queue
+```
+
+### 4.1 Scrollback
+
+Mỗi mục chỉ được in khi **đã xong** và không bao giờ sửa lại.
+
+| Mục | Hiển thị |
+| --- | --- |
+| Tin của user | `› …` |
+| Text của model | Markdown qua Glamour, in khi tin nhắn xong |
+| Tool call | Một dòng: động từ, đích, kết quả gọn (`ok · 3.1s`, `exit 1`, `+2 −1`); lỗi kèm vài dòng cuối |
+| Diff của `edit`/`write` | Tối đa 20 dòng có màu, còn lại `… +N lines (/diff)` |
+| Output của shell | Dòng tổng kết của filter; đầy đủ qua `/output <id>` |
+| Interaction đã trả lời | Một dòng, ví dụ `✔ Allowed once: git push` |
+| Thông báo | `↪ Switched account: a@… → b@… (a at 9%, resets 14:20)`, `⏸ Waiting for quota · resets 14:20`, `✔ Job j-3 finished · exit 0`, `⚠ Token budget at 80%` |
+
+Kết quả về sau mới có (job xong, verify xong) được in thành dòng mới.
+
+### 4.2 Vùng sống
+
+Cao tối đa khoảng 40% màn hình, gồm từ trên xuống:
+
+1. **Mục đang chạy**: text đang stream (chỉ các dòng cuối), tool đang chạy có spinner và thời gian.
+2. **Request đang chờ** của session: `confirm` và escalation (lựa chọn theo `Offers`, nhãn `grantScope`); `select`; `ask_user` từng câu, chọn bằng số hoặc mũi tên, có ô gõ tự do; duyệt `plan` với tóm tắt và phím `v` mở kế hoạch đầy đủ trong pager. Nhiều request thì hiện lần lượt kèm số đếm.
+3. **Ô nhập** (textarea của Bubbles), có gợi ý lệnh `/`.
+4. **Dòng trạng thái**: workspace, mode, profile, account và quota, budget của run, checklist, gợi ý phím.
+
+Session khác có request chờ: dòng `◆ s-2 (base-doc) needs approval · /sessions`, cộng thông báo của hệ điều hành khi terminal không được focus.
+
+### 4.3 Phím
+
+| Phím | Khi rảnh | Khi run đang chạy |
+| --- | --- | --- |
+| Enter | Gửi `Prompt` | `Steer` |
+| Tab | — | Xếp hàng (`Prompt` cho run sau) |
+| Shift+Enter, Alt+Enter | Xuống dòng | Xuống dòng |
+| Ctrl+Enter | — | `Interject` |
+| Esc | Đóng lớp phủ | Dừng run; Esc rồi Enter thì `InterruptAndPrompt` |
+| Ctrl+C | Xóa ô nhập; hai lần liên tiếp thì thoát (§2.2) | Như Esc |
+| Shift+Tab | Đổi approval mode theo vòng | Như khi rảnh; hiệu lực ở step kế tiếp |
+| Ctrl+E | Mở ô nhập trong `$EDITOR` | Như khi rảnh |
+| ↑ / ↓ | Lịch sử prompt | Như khi rảnh |
+
+Trong hộp request, phím số chọn lựa chọn, `n` mở ô lời nhắn khi từ chối, Enter xác nhận.
+
+### 4.4 Lệnh `/`
+
+Phần lớn mở **lớp phủ tạm** thay cho vùng sống; Esc để đóng.
+
+| Lệnh | Việc |
+| --- | --- |
+| `/sessions`, `/new`, `/resume` | Chuyển session |
+| `/mode`, `/profile`, `/model` | Đổi approval mode, sandbox profile, model |
+| `/tasks`, `/task KEY`, `/claim KEY` | Task và checklist |
+| `/jobs`, `/output <id>`, `/diff` | Job, output đã giữ, diff gần nhất |
+| `/quota`, `/extend`, `/account` | Quota, gia hạn budget, account |
+| `/workspace`, `/plan` | Workspace, kế hoạch đã duyệt |
+| `/snapshots`, `/restore` | Snapshot |
+| `/pending` | Request của mọi session |
+| `/stop`, `/continue`, `/help` | Dừng, chạy tiếp, trợ giúp |
+
+### 4.5 Kích thước terminal
+
+- Dưới 80 cột: dòng trạng thái rút gọn; hộp request chuyển thành dạng dòng.
+- Resize chỉ vẽ lại vùng sống; scrollback cũ do terminal tự xử lý.
+
+## 5. Lệnh con
+
+Mọi lệnh con chạy không cần TTY và có `--json`.
+
+| Nhóm | Lệnh |
+| --- | --- |
+| Host | `fugue serve`, `fugue stop [--force]`, `fugue status` |
+| Vault, account | `fugue unlock [--password-stdin]`, `fugue lock`, `fugue account login/list/logout/resume` |
+| Workspace | `fugue workspace new/list/show/edit/rm`, `fugue workspace root add/rm/set/rename/access` |
+| Session, run | `fugue`, `fugue -c`, `fugue resume`, `fugue sessions`, `fugue log <session>`, `fugue run …`, `fugue run extend`, `fugue run stop`, `fugue steer`, `fugue queue` |
+| Interaction | `fugue pending`, `fugue answer <id> --choice N [--text …] [--question <id>]` |
+| Task, quota, snapshot | `fugue tasks …`, `fugue quota …`, `fugue snapshots`, `fugue restore <id>` |
+
+- `fugue log <session>` in transcript ra stdout (theo trang); TUI không lưu transcript ra đĩa.
+- Text dài đọc qua `$PAGER`, nhập qua `$EDITOR`.
+
+### 5.1 `fugue run "<prompt>"`
+
+- Tạo session mới (hoặc dùng `-c`, `--session <id>`), gửi prompt, in các mục đã xong ra stdout dạng text hoặc NDJSON (`--json`), thoát khi run kết thúc.
+- Gặp interaction:
+
+| Cờ | Hành vi |
+| --- | --- |
+| `--on-approval=wait` (mặc định) | In `Approval needed: … (fugue answer q-12)` rồi chờ câu trả lời từ client khác |
+| `--on-approval=deny` | Từ chối mọi request; `ask_user` nhận `cancelled` |
+| `--on-approval=fail` | Thoát với exit code 6 |
+
+- `--detach`: in session ID rồi thoát. Không có client nào khác thì host sẽ tắt theo §2.2, nên CLI cảnh báo trước khi detach khi không có client giữ host.
+
+### 5.2 Exit code
+
+| Code | Nghĩa |
+| --- | --- |
+| 0 | Thành công; với `fugue run` là run `completed` |
+| 1 | Lỗi chung |
+| 2 | Lỗi cú pháp lệnh |
+| 3 | `vault.locked` |
+| 4 | Cần đăng nhập |
+| 5 | Run kết thúc `failed` hoặc `refused` |
+| 6 | Bị từ chối duyệt, hoặc có approval khi `--on-approval=fail` |
+| 7 | Hết budget (user chọn kết thúc) hoặc đang chờ quota |
+| 8 | Không nối được host hoặc version không tương thích |
+| 130 | Ctrl+C |
+
+Với `--json`, lỗi có dạng `{"error": {"code": "vault.locked", "message": "…"}}` trên stdout và exit code theo bảng.
+
+## 6. Failure UX
+
+| Tình huống ([activation §3](/dev-kit/core-harness/activation#3-failure-ux-bắt-buộc)) | TUI | Lệnh con |
+| --- | --- | --- |
+| Mất kết nối với host | `Lost connection to the Fugue host (<data dir>)`; tự nối lại, không được thì khởi động host | Exit 8 |
+| Vault khóa | `Vault locked · N runs waiting`; ô nhập password | Exit 3 |
+| Chờ resume sau restart | `Waiting to resume after restart`; `/continue` hoặc đóng run | `fugue run …` in hướng dẫn, exit 1 |
+| Tác động không rõ | Hộp `Effect unknown` với tool, attempt, thời điểm; lựa chọn `Reconcile`, `Accept unknown and close`, `Close without payload` | `fugue pending` liệt kê; `fugue answer` |
+| Mất hoặc hỏng payload | `Payload unavailable`; đóng run, run sau dùng fresh context | Exit 5 |
+| Chọn context cho run mới | Hộp `Fresh context` / `Continue context`; khóa continue khi bắt buộc fresh | `--fresh` / `--continue-context` |
+| Worker treo | `Restart the Fugue host to close this run` kèm lưu ý tác động bên ngoài | Exit 1 |
+| Gói ChatGPT hết hạn mức | `ChatGPT plan limit reached · Manage usage`; account `paused`; lựa chọn `Resume account`, hoặc chuyển account | Exit 7 |
+| Đăng nhập ChatGPT hết hiệu lực | `Sign in again: <account>`; run chờ | Exit 4 |
+| Chạm budget của run | `Run paused: token budget 2.0M/2.0M`; `/extend` hoặc dừng | Exit 7 |
+| Chờ quota | `Waiting for quota · resets 14:20` hoặc `· resume an account` | Exit 7 với `--on-approval=fail`, còn lại chờ |
+| Chờ worker | `Waiting for a worker` | — |
+| Data dir đang bị process khác giữ | `Data directory in use: <path>` | Exit 8 |
+| Version không hỗ trợ | §2.3 | Exit 8 |
+
+Preview chỉ hiện metadata cho phép theo INV-09; nội dung payload chỉ hiện khi vault mở.
+
+## 7. Host API cần cho client
+
+| Chỗ | Thêm hoặc chốt |
+| --- | --- |
+| `Hello` | `client_kind`, version; host đếm lease theo kết nối |
+| `HostStatus` | Version, số client theo kind, việc đang chạy (run, job, goal, verify, run đang chờ) |
+| `Shutdown(command_id, force)` | §2.2 |
+| `SessionTranscript(session, cursor)` | Phân trang, cho `fugue log` và khi TUI mở lại session |
+| Read model của run | Mục đã xong và đang chạy, interaction đang chờ, budget, checklist, account và quota đang dùng; đủ để client không phải tự suy ra trạng thái |
+| Principal | `local` thay cho `desktop` ở giai đoạn A: mọi client (`tui`, `cli`, `app`) qua socket local có kiểm tra UID, cùng quyền |
+
+## 8. Cấu trúc code
+
+- `cmd/fugue`: parse lệnh, chọn chế độ (TUI, lệnh con, `serve`).
+- `internal/client`: kết nối Host API, `Hello`, lease, khởi động host, reconnect.
+- `internal/tui`: model Bubble Tea, các component (mục scrollback, vùng sống, hộp request, ô nhập, dòng trạng thái, lớp phủ), bảng phím, toàn bộ chuỗi tiếng Anh.
+- `internal/tui` không import package nào ngoài `internal/client` và thư viện UI; kiểm tra bằng test kiến trúc.
+
+## 9. Evidence
+
+**Host**
+
+- Tự khởi động khi chưa có host; hai client cùng khởi động chỉ ra một host.
+- Lease: host tắt sau 10 s khi client cuối rời; client mới trong 10 s hủy việc tắt; `fugue serve` foreground không tự tắt.
+- TUI cuối cùng thoát khi còn việc thì hỏi; tắt có trật tự (stop intent, job có proof, request bị bỏ); run chờ quota và budget còn sau khi host khởi động lại.
+- Version: tương thích, host cũ rảnh (đề nghị khởi động lại), host cũ có việc, host mới hơn (exit 8).
+
+**TUI**
+
+- Golden test bằng teatest: mỗi loại mục scrollback, hộp `confirm`/escalation, `ask_user` nhiều câu, duyệt `plan`, dòng trạng thái ở 80 và 120 cột, terminal dưới 80 cột.
+- Bảng phím: steer, xếp hàng, interject, dừng và gửi ngay, đổi mode.
+- Mục chỉ được in khi đã xong; mục đang chạy chỉ ở vùng sống.
+- Mọi chuỗi giao diện tiếng Anh: test quét chuỗi literal trong `internal/tui`.
+
+**Lệnh con**
+
+- Mỗi lệnh chạy không TTY; `--json` khớp schema; exit code theo §5.2.
+- `fugue run` với ba chế độ `--on-approval` và `--detach`.
+- Password chỉ qua nhập ẩn hoặc `--password-stdin`.
+- Mỗi dòng của §6 có hiển thị TUI và exit code hoặc mã lỗi.
+
+## 10. Phụ thuộc
+
+- Cần trước: [Host API](/dev-kit/core-harness/host-api), [interaction](/dev-kit/core-harness/interaction), [hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan), [workspace](/dev-kit/core-harness/workspace), [budget và quota](/dev-kit/core-harness/budget), [task và checklist](/dev-kit/core-harness/tasks).
+- Mảng liên quan: H-44 (app đa nền tảng dùng cùng host, chế độ chạy nền), [phát hành giai đoạn A](/dev-kit/core-harness/activation) (failure UX, evidence phát hành).

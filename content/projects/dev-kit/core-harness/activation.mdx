@@ -35,7 +35,7 @@ Không có trong giai đoạn A: vendor session, peer message, child session và
 
 ## 3. Failure UX bắt buộc
 
-Mỗi tình huống dưới đây MUST hiện trong CLI, dựng từ read model, nói rõ chuyện gì đã xảy ra và hành động nào có thể làm. Không dùng thông báo lỗi chung chung. Tên lệnh chốt ở H-45.
+Mỗi tình huống dưới đây MUST hiện trong CLI, dựng từ read model, nói rõ chuyện gì đã xảy ra và hành động nào có thể làm. Không dùng thông báo lỗi chung chung. Tên lệnh và cách hiển thị ở [CLI và TUI](/dev-kit/core-harness/cli) §6.
 
 | Tình huống | Hiển thị | Hành động |
 | --- | --- | --- |
@@ -46,9 +46,10 @@ Mỗi tình huống dưới đây MUST hiện trong CLI, dựng từ read model,
 | Mất hoặc hỏng payload | `Interrupted(payload_unavailable)` | `CloseRunWithoutPayload`; run sau bắt buộc fresh context |
 | Chọn context cho run mới | Lựa chọn fresh hoặc continue, khóa continue khi `fresh_required` | `SelectRunContext` |
 | Worker treo, không có stop proof | "Cần khởi động lại host Fugue để đóng run này"; nói rõ restart không chứng minh tác động bên ngoài đã dừng | Restart host |
-| Hết hạn mức gói ChatGPT | Run chờ user, danh tính ChatGPT, link "Manage usage"; không đoán thời điểm hạn mức được làm mới ([model adapter §11.4–11.5](/dev-kit/core-harness/model-adapter#114-lỗi-của-gói-chatgpt)) | Đợi, hoặc chọn rõ một account ChatGPT khác cho các attempt tiếp theo |
+| Hết hạn mức gói ChatGPT | Account bị tạm dừng, danh tính ChatGPT, link "Manage usage"; không đoán thời điểm hạn mức được làm mới ([budget và quota §3.1](/dev-kit/core-harness/budget#31-gói-chatgpt)) | Chuyển sang tài khoản ChatGPT khác (tự động nếu có), resume account sau khi xem trang Usage, hoặc chọn rõ một API key |
 | Đăng nhập ChatGPT hết hiệu lực | Refresh lỗi lần cuối hoặc token bị thu hồi; run chờ, không thất bại | Đăng nhập lại với `client_id` đã lưu |
-| Hết budget | Outcome `budget_exceeded` kèm loại budget (token, thời gian, tool calls, storage) | Tạo run mới với budget mới |
+| Chạm budget của run | Run chờ `budget(kind)` kèm loại (token, thời gian, tool calls, step) và mức đã dùng ([budget và quota §4](/dev-kit/core-harness/budget#4-budget-theo-run)) | Gia hạn trong cùng run, hoặc kết thúc |
+| Chờ quota | `Waiting(quota_refresh)`: giờ reset nếu biết, hoặc chờ resume account | Không cần làm gì, hoặc resume account |
 | Chờ worker | `Waiting(worker_capacity)` | Không cần làm gì |
 | Data directory đang bị process khác giữ | Execution store unavailable, kèm đường dẫn data directory | Đóng process kia |
 | Schema hoặc protocol không hỗ trợ | Stream chỉ đọc hoặc unavailable, hiện version của CLI và của host | Nâng cấp Fugue (host hoặc CLI) |

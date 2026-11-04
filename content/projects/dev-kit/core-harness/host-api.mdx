@@ -36,7 +36,7 @@ Tham khảo: RPC mode của pi (JSONL qua stdio: command có `id`, response, eve
 - Một binary `fugue`, có lệnh `fugue serve` chạy headless. Process giữ `<dataDir>/fugue.lock` (G-03) là host.
 - Sau khi lấy lock, host ghi `<dataDir>/host.json`: PID, thời điểm start, đường dẫn socket, các API version hỗ trợ. File này chỉ để tìm host; **lock mới là sự thật**: lấy được lock nghĩa là không có host nào đang chạy.
 - **Shell khởi động**: đọc `<dataDir>/host.json` và thử nối; nối được và bắt tay thành công thì dùng host đó. Không được thì chạy `fugue serve` từ binary đi kèm, chờ host báo sẵn sàng, rồi nối. Hai shell cùng khởi động thì lock bảo đảm chỉ một host.
-- **Vòng đời host**: mặc định, host thoát khi không còn client nào **và** không còn run, job hay daemon của session. Setting "chạy nền" giữ host sống sau khi đóng app.
+- **Vòng đời host**: host tồn tại theo client. Mỗi kết nối đã `Hello` là một lease; hết lease thì sau 10 s ân hạn host tắt có trật tự, kể cả khi còn run hay job (client cuối cùng hỏi user trước khi thoát). Chế độ chạy nền của app là một client luôn nối. `fugue serve` chạy foreground không tự tắt ([CLI và TUI](/dev-kit/core-harness/cli) §2).
 - **Socket**: Host API socket có tên `fugue.sock`. Linux và macOS dùng unix socket quyền `0600` trong thư mục `0700`; Windows dùng named pipe với ACL của user. Đường dẫn unix socket phải vừa giới hạn của hệ điều hành (104 byte trên macOS, 108 byte trên Linux). Data dir dài quá thì dùng thư mục runtime ngắn (`$XDG_RUNTIME_DIR/fugue/` trên Linux, một thư mục riêng của user trong temp trên macOS), và ghi đường dẫn thật vào `host.json`. Socket MCP dùng chung và theo phiên tiếp tục giữ tên riêng, tách biệt với socket Host API.
 - Host chết thì shell phát hiện qua kết nối bị đóng, hiện trạng thái "mất kết nối với lõi", rồi nối lại hoặc khởi động host mới. Recovery của execution diễn ra trong host mới theo [event storage](/dev-kit/core-harness/event-storage-recovery).
 
@@ -70,7 +70,7 @@ Tham khảo: RPC mode của pi (JSONL qua stdio: command có `id`, response, eve
 
 | Principal | Xác thực | Quyền |
 | --- | --- | --- |
-| `desktop` | Socket local, kiểm tra **UID của process nối vào** (`SO_PEERCRED` trên Linux, `getpeereid` trên macOS; ACL của user trên Windows) trùng với user chạy host | Mọi thao tác, gồm **duyệt approval**, **mở vault**, trả lời câu hỏi, chen ngang |
+| `local` (`tui`, `cli`, `app`, `app-background`) | Socket local, kiểm tra **UID của process nối vào** (`SO_PEERCRED` trên Linux, `getpeereid` trên macOS; ACL của user trên Windows) trùng với user chạy host | Mọi thao tác, gồm **duyệt approval**, **mở vault**, trả lời câu hỏi, chen ngang |
 
 - Kiểm tra UID chứng minh "cùng user hệ điều hành", không chứng minh "đúng app DevKit". Một process khác của cùng user vốn đã đọc được data dir, nên đây là mô hình đe dọa chấp nhận được; tài liệu bảo mật ghi rõ điều này.
 - Trong shell Electron, chỉ **main process** giữ kết nối tới host. Renderer không mở được socket; nó dùng client đã sinh thông qua preload (`contextBridge` hoặc `MessagePort`), với `contextIsolation` và `sandbox` bật, `nodeIntegration` tắt, có CSP.
@@ -79,9 +79,9 @@ Tham khảo: RPC mode của pi (JSONL qua stdio: command có `id`, response, eve
 
 ## 8. Version
 
-- Khi nối, client gửi `Hello(client_name, client_version, supported_api_versions)`; host chọn version chung cao nhất, hoặc từ chối kèm hướng dẫn nâng cấp.
+- Khi nối, client gửi `Hello(client_name, client_kind, client_version, supported_api_versions)`, với `client_kind` ∈ `tui`, `cli`, `app`, `app-background`; host chọn version chung cao nhất, hoặc từ chối kèm hướng dẫn nâng cấp.
 - Mỗi module có package `v1`, `v2`…; trong cùng version chỉ được **thêm**; `buf breaking` so với `main` trong CI chặn thay đổi phá vỡ. Field bị ngừng giữ lại ít nhất 2 release.
-- Shell luôn đi kèm binary host cùng release. Shell mới gặp host cũ đang chạy nền: nếu host không có run, job hay daemon thì shell yêu cầu host khởi động lại bằng binary mới; nếu có thì hiện thông báo và chờ.
+- Client luôn đi kèm binary host cùng release ([CLI và TUI](/dev-kit/core-harness/cli) §2.3). Client mới gặp host cũ đang chạy: nếu host không có run, job hay daemon thì shell yêu cầu host khởi động lại bằng binary mới; nếu có thì hiện thông báo và chờ.
 
 ## 9. Lộ trình chuyển đổi
 
