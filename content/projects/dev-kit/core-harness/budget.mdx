@@ -1,0 +1,226 @@
+---
+title: Budget và quota
+description: H-06 — owner quota chung cho mọi session, gộp quan sát quota của provider theo epoch, tự chuyển account cùng provider, ngưỡng giữ lại, bốn budget theo run, chờ gia hạn hoặc chờ quota được làm mới, Host API và lưu trữ.
+---
+
+# Budget và quota
+
+Trạng thái: v0.13, ngày 2026-11-04. **Thiết kế đã chốt** cho H-06 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Cơ chế reserve, đối soát và active time của kernel ở [state machine §7, §9](/dev-kit/core-harness/state-machine#9-budgets-và-transcript-ordering) giữ nguyên; trang này chốt policy, quota của provider và thay đổi cách run phản ứng khi hết budget.
+
+## 1. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| BG-01 | Hai loại giới hạn: **quota của provider** (sự thật nằm ở provider) và **budget của Fugue** (user tự đặt) |
+| BG-02 | Một **owner quota chung** cho cả host (`internal/quota`): mọi session ghi quan sát vào và đọc từ cùng một trạng thái |
+| BG-03 | Quan sát quota được gộp bằng **thanh ghi chỉ tăng theo epoch** của mỗi cửa sổ, qua một đường ghi tuần tự; kết quả không phụ thuộc thứ tự đến |
+| BG-04 | **Tự chuyển account cùng provider và cùng loại auth** (gói ChatGPT sang gói ChatGPT, API key sang API key) trước mỗi attempt khi account đang dùng dưới ngưỡng giữ lại, hết hạn mức hoặc lỗi đăng nhập; bật mặc định, user tắt được. **Không bao giờ** tự chuyển giữa hai loại auth (M-09) |
+| BG-05 | **Ngưỡng giữ lại**: Fugue ngừng dùng account khi quota còn dưới ngưỡng, để phần còn lại cho việc dùng tay |
+| BG-06 | Bốn budget theo run: `steps`, `tokens`, `time`, `tool_calls`. Hết thì run **chờ** user gia hạn, không kết thúc |
+| BG-07 | Mọi account hết quota thì run **chờ quota được làm mới** và tự chạy tiếp, không cần user |
+| BG-08 | Budget theo cost không có ở giai đoạn A (provider duy nhất tính theo hạn mức của gói) |
+| BG-09 | Gói ChatGPT hết hạn mức (429 `subscription_sharing_usage_limit_exceeded`): account đó **tạm dừng**, không đoán giờ reset, không tự thử lại; user resume sau khi xem trang Usage ([model adapter §11.4](/dev-kit/core-harness/model-adapter#114-lỗi-của-gói-chatgpt)) |
+
+## 2. Owner quota
+
+Owner là `internal/quota`, một bản trong host (data-dir lock bảo đảm một host).
+
+| Dữ liệu | Nội dung |
+| --- | --- |
+| Cửa sổ quota theo (provider, account) | Tên cửa sổ (ví dụ cửa sổ ngắn và cửa sổ theo tuần của gói), `used_pct`, `epoch_reset_at`, `observed_at`, `source` |
+| Trạng thái account | `available`, `reserved` (dưới ngưỡng giữ lại), `exhausted` (một cửa sổ đạt 100%, có giờ reset), `paused` (gói ChatGPT nhận 429 hết hạn mức; không có giờ reset), `auth_failed`, `unknown` (chưa có quan sát hợp lệ) |
+| Số attempt đang chạy theo account | Chỉ trong memory; về 0 khi host restart |
+| `use_reserve_until` theo provider | Bỏ ngưỡng giữ lại tới lần reset kế tiếp |
+
+Trạng thái của account là `paused` nếu đang tạm dừng (§3.1); là `exhausted` nếu bất kỳ cửa sổ nào đạt 100%; là `reserved` nếu còn lại của bất kỳ cửa sổ nào dưới ngưỡng và không có `use_reserve`; `unknown` được coi là dùng được.
+
+### 2.1 Quan sát
+
+Model adapter gửi một quan sát cho mỗi response có thông tin hạn mức và cho mỗi lỗi hết hạn mức:
+
+| Field | Ý nghĩa |
+| --- | --- |
+| `provider`, `account_id`, `window` | Khóa |
+| `used_pct` | Phần trăm đã dùng mà provider báo; lỗi hết hạn mức là 100 |
+| `reset_at` | UTC, tính lúc nhận từ "còn N giây" hoặc thời điểm tuyệt đối provider báo |
+| `received_at` | Lúc host nhận header hoặc lỗi |
+| `credential_revision` | Revision của credential dùng cho request |
+| `source` | `headers` hoặc `limit_error` |
+
+Header của một stream đến lúc stream bắt đầu, nên một stream dài có thể ghi vào owner sau một request ngắn bắt đầu muộn hơn. Luật gộp ở §2.2 làm thứ tự đó không quan trọng.
+
+### 2.2 Luật gộp
+
+Trong một cửa sổ, mức đã dùng chỉ tăng. Mỗi cửa sổ là một thanh ghi chỉ tăng gắn với *epoch* (`epoch_reset_at`):
+
+| Quan sát mới so với epoch hiện tại | Kết quả |
+| --- | --- |
+| Cùng epoch: `abs(reset_at − epoch_reset_at) ≤ 120 s` | `used_pct = max(cũ, mới)`; `observed_at = max` |
+| Epoch mới hơn: `reset_at > epoch_reset_at + 120 s` | Thay epoch; lấy `used_pct` mới |
+| Epoch cũ hơn: `reset_at < epoch_reset_at − 120 s` | Bỏ qua |
+| Epoch hiện tại đã qua `epoch_reset_at` | Cửa sổ thành `unknown` (dùng được) cho tới quan sát kế tiếp; quan sát có `reset_at` mới hơn thành epoch mới |
+| `limit_error` không có `reset_at`, auth là API key | Dùng `Retry-After`; không có thì `received_at + 5 phút`, rồi thăm dò lại bằng request kế tiếp |
+| `limit_error` của gói ChatGPT | Không tạo epoch hay giờ reset; account thành `paused` (§3.1) |
+
+Ngưỡng 120 s hấp thụ độ lệch do mỗi response tự tính "còn N giây"; hai cửa sổ thật của provider không cách nhau ít như vậy. Luật là một hàm thuần, dùng chung cho memory và cho SQL.
+
+### 2.3 Đường ghi
+
+- Mọi quan sát đi qua **một hàng đợi và một goroutine** của owner. Trạng thái trong memory là nguồn để chọn account.
+- DB được ghi sau bằng `UPSERT` áp **cùng luật gộp trong SQL** (`max` khi cùng epoch, thay khi epoch mới hơn, giữ nguyên khi cũ hơn). Ghi lại cùng một quan sát không đổi kết quả, nên ghi lại sau crash là an toàn.
+- Mỗi lần trạng thái của account thật sự đổi thì `revision` tăng và topic `quota` phát `changed` (§6).
+- Session đọc snapshot kèm revision; không giữ lock qua attempt.
+
+### 2.4 Trạng thái đăng nhập
+
+- Lỗi đăng nhập đặt `auth_failed` kèm `credential_revision` của request.
+- Quan sát thành công chỉ xóa `auth_failed` nếu `credential_revision` của nó **mới hơn**; request bắt đầu trước khi credential hỏng mà kết thúc muộn không xóa được.
+- Đăng nhập lại thành công tăng `credential_revision` và xóa `auth_failed`.
+
+### 2.5 Dữ liệu cũ
+
+Quan sát gần nhất cũ hơn 15 phút thì CLI đánh dấu "chưa cập nhật"; account vẫn được chọn theo số liệu đó và request đầu tiên làm mới nó.
+
+## 3. Chọn và chuyển account
+
+- `PickAccount` ([model adapter §7](/dev-kit/core-harness/model-adapter#7-account-auth-và-chọn-model-h-09)) đọc owner **trước mỗi attempt**, chỉ chọn account `available` hoặc `unknown` của đúng provider và **đúng loại auth** của account đang dùng, trong danh sách `model.accounts` của workspace nếu có.
+- Chiến lược theo `model.account_strategy`: `order`, `best`, `consumeFirst`. `best` tính cả số attempt đang chạy để rải các session sang account còn nhiều quota. Account được giữ 5 phút để tận dụng prompt cache.
+- **Chuyển account** khi account đang dùng thành `reserved`, `exhausted`, `paused` hoặc `auth_failed`. Gặp lỗi hết hạn mức thì attempt đó được thử lại **ngay** bằng account khác, không tính vào backoff hay retry budget.
+- Khi chuyển:
+  - giữ nguyên model và binding;
+  - bỏ các item reasoning đã mã hóa của account cũ khỏi request (chúng gắn với account sinh ra chúng); text của lịch sử giữ nguyên, vì adapter gửi lại toàn bộ lịch sử mỗi request;
+  - prompt cache bắt đầu nguội;
+  - account được ghi trong `ModelDispatchStarted`;
+  - CLI hiện `đổi account: a@… → b@… (a còn 9%, reset 14:20)`.
+- `model.account_switch = "manual"`: không tự chuyển; account đang dùng hết thì run chờ như §5.2 và CLI gợi ý đổi account bằng tay.
+- Không tự chuyển model hay provider (model adapter §7 giữ nguyên).
+- Không giữ chỗ theo %, vì không ước lượng được % của một request trước khi gửi. Vài session cùng bắt đầu khi account sát ngưỡng có thể vượt ngưỡng một chút; quan sát kế tiếp đưa account sang `reserved`.
+
+### 3.1 Gói ChatGPT
+
+Theo hướng dẫn của OpenAI cho Sign in with ChatGPT ([model adapter §11](/dev-kit/core-harness/model-adapter#11-openai-và-sign-in-with-chatgpt)) và M-09 đã sửa:
+
+| Việc | Hành vi |
+| --- | --- |
+| Tự chuyển giữa các tài khoản ChatGPT của user | Có, theo §3 |
+| Tự chuyển sang API key hay ngược lại | Không bao giờ; user chọn rõ |
+| Nhận 429 hết hạn mức | Dừng request trên account đó; account thành `paused`; attempt được lập lại ngay trên tài khoản ChatGPT khác nếu có; không đoán giờ reset; không tự thử lại account đã tạm dừng |
+| Gỡ `paused` | User chạy `fugue account resume <account>` (Host API `ResumeAccount`) sau khi xem trang Usage; hoặc một quan sát header của chính account đó cho thấy cửa sổ mới, chỉ khi spike xác nhận gói có header hạn mức |
+| Ngưỡng giữ lại | Chỉ áp dụng khi spike xác nhận gói trả header hạn mức; không có header thì chỉ chuyển khi nhận 429 |
+| UI | Luôn hiện account đang dùng kèm "Using ChatGPT plan" và "Manage usage" (§11.6); account `paused` hiện "Manage usage" riêng; một dòng thông báo khi chuyển account |
+
+## 4. Budget theo run
+
+Ghim lúc `RunAccepted` từ cấu hình workspace ([workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)):
+
+| Kind | Đo | Mặc định | Khóa | Gia hạn mặc định |
+| --- | --- | --- | --- | --- |
+| `steps` | Số step | 100 | `run.max_steps` | 50 |
+| `tokens` | Token mới: input chưa cache cộng output (gồm reasoning). Token đọc từ cache được ghi trong usage nhưng không tính | 2M | `run.max_tokens` | 500k |
+| `time` | Active time ([state machine §7](/dev-kit/core-harness/state-machine#7-timer-là-facts-bền-vững)); không tính lúc chờ | 2h | `run.max_active_time` | 30m |
+| `tool_calls` | Số tool call được dispatch | 500 | `run.max_tool_calls` | 200 |
+
+### 4.1 Khi chạm giới hạn
+
+| Kind | Kiểm tra | Hành vi |
+| --- | --- | --- |
+| `steps` | Sau `StepCompleted` | Như hiện tại: `continuation=budget`, chờ `budget(steps)` |
+| `tokens`, `tool_calls` | Trước dispatch | Attempt hoặc tool đang chạy chạy xong; run chờ `budget(kind)` ở ranh giới step kế tiếp |
+| `time` | `TimerElapsed(run_deadline)` | Đóng window; **không** ghi `RunStopRequested(budget)`; tool đang chạy chạy xong; run chờ `budget(time)` |
+
+- Chỉ user gia hạn: `BudgetExtended(kind, by, actor=user)`; run chạy tiếp trong cùng run, không đếm lại. User chọn "Kết thúc" thì `RunStopRequested(budget, terminal, actor=user)` và outcome `budget_exceeded(kind)`.
+- Chờ không tính active time; dependency suy ra từ facts bền nên còn sau restart.
+- Goal mode: run vào `Waiting(budget)` thì goal `disarmed` ([continuation §5.3](/dev-kit/core-harness/continuation#53-khi-vòng-kết-thúc)).
+- Retry budget giữ nguyên là lỗi kết thúc: đó là xử lý lỗi, không phải hạn mức sử dụng.
+- Peer, parent, model và goal không gia hạn được.
+
+### 4.2 Cảnh báo
+
+CLI hiện mức dùng của mỗi kind khi vượt 80%. Model không được báo, để không đổi hành vi của nó.
+
+## 5. Chờ quota
+
+### 5.1 Ngưỡng giữ lại
+
+- `quota.reserve` (mặc định `10%`): account có cửa sổ nào còn dưới ngưỡng thì thành `reserved` và không được chọn.
+- `fugue quota use-reserve [provider]` (Host API `UseReserve`) bỏ ngưỡng cho provider đó tới lần reset kế tiếp của cửa sổ đang giữ; sau đó ngưỡng tự bật lại. Chỉ user.
+
+### 5.2 `Waiting(quota_refresh)`
+
+- Không còn account dùng được cho provider và loại auth của run: attempt không dispatch; run vào wait reason **`quota_refresh`**. Có account `exhausted` với giờ reset thì đặt timer purpose `quota_refresh` theo UTC tới `epoch_reset_at` sớm nhất; mọi account đều `paused` thì **không có timer**, run chờ user resume một account (§3.1).
+- Owner báo có account trở lại dùng được (cửa sổ mới, đăng nhập lại, `use-reserve`, `ResumeAccount`): coordinator nhận command **`QuotaChanged(provider, revision)`**, hủy timer và lập lại attempt ngay. Revision cũ hơn trạng thái đã thấy thì bỏ qua.
+- Chờ không tính active time; run tự chạy tiếp, không cần user.
+- Coordinator không bắt đầu run mới cho provider đang hết quota; run trong queue chờ cùng lý do, theo thứ tự queue.
+- Host restart: `quota_windows` cho biết account nào còn hết; timer `quota_refresh` được đặt lại từ UTC.
+
+## 6. Host API và CLI
+
+Service `fugue.quota.v1`:
+
+| RPC / topic | Nội dung |
+| --- | --- |
+| `GetQuota` | Snapshot theo account: provider, account ID, nhãn hiển thị, trạng thái, các cửa sổ (`used_pct`, `reset_at`, tuổi quan sát), số attempt đang chạy, ngưỡng giữ lại, `use_reserve_until` |
+| Topic `quota` | `changed` mỗi khi `revision` của một account tăng; snapshot và catch-up như các topic khác ([host API §6](/dev-kit/core-harness/host-api)) |
+| `UseReserve(command_id, provider)` | §5.1 |
+| `ResumeAccount(command_id, provider, account_id)` | Gỡ `paused` của một account gói ChatGPT (§3.1); chỉ user |
+
+Budget của run nằm trong read model của run (dùng, giới hạn, các lần gia hạn của mỗi kind); service session thêm `ExtendBudget(command_id, run_id, kind, by)`, dedup theo `command_id`, ghi `BudgetExtended`.
+
+CLI (chi tiết thuộc H-45):
+
+- Dòng trạng thái của session: `a@… 62% · reset 14:20 │ run 1.1M/2M tok · 210/500 tool · 48m/2h`.
+- `fugue quota` (có `--json`), `fugue quota use-reserve`, `fugue account resume <account>`, `fugue run extend [--tokens N] [--time D] [--tool-calls N] [--steps N]`.
+- Một dòng thông báo khi đổi account, khi bắt đầu chờ quota, khi chạm 80% budget; thông báo của hệ điều hành khi không có client nào đang mở.
+
+## 7. Lưu trữ
+
+| Bảng | Khóa / cột | Ràng buộc |
+| --- | --- | --- |
+| `quota_windows` | PK (`provider`, `account_id`, `window`); `epoch_reset_at`, `used_pct`, `observed_at`, `source` | Chỉ ghi qua owner, bằng UPSERT theo §2.2 |
+| `quota_accounts` | PK (`provider`, `account_id`); `state`, `credential_revision`, `revision`, `use_reserve_until` | `auth_failed` gắn với `credential_revision` |
+
+Chỉ metadata: không credential; nhãn hiển thị (email do user đặt) nằm trong `internal/accounts`, không nằm trong hai bảng này hay trong journal (INV-09).
+
+## 8. Thay đổi ở kernel và event catalog
+
+| Chỗ | Thay đổi |
+| --- | --- |
+| Wait dependency | `step_budget` thành `budget(kind)` với kind ∈ `steps`, `tokens`, `time`, `tool_calls`; thêm `quota_refresh` |
+| `StepCompleted.continuation` | `step_budget` thành `budget` kèm kind |
+| `BudgetExtended` | Nhận cả bốn kind; vẫn chỉ actor user |
+| Hết `time` | Không còn `RunStopRequested(budget)`; window đóng và run chờ `budget(time)` |
+| `RunAccepted` | Ghim bốn giới hạn |
+| Timer purpose | Thêm `quota_refresh` |
+| Command | Thêm `QuotaChanged(provider, revision)`; chỉ đánh thức run đang chờ `quota_refresh`, không cấp dispatch |
+| `ModelDispatchStarted` | Đã có account; không đổi |
+
+Các thay đổi này cần review G-02 cùng bảng transition.
+
+## 9. Evidence
+
+**Quota và gộp quan sát**
+
+- Bảng test luật gộp §2.2: lệch thứ tự, cùng epoch, epoch mới, epoch cũ, đã qua `reset_at`, `limit_error` có và không có `reset_at`, lệch 119 s và 121 s.
+- Test song song: N goroutine gửi quan sát theo thứ tự ngẫu nhiên; trạng thái cuối giống nhau với mọi hoán vị; UPSERT trong SQL cho cùng kết quả với memory.
+- Ghi lại một quan sát sau crash không đổi kết quả.
+- Quan sát có `credential_revision` cũ không xóa `auth_failed`.
+- Topic `quota` phát đúng một `changed` cho mỗi lần `revision` tăng.
+
+**Chọn và chuyển account**
+
+- Chuyển khi dưới ngưỡng, khi `limit_error` (thử lại ngay, không tính backoff), khi `auth_failed`; giữ model và binding; bỏ reasoning đã mã hóa của account cũ.
+- `best` rải theo số attempt đang chạy; `model.accounts` giới hạn phạm vi; `manual` không tự chuyển.
+- Không bao giờ chuyển giữa gói ChatGPT và API key.
+- Gói ChatGPT nhận 429: account `paused`, không có giờ reset hay timer, không tự thử lại; attempt sang tài khoản ChatGPT khác; mọi account `paused` thì chờ không timer và chỉ `ResumeAccount` đánh thức.
+
+**Chờ**
+
+- `Waiting(quota_refresh)`: tự chạy tiếp lúc reset; đánh thức sớm bằng `QuotaChanged`; revision cũ bị bỏ qua; còn đúng sau restart; queue không bắt đầu run mới cho provider đang hết.
+- `use-reserve` hết hiệu lực ở lần reset kế tiếp.
+- Bốn budget theo run: chờ ở đúng ranh giới của mỗi kind; tool đang chạy chạy xong; gia hạn chỉ từ user; "Kết thúc" ra `budget_exceeded(kind)`; chờ không tính active time; goal `disarmed`; token đã cache không tính.
+- Hết `time` không ghi `RunStopRequested`; retry budget vẫn kết thúc run.
+
+## 10. Phụ thuộc
+
+- Cần trước: [state machine](/dev-kit/core-harness/state-machine) §7, §9; [model adapter](/dev-kit/core-harness/model-adapter) §6, §7; [workspace](/dev-kit/core-harness/workspace) (khóa cấu hình).
+- Mảng liên quan: [continuation](/dev-kit/core-harness/continuation) (step budget, goal), [điều phối input](/dev-kit/core-harness/coordination) (queue khi chờ), [Host API](/dev-kit/core-harness/host-api), H-45 (dòng trạng thái, lệnh `fugue quota` và `fugue run extend`).

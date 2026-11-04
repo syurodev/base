@@ -21,7 +21,7 @@ Tham khảo: pi-ai (stream chuẩn hóa, auth, chuyển model, system message v�
 | M-06 | Retry thuộc kernel; mỗi stream là đúng **một attempt** |
 | M-07 | Provider-hosted tools bị tắt ở v1 (đã chốt ở state machine §4) |
 | M-08 | **OpenAI cùng giai đoạn A**, qua Responses API; auth bằng API key hoặc **Sign in with ChatGPT** (dùng gói ChatGPT), vì OpenAI chính thức cho phép ứng dụng mã nguồn mở và chạy local dùng gói này ([§11](#11-openai-và-sign-in-with-chatgpt)) |
-| M-09 | Với gói ChatGPT, **không bao giờ tự chuyển sang đường tính tiền khác** (API key hay account khác); khi hết hạn mức, user tự chọn |
+| M-09 | Với gói ChatGPT, **không bao giờ tự chuyển sang đường tính tiền khác** (API key). Tự chuyển giữa các tài khoản ChatGPT của chính user được phép (v0.13, [budget và quota §3.1](/dev-kit/core-harness/budget#31-gói-chatgpt)) |
 | M-10 | Không dùng lại token, client ID hay home của Codex CLI; không gọi endpoint `backend-api` của ChatGPT. Chỉ dùng luồng đăng ký chính thức của DevKit |
 | M-11 | **Fugue giai đoạn A đảo M-01** (A-02, 2026-11-03): adapter thật đầu tiên là OpenAI Responses với Sign in with ChatGPT, và đây là provider duy nhất của giai đoạn A. API key OpenAI, Anthropic và failover giữa account (M-04) sang giai đoạn B ([phát hành giai đoạn A](/dev-kit/core-harness/activation)) |
 
@@ -123,9 +123,9 @@ Context engine đọc `contextWindow` và `maxOutput` để tính ngưỡng comp
 
 **Failover**
 
-- Dùng lại logic `PickAccount` của Agent Hub: ngưỡng, chiến lược (`order`, `best`, `consumeFirst`), giữ account 5 phút, biên quay lại. Dữ liệu đầu vào lấy từ **rate-limit header** của API thay cho cửa sổ giới hạn của subscription.
+- Dùng lại logic `PickAccount` của Agent Hub: ngưỡng, chiến lược (`order`, `best`, `consumeFirst`), giữ account 5 phút, biên quay lại. Dữ liệu đầu vào là trạng thái của owner quota chung, cập nhật từ header hạn mức và lỗi hết hạn mức của mọi session ([budget và quota](/dev-kit/core-harness/budget) §2, §3). Tự chuyển account cùng provider bật mặc định (`model.account_switch`), kể cả Sign in with ChatGPT.
 - Chọn account **trước mỗi attempt**; account được ghi trong `ModelDispatchStarted`. Đổi account không đổi model và không đổi binding.
-- Mọi account cùng model đều bị giới hạn thì run vào `Waiting(retry_timer)` tới thời điểm reset sớm nhất, hoặc kết thúc nếu vượt budget.
+- Mọi account được phép đều hết hoặc dưới ngưỡng giữ lại thì run vào `Waiting(quota_refresh)` tới thời điểm reset sớm nhất và tự chạy tiếp ([budget và quota](/dev-kit/core-harness/budget) §5).
 - **Không tự chuyển model hay provider.** User đổi model giữa các run; context engine tính lại ngưỡng, cache bắt đầu nguội.
 
 **Chọn model**
@@ -192,7 +192,7 @@ Với API key, các ràng buộc riêng của gói ChatGPT không áp dụng; co
 
 | Mã | Lớp (§3) | Xử lý |
 | --- | --- | --- |
-| 429 `subscription_sharing_usage_limit_exceeded` | `quota` | Dừng request bằng gói này; **không tự retry, không tự chuyển billing** (M-09); không đoán thời điểm reset; UI hiện "Manage usage" |
+| 429 `subscription_sharing_usage_limit_exceeded` | `quota` | Dừng request trên account này và tạm dừng account (`paused`); **không tự retry account này, không tự chuyển sang API key** (M-09); attempt được lập lại trên tài khoản ChatGPT khác nếu có; không đoán thời điểm reset; UI hiện "Manage usage" |
 | 403 `subscription_sharing_user_not_eligible` | `permission` | Giải thích; không lặp request hay OAuth |
 | 403 `chatpass_v2_scope_not_authorized`, `chatpass_v2_invalid_authorization_context` | `permission` | Kiểm tra cấu hình client và grant |
 | 403 `subscription_sharing_route_not_supported` | `invalid_request` | Lỗi tích hợp |
@@ -206,7 +206,7 @@ Lỗi hạn mức có thể đến dưới dạng `response.failed` **sau khi st
 
 ### 11.5 Failover với gói ChatGPT
 
-M-09 thắng D-25: account dùng gói ChatGPT **không tham gia failover tự động** sang account khác hay sang API key. Hết hạn mức thì run vào trạng thái chờ user với hai lựa chọn: đợi (theo trang Manage usage của ChatGPT) hoặc chọn rõ một account hay API key khác cho các attempt tiếp theo. Failover tự động vẫn áp dụng giữa các **API key** cùng model.
+Account dùng gói ChatGPT chỉ failover sang **tài khoản ChatGPT khác của cùng user**, không bao giờ sang API key. Hết hạn mức thì account đó tạm dừng tới khi user resume; mọi tài khoản ChatGPT đều tạm dừng thì run chờ user, với hai lựa chọn: resume một account sau khi xem trang Usage, hoặc chọn rõ một API key cho các attempt tiếp theo. Chi tiết ở [budget và quota §3.1](/dev-kit/core-harness/budget#31-gói-chatgpt). Failover giữa các **API key** cùng model không đổi.
 
 ### 11.6 UI bắt buộc theo hướng dẫn của OpenAI
 
@@ -225,6 +225,7 @@ M-09 thắng D-25: account dùng gói ChatGPT **không tham gia failover tự đ
 | Cache | Cơ chế giữ cache (ví dụ `prompt_cache_key`) có được nhận với gói ChatGPT không; tỷ lệ cache hit |
 | Đổi tool | `additional_tools` khi thêm group giữa session; cách xử lý khi gỡ tool |
 | Model | `/v1/models` theo account; khớp với catalog giá |
+| Header hạn mức | Response của gói ChatGPT có trả % đã dùng và thời điểm reset của các cửa sổ không; quyết định ngưỡng giữ lại và cách gỡ `paused` ([budget và quota §3.1](/dev-kit/core-harness/budget#31-gói-chatgpt)) |
 
 ## 9. Test
 

@@ -170,6 +170,10 @@ Lệnh CLI kiểm tra `config_hash` trước khi ghi; file đã bị sửa ở c
 | `tasks.key_prefix` | Chữ cái đầu của tên workspace, viết hoa, tối đa 6 | Key task | Không |
 | `tasks.verify` | Không có | `{ command, timeout = "15m", root }`; `root` phải là root `rw` ([task và checklist §7](/dev-kit/core-harness/tasks#7-cổng-sang-terminal)) | Có |
 | `run.max_steps` | `100` | [Continuation §3](/dev-kit/core-harness/continuation) | Không |
+| `run.max_tokens`, `run.max_active_time`, `run.max_tool_calls` | `2M`, `2h`, `500` | Budget theo run ([budget và quota](/dev-kit/core-harness/budget) §4) | Không |
+| `quota.reserve` | `10%` | Ngưỡng giữ lại của quota provider ([budget và quota](/dev-kit/core-harness/budget) §5.1) | Không |
+| `model.account_switch`, `model.account_strategy` | `auto`, `order` | Chọn và chuyển account ([budget và quota](/dev-kit/core-harness/budget) §3) | Không |
+| `model.accounts` | Mọi account của provider | Account workspace được dùng | Không |
 | `run.loop_remind_at`, `run.loop_exclude` | `[3, 5, 8]`, `[]` | Phát hiện lặp | Không |
 | `goal.max_rounds` | `20` | Goal mode | Không |
 | `snapshot.turn_max`, `tool_max`, `turn_keep`, `tool_keep` | `200`, `500`, `30d`, `7d` | [Tool system §9](/dev-kit/core-harness/tool-system#9-snapshot) | Không |
@@ -244,4 +248,4 @@ Kích thước viết có đơn vị (`64MiB`), thời lượng viết dạng `1
 
 - Cần trước: [interaction](/dev-kit/core-harness/interaction) (H-24), [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (H-25).
 - Mảng dùng trang này: mọi trang có giá trị theo workspace — [tool file](/dev-kit/core-harness/file-tools), [shell và job](/dev-kit/core-harness/shell-job), [an toàn nội dung](/dev-kit/core-harness/content-safety), [task và checklist](/dev-kit/core-harness/tasks), [hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan), [context engine](/dev-kit/core-harness/context-engine), [continuation](/dev-kit/core-harness/continuation), [tool system §9](/dev-kit/core-harness/tool-system#9-snapshot).
-- Mảng liên quan: H-45 (lệnh `fugue workspace`, cảnh báo, chọn workspace), H-06 (budget theo workspace).
+- Mảng liên quan: H-45 (lệnh `fugue workspace`, cảnh báo, chọn workspace), [budget và quota](/dev-kit/core-harness/budget) (H-06).

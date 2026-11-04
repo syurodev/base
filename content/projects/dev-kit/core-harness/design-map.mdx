@@ -46,7 +46,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | H-03 | Storage và bảo mật payload (G-03) | Đã chốt, chờ evidence | [Storage-security](/dev-kit/core-harness/storage-security) | A | H-02 |
 | H-04 | Đặt package và dependency (G-01) | Đã chốt | [ADR R0.1 đã duyệt](https://github.com/syurodev/dev-kit/blob/main/docs/adr/2026-10-31-harness-package-ownership.md), [PR #412](https://github.com/syurodev/dev-kit/pull/412); evidence luật arch ở R0.2 | A | D-29, H-42 (đã chốt); process root tạo core rồi inject qua contracts vào app; người thiết kế duyệt ngày 2026-10-31 |
 | H-05 | Review transition toàn bộ (G-02) | Chưa | [Quyết định](/dev-kit/core-harness/decisions-and-validation) | A | Thiết kế H-01–H-03 (đã chốt); chạy song song với P1–P2 và đóng bằng evidence (R1.1, R1.2, R2.4); review lại mỗi khi catalog có event mới |
-| H-06 | Budget: token, thời gian, tool, storage | Một phần | State machine §7, §9; storage-security §4 | A | H-08 |
+| H-06 | Budget: token, thời gian, tool, storage | Đã chốt | [Budget và quota](/dev-kit/core-harness/budget); state machine §7, §9; storage-security §4 | A | H-08 |
 
 ## B. Model
 
@@ -132,5 +132,5 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 5. ~~**Interaction API**~~ (H-24): đã chốt ở [interaction](/dev-kit/core-harness/interaction). ~~**Sandbox runtime**~~ (H-25) đã chốt ở [sandbox runtime](/dev-kit/core-harness/sandbox-runtime). ~~Nội dung không tin cậy, redact~~ (H-26, H-27) đã chốt ở [an toàn nội dung](/dev-kit/core-harness/content-safety).
 6. ~~**Queue/steering** (H-29) và **continuation** (H-31)~~: đã chốt ở [điều phối input](/dev-kit/core-harness/coordination) và [continuation](/dev-kit/core-harness/continuation).
 7. **CLI/TUI client** (H-45); ~~cấu hình workspace~~ (H-34) đã chốt ở [workspace và cấu hình](/dev-kit/core-harness/workspace).
-8. ~~**Phát hành giai đoạn A và compatibility** (H-37, H-36)~~: đã chốt ở [activation](/dev-kit/core-harness/activation) v0.13. Còn **budget** (H-06).
+8. ~~**Phát hành giai đoạn A và compatibility** (H-37, H-36)~~: đã chốt ở [activation](/dev-kit/core-harness/activation) v0.13. ~~Budget~~ (H-06) đã chốt ở [budget và quota](/dev-kit/core-harness/budget).
 9. **Đặt package** (H-04) **không chờ** các mảng trên: nó là việc đầu tiên trước mọi production code của core (R0.1 trong [lộ trình](/dev-kit/core-harness/implementation-roadmap)). **Review transition** (H-05) chạy song song với P1–P2 và đóng gate G-02 bằng evidence. Với D-29, harness nằm trong `internal/` của DevKit, theo đúng các tầng của architecture rules, không cần chuẩn bị để tách repo.
