@@ -273,31 +273,31 @@ Mã lỗi công khai: `shell.cwd_outside_workspace`, `shell.cwd_missing`, `shell
 
 **Phân loại và grant**
 
-- Bảng phân loại: mỗi lệnh trong danh sách chỉ đọc là `read`; có redirect ghi thì `write`; `find -delete` là `write`; mỗi nhóm luật tĩnh nâng đúng `risk`; lệnh `unparsed` là `write`.
-- `grantScope`: `go test ./...` → `shell:prefix:go test`; `git -C sub push` → `shell:prefix:git push`; `timeout 300 go test` → `shell:prefix:go test`; lệnh ghép, gán biến inline, option chưa biết trước subcommand và wrapper có option lạ đều không có grant scope.
-- Grammar: bảng test theo từng program cho option nhận giá trị, giá trị gắn liền (`--flag=v`), cụm cờ ngắn và `--`.
+- **SH-E01** Bảng phân loại: mỗi lệnh trong danh sách chỉ đọc là `read`; có redirect ghi thì `write`; `find -delete` là `write`; mỗi nhóm luật tĩnh nâng đúng `risk`; lệnh `unparsed` là `write`.
+- **SH-E02** `grantScope`: `go test ./...` → `shell:prefix:go test`; `git -C sub push` → `shell:prefix:git push`; `timeout 300 go test` → `shell:prefix:go test`; lệnh ghép, gán biến inline, option chưa biết trước subcommand và wrapper có option lạ đều không có grant scope.
+- **SH-E03** Grammar: bảng test theo từng program cho option nhận giá trị, giá trị gắn liền (`--flag=v`), cụm cờ ngắn và `--`.
 
 **Thực thi và job**
 
-- cwd: mặc định lấy từ lời gọi trước; ngoài workspace bị từ chối; cwd do wrapper báo ngoài workspace không được nhận.
-- Timeout thành job với fake clock; output trước timeout có trong result; job xong được `Inject` đúng một lần.
-- `job.cancel` có proof; job của session khác trả `job.not_found`.
-- Giới hạn 3 job và 2 giờ; ring buffer bị đè có marker.
-- Stop run cancel lệnh đang chạy nhưng không dừng job nền.
+- **SH-E04** cwd: mặc định lấy từ lời gọi trước; ngoài workspace bị từ chối; cwd do wrapper báo ngoài workspace không được nhận.
+- **SH-E05** Timeout thành job với fake clock; output trước timeout có trong result; job xong được `Inject` đúng một lần.
+- **SH-E06** `job.cancel` có proof; job của session khác trả `job.not_found`.
+- **SH-E07** Giới hạn 3 job và 2 giờ; ring buffer bị đè có marker.
+- **SH-E08** Stop run cancel lệnh đang chạy nhưng không dừng job nền.
 
 **Output**
 
-- Mỗi filter có fixture là output thật (lưu nén), gồm cả trường hợp pass và fail, và assertion giữ lại: mọi tên test fail, mọi dòng `file:line` lỗi, exit code, dòng tổng kết. Mỗi filter có ngưỡng tiết kiệm tối thiểu trên fixture của nó (mặc định ≥ 60%).
-- Output khác format (locale khác, version khác, thiếu footer) → `unrecognized`, kênh Model bằng kết quả tầng chung.
-- Cờ bypass của từng filter → `bypassed`.
-- Bảng chọn lệnh sinh output (§3.3): lệnh đơn, `cd x && go test`, pipeline, `||`, redirect ra file.
-- `never_worse`: filter cho kết quả lớn hơn tầng chung thì kênh Model là kết quả tầng chung.
-- Header và hint có khi và chỉ khi có phần bị ẩn; `from_line` trỏ đúng dòng đầu bị ẩn.
-- `shell.output` với `full` trả byte giống hệt output gốc (qua nén và giải nén); output bị đẩy khỏi bộ giữ trả `shell.output_expired`; `output_id` của session khác trả `shell.output_not_found`.
-- Bộ giữ: vượt giới hạn session bỏ output cũ nhất của session đó; vượt giới hạn host không bỏ output mới nhất của session nào; vault khóa, session kết thúc hoặc bị xóa thì mọi output của session bị bỏ; 300 lời gọi với output nhỏ vẫn đọc lại được hết trong giới hạn mặc định.
-- Result dựng lại từ cùng output gốc cho kết quả giống hệt (tất định).
-- Fuzz cho parser lệnh shell và cho từng filter: không panic, không vượt giới hạn CPU, kết quả không lớn hơn input.
-- Output, argv và nội dung đã giữ không xuất hiện trong metadata, log hay audit.
+- **SH-E09** Mỗi filter có fixture là output thật (lưu nén), gồm cả trường hợp pass và fail, và assertion giữ lại: mọi tên test fail, mọi dòng `file:line` lỗi, exit code, dòng tổng kết. Mỗi filter có ngưỡng tiết kiệm tối thiểu trên fixture của nó (mặc định ≥ 60%).
+- **SH-E10** Output khác format (locale khác, version khác, thiếu footer) → `unrecognized`, kênh Model bằng kết quả tầng chung.
+- **SH-E11** Cờ bypass của từng filter → `bypassed`.
+- **SH-E12** Bảng chọn lệnh sinh output (§3.3): lệnh đơn, `cd x && go test`, pipeline, `||`, redirect ra file.
+- **SH-E13** `never_worse`: filter cho kết quả lớn hơn tầng chung thì kênh Model là kết quả tầng chung.
+- **SH-E14** Header và hint có khi và chỉ khi có phần bị ẩn; `from_line` trỏ đúng dòng đầu bị ẩn.
+- **SH-E15** `shell.output` với `full` trả byte giống hệt output gốc (qua nén và giải nén); output bị đẩy khỏi bộ giữ trả `shell.output_expired`; `output_id` của session khác trả `shell.output_not_found`.
+- **SH-E16** Bộ giữ: vượt giới hạn session bỏ output cũ nhất của session đó; vượt giới hạn host không bỏ output mới nhất của session nào; vault khóa, session kết thúc hoặc bị xóa thì mọi output của session bị bỏ; 300 lời gọi với output nhỏ vẫn đọc lại được hết trong giới hạn mặc định.
+- **SH-E17** Result dựng lại từ cùng output gốc cho kết quả giống hệt (tất định).
+- **SH-E18** Fuzz cho parser lệnh shell và cho từng filter: không panic, không vượt giới hạn CPU, kết quả không lớn hơn input.
+- **SH-E19** Output, argv và nội dung đã giữ không xuất hiện trong metadata, log hay audit.
 
 ## 9. Phụ thuộc
 

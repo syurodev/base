@@ -5,7 +5,7 @@ description: Lifecycle model/tool, trạng thái run suy ra và invariant giữa
 
 # State machine thực thi
 
-Trạng thái: foundation semantics v0.12, chưa phải enum/API đã phát hành. Tên có thể đổi khi review; transition, invariant và recovery policy phải được giữ hoặc có quyết định thay thế. Danh mục event và chuỗi ví dụ ở [event catalog](/dev-kit/core-harness/event-catalog).
+Trạng thái: foundation semantics v0.14 (2026-11-04), đã qua [review G-02](#10-review-g-02-h-05) của H-05; chưa phải enum/API đã phát hành. Tên có thể đổi khi review; transition, invariant và recovery policy phải được giữ hoặc có quyết định thay thế. Danh mục event và chuỗi ví dụ ở [event catalog](/dev-kit/core-harness/event-catalog).
 
 ## 1. Đơn vị và facts có thẩm quyền
 
@@ -47,7 +47,7 @@ Không có `RunWaitEntered/Exited` event độc lập. `ToolApprovalRequested`, 
 
 `RunBlockAdded` biểu diễn wait dependency có thể resolve (vault/pause/recovery admission); `RunInterrupted` biểu diễn interruption cause cần repair/reconciliation/disposition và thắng wait theo precedence. Không gọi hai loại này chung là “blocker”.
 
-`waitReasons` là tập dependency có kiểu, không chỉ một chuỗi: `approval`, `user_input`, `dependency`, `retry_timer`, `worker_capacity`, `vault_locked`, `host_paused`, `recovery_admission`, `budget(kind)`, `quota_refresh` ([budget và quota](/dev-kit/core-harness/budget) §8). Từng reason có token/reference và điều kiện resolve. worker_capacity là wait dependency có pool/generation và target frontier; reserve non-blocking thất bại thì RunBlockAdded(worker_capacity), khi có slot dành riêng mới RunBlockCleared cùng dispatch transaction. Không active effect thì Waiting(worker_capacity) và đóng time window; callback stale không được clear dependency mới. Restart invalidate reservation/generation memory cũ rồi đánh giá lại capacity dưới recovery_admission, không restore một slot cũ. Read model chọn một primary reason theo thứ tự cố định để hiển thị, vẫn giữ toàn bộ tập; không mất approval chỉ vì đang pause.
+`waitReasons` là tập dependency có kiểu, không chỉ một chuỗi: `approval`, `user_input`, `retry_timer`, `worker_capacity`, `vault_locked`, `host_paused`, `recovery_admission`, `budget(kind)`, `quota_refresh` ([budget và quota](/dev-kit/core-harness/budget) §8). Từng reason có token/reference và điều kiện resolve. `approval` đến từ request kind `confirm` hoặc `select`; `user_input` đến từ request kind `question` của `ask_user` và `plan` (§5). Kind của `budget` (`steps`, `tokens`, `time`, `tool_calls`) nằm trên chính block; block `budget` thiếu kind, block khác mang kind, hoặc block có reason ngoài tập này là history hỏng và bị checker từ chối. Giai đoạn A không có reason `dependency`: peer bị bỏ (A-03) và child session nằm ngoài v1; reason này chỉ mở lại cùng H-30. worker_capacity là wait dependency có pool/generation và target frontier; reserve non-blocking thất bại thì RunBlockAdded(worker_capacity), khi có slot dành riêng mới RunBlockCleared cùng dispatch transaction. Không active effect thì Waiting(worker_capacity) và đóng time window; callback stale không được clear dependency mới. Restart invalidate reservation/generation memory cũ rồi đánh giá lại capacity dưới recovery_admission, không restore một slot cũ. Read model chọn một primary reason theo thứ tự cố định để hiển thị, vẫn giữ toàn bộ tập; không mất approval chỉ vì đang pause.
 
 ```mermaid
 stateDiagram-v2
@@ -81,8 +81,8 @@ Kiểm tra sau từng **transaction event batch**, không yêu cầu mọi prefi
 | ID | Invariant kiểm được |
 | --- | --- |
 | SM-01 | V1 có tối đa một attempt model/tool tại execution frontier đang dispatch hoặc stream; timer/interaction không chiếm slot worker. |
-| SM-02 | Một tool `AwaitingApproval` tương ứng đúng một unresolved approval dependency tham chiếu cùng invocation/args/request revision/check generation. Ngược lại mọi dependency loại này có đúng tool đang chờ. |
-| SM-03 | Khi không có stop/interruption và không active attempt, có approval dependency thì run là `Waiting` với `approval` trong `waitReasons`. Pause/vault reasons không tạo lifecycle cạnh tranh. |
+| SM-02 | Một tool `AwaitingApproval` tương ứng đúng một unresolved **interaction dependency** tham chiếu cùng invocation/args/request revision/check generation, với reason khớp kind của request: `approval` cho `confirm`/`select`, `user_input` cho `question`. Ngược lại mọi dependency hai loại này có đúng tool đang chờ với request cùng kind. |
+| SM-03 | Khi không có stop/interruption và không active attempt, có interaction dependency thì run là `Waiting` với reason của dependency đó (`approval` hoặc `user_input`) trong `waitReasons`. Pause/vault reasons không tạo lifecycle cạnh tranh. |
 | SM-04 | `phase=calling_model` chỉ khi current step ở model frontier; `phase=processing_tools` chỉ khi phản hồi model đã `Completed` và cursor ở tool batch. |
 | SM-05 | `RunFinished` chỉ hợp lệ khi mọi invocation có terminal control disposition, không còn dispatch/stream đã biết đang hoạt động, và active time window đã đóng với accounting coverage rõ ràng, và các timers/dependencies không còn quyền kích hoạt execution. |
 | SM-06 | `Cancelling` chuyển sang `Finished` chỉ sau xử lý active attempts; có `OutcomeUnknown` chưa xử lý thì lifecycle là `Interrupted`, vẫn giữ stop intent. |
@@ -122,7 +122,8 @@ stateDiagram-v2
 
 | Tình huống | Đường xử lý v1 |
 | --- | --- |
-| Rate limit/429 có phản hồi lỗi kết thúc rõ | `Failed(retryable)` nếu adapter/policy cho phép; honor Retry-After khi hợp lệ, kết hợp backoff hữu hạn và budget; đặt durable retry timer |
+| Hết hạn mức của account (429 usage limit, [budget và quota](/dev-kit/core-harness/budget) §3) | `Failed` với `failureClass=quota_exhausted`; cùng batch lập attempt mới trên account khác cùng provider và cùng loại auth, không timer, không tính retry budget. Không còn account dùng được thì attempt mới ở `Planned` cùng wait `quota_refresh` (§9) |
+| Rate limit/429 thường có phản hồi lỗi kết thúc rõ | `Failed(retryable)` nếu adapter/policy cho phép; honor Retry-After khi hợp lệ, kết hợp backoff hữu hạn và budget; đặt durable retry timer |
 | 5xx có phản hồi lỗi kết thúc rõ | `Failed(retryable)` theo adapter classification và retry budget; không retry vô hạn |
 | Auth/config/unsupported request | `Failed(fatal)`; không retry bằng timer, cần cấu hình/authority mới hoặc kết thúc run |
 | Mất kết nối/crash sau dispatch, không có terminal evidence | `Interrupted`; không đoán request chưa tới provider hoặc chi phí bằng zero |
@@ -175,6 +176,8 @@ Check/request/execute dùng cùng gateway với one-use receipt như [approval p
 `Denied` là quyết định từ chối của approver có thẩm quyền; `Refused` là validation/gateway/owner không cho thực thi, bao gồm request hết hạn, owner thu hồi hoặc scope đổi khi đang live; restart invalidation riêng dùng ToolCheckReset, không đi cạnh Refused. Cả hai có result có kiểu cho model và không giả làm lỗi executor. `Failed` là attempt kết thúc lỗi; không dùng nó để che một outcome còn unknown. `Cancelled` cần nêu pre-dispatch hoặc evidence dừng, không do timeout đơn thuần.
 
 Sơ đồ trên áp dụng cho tool attempt. Invocation đóng theo selected terminal disposition; retry tạo attempt mới, không chuyển ngược hoặc ghi đè state của attempt cũ. `ToolCheckReset` là ngoại lệ cho `Checking`, `AwaitingApproval` và `Ready` chưa dispatch sau recovery: owner invalidate/read-back request/receipt/reservation cũ, gỡ dependency cùng batch và tăng check generation trước khi về Planned; rồi check lại cùng attempt; không phải retry effect.
+
+Request kind `question` (`ask_user`, `plan`, [hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan)) đi cùng đường trên: `Prepare` dựng request, attempt ở `AwaitingApproval` với dependency `user_input`, nên thời gian chờ không bị charge (§7). User trả lời thì `Ready`, receipt bind đúng các câu trả lời và result cho model dựng từ chúng; user hủy thì `Denied(user_cancelled)` với result có kiểu "user không trả lời"; host headless thì `Refused(unavailable)`; restart thì `ToolCheckReset` và hỏi lại.
 
 Tool descriptor có `effectClass` do host registry sở hữu, được ghim theo version; model/client không được tự khai báo class để nới recovery. Default cho tool chưa phân loại là `side_effecting`.
 
@@ -262,9 +265,12 @@ Vault khởi tạo locked ở mỗi process start, nhưng user có thể unlock 
 | Run admitted, chỉ có intents `Planned/Checking/Ready` chưa dispatch | Reacquire admission fence; thêm recovery_admission và đồng bộ vault blocker theo owner revision, reset check generation/receipt cũ và recheck sau unlock/resume; không invent unknown |
 | Tool `Checking/AwaitingApproval/Ready` sau restart | Owner read-back/invalidate mọi request/receipt/reservation kể cả chưa ghi receipt; ToolCheckReset cùng dependency resolution về Planned và generation mới; recheck sau unlock/resume, không synthetic refused; callback check/approval cũ bị fence |
 | Model `Requesting/Streaming` hoặc tool `Dispatching` không có completion | Attempt interrupted/unknown theo class/policy, không replay side effect |
+| Run đã nghỉ khi host dừng (xem dưới bảng) | Recovery tự gỡ `recovery_admission`; các wait còn lại tiếp tục như trước restart |
 | Chỉ vault khóa | `Waiting(vault_locked)` khi quiescent; không gán corruption hoặc payload lost |
 | Payload đã mất/corrupt | `Interrupted(payload_unavailable)`; phục hồi reference hợp lệ hoặc trusted user CloseRunWithoutPayload để đóng admission, giữ missing-data provenance |
 | Schema/protocol không hỗ trợ | Host báo stream unavailable/read-only diagnostic; không append state event mà decoder không hiểu |
+
+**Run đã nghỉ.** Recovery gỡ `recovery_admission` mà không cần `ResumeRun` khi facts đã commit chứng minh run đã nghỉ lúc host dừng: không có model attempt `Requesting`/`Streaming` và không có tool `Dispatching`; không có time window đang mở; không có unknown hay interruption cause; không có suspension `shutdown`; và mọi wait reason còn lại là `quota_refresh`, `budget(kind)` hoặc `retry_timer`. Gỡ chỉ sau khi đã đồng bộ vault blocker theo owner revision và revalidate scope. Run chờ quota vì vậy tự chạy tiếp khi quota được làm mới, đúng BG-07, kể cả qua restart. Run dừng vì tắt host (`shutdown`), run có unknown và run đang chạy dở vẫn cần quyết định resume của user.
 
 Hủy run cha không tự hủy mọi child hoặc release task. Team cascade cancellation tiếp tục thuộc owner và authority hiện hữu. Task acceptance, push/merge và writer release không suy ra từ lifecycle, lease expiry hoặc `UnknownAccepted`.
 
@@ -272,8 +278,27 @@ Hủy run cha không tự hủy mọi child hoặc release task. Team cascade ca
 
 Budget theo model attempts/steps, tokens/cost, tool calls, retries, time và concurrency. Kiểm tra trước dispatch, reserve phần đang hoạt động, đối soát usage khi có. Cả `ModelDispatchStarted` và `ToolDispatchStarted` MUST có reservation identity/counters cho attempt, commit cùng dispatch; reservation chưa rõ được giữ cho đến owner/accounting evidence, không hoàn chỉ vì restart/abandon. Tool-call count được charge khi dispatch commit; pre-handoff proof có thể release phần resource chưa dùng theo policy, không xóa lịch sử attempt. Unknown usage không được ghi zero; accounting reconciliation có thể bổ sung evidence sau khi run đóng mà không khởi động lại loop.
 
-**Budget theo run là ngoại lệ có chủ đích** ([budget và quota](/dev-kit/core-harness/budget) §4, [continuation §3](/dev-kit/core-harness/continuation#3-giới-hạn-step)). Khi một trong bốn kind `steps`, `tokens`, `time`, `tool_calls` chạm giới hạn ghim cộng các lần gia hạn, facts đó tạo wait dependency `budget(kind)`; không có `RunStopRequested`. `steps` được xét sau `StepCompleted`; `tokens` và `tool_calls` trước dispatch; `time` khi `TimerElapsed(run_deadline)` đóng window. Khi quiescent, run là `Waiting(budget)`, time window đóng và không charge thời gian chờ. Dependency suy ra từ facts bền nên còn nguyên sau restart, cùng `recovery_admission`. Chỉ `BudgetExtended(kind, actor=user)` resolve được nó; peer, parent, model và goal không gia hạn được. User kết thúc thì ghi `RunStopRequested(budget, terminal, actor=user)` và outcome `budget_exceeded(kind)`; Stop thường hoặc `parent_cancel` vẫn đi theo §6. Retry budget khi hết vẫn dừng terminal. Hết quota của provider trên mọi account được phép là wait `quota_refresh` với timer UTC, được đánh thức sớm bằng command `QuotaChanged` ([budget và quota](/dev-kit/core-harness/budget) §5).
+**Budget theo run là ngoại lệ có chủ đích** ([budget và quota](/dev-kit/core-harness/budget) §4, [continuation §3](/dev-kit/core-harness/continuation#3-giới-hạn-step)). Khi một trong bốn kind `steps`, `tokens`, `time`, `tool_calls` chạm giới hạn ghim cộng các lần gia hạn, facts đó tạo wait dependency `budget(kind)`; không có `RunStopRequested`. `steps` được xét sau `StepCompleted`; `tokens` và `tool_calls` trước dispatch; `time` khi `TimerElapsed(run_deadline)` đóng window. Khi quiescent, run là `Waiting(budget)`, time window đóng và không charge thời gian chờ. Dependency suy ra từ facts bền nên còn nguyên sau restart; recovery tự gỡ `recovery_admission` khi run đã nghỉ (§8). Chỉ `BudgetExtended(kind, actor=user)` resolve được nó; peer, parent, model và goal không gia hạn được. User kết thúc thì ghi `RunStopRequested(budget, terminal, actor=user)` và outcome `budget_exceeded(kind)`; Stop thường hoặc `parent_cancel` vẫn đi theo §6. Retry budget khi hết vẫn dừng terminal. Hết quota của provider trên mọi account được phép là wait `quota_refresh` với timer UTC, được đánh thức sớm bằng command `QuotaChanged` ([budget và quota](/dev-kit/core-harness/budget) §5).
 
 Transcript native là projection cùng event transaction; chỉ canonical model responses và tool results/dispositions được dùng làm provider context. Partial drafts thuộc attempt view. Tool calls không còn chạy do stop cần synthetic disposition có kiểu trước `StepCompleted`, không bịa tool success.
 
 V1 chỉ một execution frontier. Khi thêm parallelism, cần review lại SM-01/SM-03, approval dependencies và resource guards; journal có completion order, transcript vẫn có tool source order. Child completion claim không tự biến thành acceptance của task.
+
+## 10. Review G-02 (H-05)
+
+Review ngày 2026-11-04 đối chiếu mọi thiết kế của giai đoạn A (budget và quota, hỏi user và kế hoạch, task, workspace, CLI, shell, tool file, an toàn nội dung) với trang này và [event catalog](/dev-kit/core-harness/event-catalog). Phạm vi là **run kernel**: lifecycle, phase, `waitReasons`, máy trạng thái model và tool, stop, timer, recovery, budget. Trạng thái do owner khác giữ (goal, task, quota, session policy) nằm ngoài kernel và có evidence ở trang riêng ([catalog §1](/dev-kit/core-harness/event-catalog#1-quy-ước)).
+
+| ID | Chỗ lệch | Quyết định |
+| --- | --- | --- |
+| R-01 | Run chờ quota phải tự chạy tiếp (BG-07) nhưng restart luôn thêm `recovery_admission` | Recovery tự gỡ khi run đã nghỉ (§8) |
+| R-02 | `ask_user` và `plan` chưa có đường đi trong máy trạng thái tool và chưa có wait reason | Request `question` chờ ở `AwaitingApproval` với `user_input`; SM-02 và SM-03 phủ cả hai loại interaction dependency (§3, §5) |
+| R-03 | Mọi 429 đi đường retry có backoff, trái với chuyển account của budget §5 | Thêm `failureClass=quota_exhausted` (§4) |
+| R-04 | Reason `dependency` không có nguồn tạo ở giai đoạn A | Bỏ khỏi tập (§2) |
+| R-05 | `step_budget` còn ở [lộ trình cũ](/dev-kit/core-harness/implementation-roadmap) | Đổi thành `budget(kind)` |
+| R-06 | Catalog không nói trạng thái nào nằm ngoài run kernel | Bảng ở [catalog §1](/dev-kit/core-harness/event-catalog#1-quy-ước) |
+| R-07 | [Tiêu chí kiểm chứng](/dev-kit/core-harness/decisions-and-validation#tiêu-chí-kiểm-chứng) còn hàng của DevKit (Wails, bridge, vendor path, team) | Viết lại theo Fugue; **VC-33** bị gạch |
+
+Các điểm đã khớp, không đổi: tắt host theo lease dùng `shutdown` ở chế độ suspend (§6); gỡ root của workspace làm request đang live thành `Refused` vì scope đổi (§5); lần verify của task chạy ngoài run và báo kết quả ở ranh giới step; `budget(kind)` theo §9; goal thành `disarmed` khi restart.
+
+**Đóng G-02** khi các evidence sau đạt kèm revision: bảng transition hợp lệ và bị từ chối (F2.1), invariant checker và property test (F2.2), các thay đổi kernel của review này (F2.11), trace A, B, C và toàn bộ **VC-01**–**VC-32** ([bộ kiểm chứng](/dev-kit/core-harness/verification)). Review được làm lại mỗi khi catalog có event, command hoặc wait reason mới.
+

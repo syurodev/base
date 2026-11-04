@@ -118,18 +118,18 @@ Commit unknown (lỗi driver hoặc I/O sau khi gửi `COMMIT`): coordinator d�
 
 Thiết kế ở trên không cần quyết định thêm. G-03 chỉ **đóng** khi các bằng chứng sau có kèm revision cụ thể:
 
-| Evidence | Cách chứng minh |
-| --- | --- |
-| Atomicity | Fault injection giữa từng bước trong transaction (payload, event, projection, receipt, admission); sau mở lại không có trạng thái commit một phần |
-| Read-back | Driver trả lỗi sau COMMIT thành công và sau COMMIT thất bại; read-back phân biệt đúng, không dispatch trùng |
-| Durability pragmas | Test mở store với `synchronous` hoặc `journal_mode` khác bị từ chối |
-| Append-only | UPDATE/DELETE ngoài purge bị trigger chặn; purge xóa đúng session |
-| Crypto-shred | Sau purge, file DB không chứa bytes của wrapped key; payload không mở được kể cả khi vault mở |
-| Codec | Duplicate key, unknown field, field order, codec version khác: đúng conflict/receipt |
-| Vault observation | Unlock trước recovery, lock giữa read/subscribe/commit/consume, subscriber chậm; chạy trên host headless không có bridge |
-| Data-directory lock | Hai process, symlink alias, owner crash rồi acquire, network FS bị từ chối |
-| Giới hạn | Payload 1 MiB, run 64 MiB, session 1 GiB cho đúng typed failure |
-| Active-time tranche | Run dài nhiều tranche, crash giữa tranche, resume charge ≤ 60 s, không charge downtime |
-| Metadata-only path | Dedup cancel và `CloseRunWithoutPayload` khi vault khóa; clear đúng admission |
-| Context chain | Rebuild `exec_context_decisions` sau xóa projection; gap/conflict bị phát hiện |
-| Ownership | `tableOwners` có prefix `exec_`; architecture tests xanh |
+| ID | Evidence | Cách chứng minh |
+| --- | --- | --- |
+| **S-E01** | Atomicity | Fault injection giữa từng bước trong transaction (payload, event, projection, receipt, admission); sau mở lại không có trạng thái commit một phần |
+| **S-E02** | Read-back | Driver trả lỗi sau COMMIT thành công và sau COMMIT thất bại; read-back phân biệt đúng, không dispatch trùng |
+| **S-E03** | Durability pragmas | Test mở store với `synchronous` hoặc `journal_mode` khác bị từ chối |
+| **S-E04** | Append-only | UPDATE/DELETE ngoài purge bị trigger chặn; purge xóa đúng session |
+| **S-E05** | Crypto-shred | Sau purge, file DB không chứa bytes của wrapped key; payload không mở được kể cả khi vault mở |
+| **S-E06** | Codec | Duplicate key, unknown field, field order, codec version khác: đúng conflict/receipt |
+| **S-E07** | Vault observation | Unlock trước recovery, lock giữa read/subscribe/commit/consume, subscriber chậm; chạy trên host headless không có bridge |
+| **S-E08** | Data-directory lock | Hai process, symlink alias, owner crash rồi acquire, network FS bị từ chối |
+| **S-E09** | Giới hạn | Payload 1 MiB, run 64 MiB, session 1 GiB cho đúng typed failure |
+| **S-E10** | Active-time tranche | Run dài nhiều tranche, crash giữa tranche, resume charge ≤ 60 s, không charge downtime |
+| **S-E11** | Metadata-only path | Dedup cancel và `CloseRunWithoutPayload` khi vault khóa; clear đúng admission |
+| **S-E12** | Context chain | Rebuild `exec_context_decisions` sau xóa projection; gap/conflict bị phát hiện |
+| **S-E13** | Ownership | `tableOwners` có prefix `exec_`; architecture tests xanh |

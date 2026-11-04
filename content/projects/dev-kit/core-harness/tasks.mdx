@@ -190,27 +190,27 @@ Checklist của session đang chạy hiện trong view của session. Kanban the
 
 **Step và `todo`**
 
-- Cha đúng theo claim; danh tính step giữ nguyên khi nội dung không đổi; step xong bị bỏ khỏi danh sách được giữ làm lịch sử, step chưa xong bị xóa; quá một `in_progress` bị từ chối.
-- `todo` chạy ở Plan mode; result không lặp lại danh sách.
-- Checklist và kế hoạch đã duyệt được gắn lại sau compaction và sau khi claim, trong envelope `source=task`, không vượt 12 KiB.
+- **TK-E01** Cha đúng theo claim; danh tính step giữ nguyên khi nội dung không đổi; step xong bị bỏ khỏi danh sách được giữ làm lịch sử, step chưa xong bị xóa; quá một `in_progress` bị từ chối.
+- **TK-E02** `todo` chạy ở Plan mode; result không lặp lại danh sách.
+- **TK-E03** Checklist và kế hoạch đã duyệt được gắn lại sau compaction và sau khi claim, trong envelope `source=task`, không vượt 12 KiB.
 
 **Task**
 
-- Claim: một task mỗi session; claim mới tự release cũ; session sống giữ claim; session chết bị tiếp quản kèm comment hệ thống.
-- `blocked_by`: thiếu `expected_blocked_by` hoặc lệch thì từ chối; tạo vòng thì từ chối.
-- Subtask chỉ một cấp; `tasks.promote` tạo task và đánh dấu step.
-- Tác giả comment lấy từ session; không có tool xóa; Plan mode từ chối tool `write`.
+- **TK-E04** Claim: một task mỗi session; claim mới tự release cũ; session sống giữ claim; session chết bị tiếp quản kèm comment hệ thống.
+- **TK-E05** `blocked_by`: thiếu `expected_blocked_by` hoặc lệch thì từ chối; tạo vòng thì từ chối.
+- **TK-E06** Subtask chỉ một cấp; `tasks.promote` tạo task và đánh dấu step.
+- **TK-E07** Tác giả comment lấy từ session; không có tool xóa; Plan mode từ chối tool `write`.
 
 **Cổng**
 
-- Có lệnh verify: exit code 0 thì `done`, khác 0 thì giữ trạng thái; comment hệ thống có output đã redact; một lần mỗi workspace; xếp hàng; `stale`; hủy; restart thành `lost`.
-- Không có lệnh verify: hỏi user, chỉ "cho 1 lần"; headless thì từ chối. `wont_do` luôn hỏi.
-- Lệnh verify chạy trong jail dùng một lần, không thấy daemon của jail session.
+- **TK-E08** Có lệnh verify: exit code 0 thì `done`, khác 0 thì giữ trạng thái; comment hệ thống có output đã redact; một lần mỗi workspace; xếp hàng; `stale`; hủy; restart thành `lost`.
+- **TK-E09** Không có lệnh verify: hỏi user, chỉ "cho 1 lần"; headless thì từ chối. `wont_do` luôn hỏi.
+- **TK-E10** Lệnh verify chạy trong jail dùng một lần, không thấy daemon của jail session.
 
 **Lưu trữ và CLI**
 
-- Nội dung không có trong metadata; liệt kê khi vault khóa chỉ có key, trạng thái, thời gian.
-- Mọi lệnh `fugue tasks` chạy không cần TTY; `--json` có đủ field để script dùng.
+- **TK-E11** Nội dung không có trong metadata; liệt kê khi vault khóa chỉ có key, trạng thái, thời gian.
+- **TK-E12** Mọi lệnh `fugue tasks` chạy không cần TTY; `--json` có đủ field để script dùng.
 
 ## 13. Để sang giai đoạn B
 

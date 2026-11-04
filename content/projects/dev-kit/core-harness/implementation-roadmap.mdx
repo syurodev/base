@@ -86,7 +86,7 @@ Lần cập nhật cuối: 2026-11-01, bởi agent điều phối (R0.0–R0.3, 
 | R1.9 | Faux model provider (kịch bản text, thinking, tool call, lỗi từng lớp, đứt stream) | Model adapter §9 | R1.1 | Dùng được trong mọi test headless | Bị chặn | | |
 | R1.10 | Tool đọc giả (`pure_read`, không prompt) theo contract `Prepare`/`Execute` | Tool system §2 | R1.1 | Đi đủ `ToolCheckStarted` → `ToolReadyRecorded` → `ToolDispatchStarted` → `ToolResultRecorded` | Bị chặn | | |
 | R1.11 | **Slice đầu cuối**: start → model → tool → model → finish (trace A), lưu bền, replay không có side effect | Catalog §7 | R1.2–R1.10 | Trace A tái tạo đúng 22 event; replay cho 0 lần gọi model và tool | Bị chặn | | Mốc chính của P1 |
-| R1.12 | Luật quyết định sau step, `maxSteps` với `Waiting(step_budget)` và `BudgetExtended`, tự chạy tiếp một lần khi `length`, nhắc khi lặp | [continuation](/dev-kit/core-harness/continuation) §2–4 | R1.1, R1.5 | Evidence ở continuation §8 (trừ phần goal) | Bị chặn | | Phần quyết định sau step cần có trước R1.11; nhắc khi lặp cần `ContextInjected` (R3.7) nên có thể xong sau |
+| R1.12 | Luật quyết định sau step, `maxSteps` với `Waiting(budget(kind))` và `BudgetExtended`, tự chạy tiếp một lần khi `length`, nhắc khi lặp | [continuation](/dev-kit/core-harness/continuation) §2–4 | R1.1, R1.5 | Evidence ở continuation §8 (trừ phần goal) | Bị chặn | | Phần quyết định sau step cần có trước R1.11; nhắc khi lặp cần `ContextInjected` (R3.7) nên có thể xong sau |
 
 ### P2 — Recovery và fault injection
 

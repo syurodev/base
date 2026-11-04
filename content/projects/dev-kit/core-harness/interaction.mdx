@@ -233,16 +233,16 @@ Chi tiết hiển thị thuộc H-45. Yêu cầu tối thiểu: CLI luôn hiện
 
 ## 11. Evidence
 
-- Bảng test của `Decide` phủ mọi tổ hợp mode × `risk` × `confirm` × tag (`dev`, `prod`, rỗng, không biết) × có/không grant × có/không escalation.
-- Luật cứng vẫn hỏi ở Full và không bao giờ tạo grant; Plan từ chối mọi `risk ≠ read`.
-- Grant chỉ phủ đúng `grantScopeKey`; đổi `PolicyRevision` của tag làm grant cũ mất hiệu lực.
-- Luật shell: mỗi nhóm mặc định có ca khớp và ca không khớp; lệnh không phân tích được thì `ask` ở Auto.
-- Crash ở hai thời điểm của §5 (sau `Ensure`, sau khi trả lời) dẫn tới `ToolCheckReset` và hỏi lại, không dispatch.
-- Vault lock chen giữa `Answer` và claim thì fail closed.
-- Ngắt rồi nối lại client: request còn trong snapshot. Hai client trả lời cùng lúc: đúng một câu được nhận. `Answer` trùng `command_id` trả cùng kết quả.
-- Audit, log và gate observation không chứa summary, prompt, câu trả lời hay lời nhắn.
-- `SetSessionPolicy` với revision cũ bị từ chối; đổi mode không đánh giá lại tool đã `Ready`.
-- Mutation probes làm test fail: bỏ bước 1 của §3.2, bỏ so khớp `grantScopeKey`, coi `Responder = nil` là headless.
+- **I-E01** Bảng test của `Decide` phủ mọi tổ hợp mode × `risk` × `confirm` × tag (`dev`, `prod`, rỗng, không biết) × có/không grant × có/không escalation.
+- **I-E02** Luật cứng vẫn hỏi ở Full và không bao giờ tạo grant; Plan từ chối mọi `risk ≠ read`.
+- **I-E03** Grant chỉ phủ đúng `grantScopeKey`; đổi `PolicyRevision` của tag làm grant cũ mất hiệu lực.
+- **I-E04** Luật shell: mỗi nhóm mặc định có ca khớp và ca không khớp; lệnh không phân tích được thì `ask` ở Auto.
+- **I-E05** Crash ở hai thời điểm của §5 (sau `Ensure`, sau khi trả lời) dẫn tới `ToolCheckReset` và hỏi lại, không dispatch.
+- **I-E06** Vault lock chen giữa `Answer` và claim thì fail closed.
+- **I-E07** Ngắt rồi nối lại client: request còn trong snapshot. Hai client trả lời cùng lúc: đúng một câu được nhận. `Answer` trùng `command_id` trả cùng kết quả.
+- **I-E08** Audit, log và gate observation không chứa summary, prompt, câu trả lời hay lời nhắn.
+- **I-E09** `SetSessionPolicy` với revision cũ bị từ chối; đổi mode không đánh giá lại tool đã `Ready`.
+- **I-E10** Mutation probes làm test fail: bỏ bước 1 của §3.2, bỏ so khớp `grantScopeKey`, coi `Responder = nil` là headless.
 
 ## 12. Phụ thuộc
 

@@ -203,29 +203,29 @@ Mã lỗi công khai: `file.not_found`, `file.is_directory`, `file.path_denied`,
 
 **Phạm vi và quyền**
 
-- Bảng path theo từng profile: đọc ngoài workspace được ở `workspace-write`; ghi ngoài workspace hỏi escalation; thư mục bị chặn bị từ chối ở mọi profile; symlink trỏ ra ngoài bị từ chối khi ghi; `.git/` chỉ đọc.
-- Risk hiệu lực: file instruction hỏi ở Auto; thư mục cấu hình của Fugue luôn hỏi và chỉ có "cho 1 lần"; grant `edit:dir:fugue/internal/` phủ `edit` và `write` trong `internal/` của root `fugue`, không phủ file ở gốc root hay root khác.
+- **FT-E01** Bảng path theo từng profile: đọc ngoài workspace được ở `workspace-write`; ghi ngoài workspace hỏi escalation; thư mục bị chặn bị từ chối ở mọi profile; symlink trỏ ra ngoài bị từ chối khi ghi; `.git/` chỉ đọc.
+- **FT-E02** Risk hiệu lực: file instruction hỏi ở Auto; thư mục cấu hình của Fugue luôn hỏi và chỉ có "cho 1 lần"; grant `edit:dir:fugue/internal/` phủ `edit` và `write` trong `internal/` của root `fugue`, không phủ file ở gốc root hay root khác.
 
 **`read`, `grep`, `glob`**
 
-- Số dòng, cắt dòng dài, phân trang, UTF-16 có BOM, file không phải UTF-8, ảnh, binary.
-- `grep` và `glob` tôn trọng `.gitignore`, cap và `offset`; chạy giống nhau trên Linux và macOS.
+- **FT-E03** Số dòng, cắt dòng dài, phân trang, UTF-16 có BOM, file không phải UTF-8, ảnh, binary.
+- **FT-E04** `grep` và `glob` tôn trọng `.gitignore`, cap và `offset`; chạy giống nhau trên Linux và macOS.
 
 **`edit` và `write`**
 
-- Mỗi tầng T0–T4 có fixture khớp đúng; tầng lỏng có nhiều chỗ khớp thì từ chối; `replace_all` không dùng tầng T2 trở đi.
-- `line` chọn đúng chỗ khớp; `line` được dịch khi file đã đổi; không có `line` thì `edit.ambiguous` kèm danh sách dòng.
-- Nhiều phần tử: phần tử sau thấy kết quả của phần tử trước trong cùng file; `line` được dịch qua các thay đổi trước đó; một phần tử lỗi thì không file nào bị ghi và lỗi chỉ đúng `edits[i]`; cú pháp kiểm tra trên kết quả cuối; quá 50 phần tử thì `edit.too_many`.
-- Nhiều file: risk hiệu lực là mức cao nhất; grant scope chỉ khi cùng thư mục cấp đầu; crash giữa các `rename` được `Reconcile` báo đúng file đã ghi; file tạm còn sót được dọn.
-- `edit.no_match` trả đoạn giống nhất có số dòng.
-- Sửa làm hỏng cú pháp file Go, JSON, YAML, TOML bị từ chối; file vốn hỏng vẫn ghi kèm cảnh báo.
-- `write`: tạo mới; ghi đè khi chưa đọc hoặc file đã đổi bị từ chối; chặn mất nội dung đúng ngưỡng.
-- Ghi nguyên tử: crash giữa chừng không để lại file dở; giữ CRLF, BOM, quyền file, newline cuối; file đổi ngay trước `rename` thì không ghi.
-- Fuzz cho so khớp nhiều tầng: không panic, không bao giờ ghi vào chỗ không duy nhất.
+- **FT-E05** Mỗi tầng T0–T4 có fixture khớp đúng; tầng lỏng có nhiều chỗ khớp thì từ chối; `replace_all` không dùng tầng T2 trở đi.
+- **FT-E06** `line` chọn đúng chỗ khớp; `line` được dịch khi file đã đổi; không có `line` thì `edit.ambiguous` kèm danh sách dòng.
+- **FT-E07** Nhiều phần tử: phần tử sau thấy kết quả của phần tử trước trong cùng file; `line` được dịch qua các thay đổi trước đó; một phần tử lỗi thì không file nào bị ghi và lỗi chỉ đúng `edits[i]`; cú pháp kiểm tra trên kết quả cuối; quá 50 phần tử thì `edit.too_many`.
+- **FT-E08** Nhiều file: risk hiệu lực là mức cao nhất; grant scope chỉ khi cùng thư mục cấp đầu; crash giữa các `rename` được `Reconcile` báo đúng file đã ghi; file tạm còn sót được dọn.
+- **FT-E09** `edit.no_match` trả đoạn giống nhất có số dòng.
+- **FT-E10** Sửa làm hỏng cú pháp file Go, JSON, YAML, TOML bị từ chối; file vốn hỏng vẫn ghi kèm cảnh báo.
+- **FT-E11** `write`: tạo mới; ghi đè khi chưa đọc hoặc file đã đổi bị từ chối; chặn mất nội dung đúng ngưỡng.
+- **FT-E12** Ghi nguyên tử: crash giữa chừng không để lại file dở; giữ CRLF, BOM, quyền file, newline cuối; file đổi ngay trước `rename` thì không ghi.
+- **FT-E13** Fuzz cho so khớp nhiều tầng: không panic, không bao giờ ghi vào chỗ không duy nhất.
 
 **Benchmark**
 
-- `fugue bench edit` chạy được trên ít nhất hai repo Go của owner với model của giai đoạn A; báo cáo số đo theo biến thể và theo nhóm task; kết quả được ghi vào evidence trước khi "A stable".
+- **FT-E14** (stable) `fugue bench edit` chạy được trên ít nhất hai repo Go của owner với model của giai đoạn A; báo cáo số đo theo biến thể và theo nhóm task; kết quả được ghi vào evidence trước khi "A stable".
 
 ## 12. Phụ thuộc
 

@@ -93,11 +93,11 @@ Tham khảo: RPC mode của pi (JSONL qua stdio: command có `id`, response, eve
 
 ## 10. Evidence
 
-| Evidence | Cách chứng minh |
-| --- | --- |
-| Một host | Hai shell khởi động cùng lúc; host crash rồi shell nối lại hoặc khởi động host mới |
-| Socket | Đường dẫn dài; quyền `0600`; process của user khác bị từ chối |
-| Catch-up | Mất kết nối giữa chừng rồi nối lại từ sequence; sequence quá cũ thì nhận snapshot; `resync_required` khi client chậm |
-| Chống trùng | Gửi lại cùng `command_id` nhận cùng kết quả |
-| Version | `buf breaking` trong CI; client lệch version bị từ chối có hướng dẫn |
-| Ranh giới | `internal/arch` chặn domain import code proto; ratchet đóng băng `AppService` |
+| ID | Evidence | Cách chứng minh |
+| --- | --- | --- |
+| **HA-E01** | Một host | Hai shell khởi động cùng lúc; host crash rồi shell nối lại hoặc khởi động host mới |
+| **HA-E02** | Socket | Đường dẫn dài; quyền `0600`; process của user khác bị từ chối |
+| **HA-E03** | Catch-up | Mất kết nối giữa chừng rồi nối lại từ sequence; sequence quá cũ thì nhận snapshot; `resync_required` khi client chậm |
+| **HA-E04** | Chống trùng | Gửi lại cùng `command_id` nhận cùng kết quả |
+| **HA-E05** | Version | `buf breaking` trong CI; client lệch version bị từ chối có hướng dẫn |
+| **HA-E06** | Ranh giới | `internal/arch` chặn domain import code proto |

@@ -218,14 +218,14 @@ Account dùng gói ChatGPT chỉ failover sang **tài khoản ChatGPT khác củ
 
 ### 11.7 Spike riêng cho OpenAI
 
-| Hạng mục | Cần chứng minh |
-| --- | --- |
-| SDK | `openai-go` đáp ứng bảng §8 (tắt retry, header gốc, key tường minh, event stream gốc) |
-| Reasoning | Giữ reasoning qua nhiều lượt khi `store: false` (encrypted reasoning) có được phép với gói ChatGPT không |
-| Cache | Cơ chế giữ cache (ví dụ `prompt_cache_key`) có được nhận với gói ChatGPT không; tỷ lệ cache hit |
-| Đổi tool | `additional_tools` khi thêm group giữa session; cách xử lý khi gỡ tool |
-| Model | `/v1/models` theo account; khớp với catalog giá |
-| Header hạn mức | Response của gói ChatGPT có trả % đã dùng và thời điểm reset của các cửa sổ không; quyết định ngưỡng giữ lại và cách gỡ `paused` ([budget và quota §3.1](/dev-kit/core-harness/budget#31-gói-chatgpt)) |
+| ID | Hạng mục | Cần chứng minh |
+| --- | --- | --- |
+| **M-E01** | SDK | `openai-go` đáp ứng bảng §8 (tắt retry, header gốc, key tường minh, event stream gốc) |
+| **M-E02** | Reasoning | Giữ reasoning qua nhiều lượt khi `store: false` (encrypted reasoning) có được phép với gói ChatGPT không |
+| **M-E03** | Cache | Cơ chế giữ cache (ví dụ `prompt_cache_key`) có được nhận với gói ChatGPT không; tỷ lệ cache hit |
+| **M-E04** | Đổi tool | `additional_tools` khi thêm group giữa session; cách xử lý khi gỡ tool |
+| **M-E05** | Model | `/v1/models` theo account; khớp với catalog giá |
+| **M-E06** | Header hạn mức | Response của gói ChatGPT có trả % đã dùng và thời điểm reset của các cửa sổ không; quyết định ngưỡng giữ lại và cách gỡ `paused` ([budget và quota §3.1](/dev-kit/core-harness/budget#31-gói-chatgpt)) |
 
 ## 9. Test
 
@@ -235,11 +235,11 @@ Account dùng gói ChatGPT chỉ failover sang **tài khoản ChatGPT khác củ
 
 ## 10. Spike và evidence
 
-| Hạng mục | Cần chứng minh |
-| --- | --- |
-| SDK | Tên option chính xác và đáp ứng đủ bảng §8 |
-| Cache | Tỷ lệ cache hit qua patch system message và đổi tool trên model Anthropic |
-| Đổi tool giữ cache | Beta hoặc cơ chế native của Anthropic hiện hành cho việc thêm và bớt tool giữa hội thoại |
-| Thinking | Gửi lại thinking có chữ ký sau tool call; bỏ đúng khi đổi model |
-| Rate-limit header | Đủ dữ liệu cho `PickAccount` |
-| Catalog | Nguồn giá và khả năng; cách cập nhật khi Anthropic ra model mới |
+| ID | Hạng mục | Cần chứng minh |
+| --- | --- | --- |
+| **M-E07** (B) | SDK | Tên option chính xác và đáp ứng đủ bảng §8 |
+| **M-E08** (B) | Cache | Tỷ lệ cache hit qua patch system message và đổi tool trên model Anthropic |
+| **M-E09** (B) | Đổi tool giữ cache | Beta hoặc cơ chế native của Anthropic hiện hành cho việc thêm và bớt tool giữa hội thoại |
+| **M-E10** (B) | Thinking | Gửi lại thinking có chữ ký sau tool call; bỏ đúng khi đổi model |
+| **M-E11** (B) | Rate-limit header | Đủ dữ liệu cho `PickAccount` |
+| **M-E12** (B) | Catalog | Nguồn giá và khả năng; cách cập nhật khi Anthropic ra model mới |

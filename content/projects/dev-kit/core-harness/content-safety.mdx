@@ -166,22 +166,22 @@ Prompt injection có thể làm model *muốn* làm điều sai. Các bất bi�
 
 **Redact**
 
-- Mỗi nguồn nhận diện có fixture dương và âm; mỗi luật bỏ qua của nguồn gán theo tên khóa có fixture.
-- Cùng một giá trị ra cùng `N` trong session, kể cả qua restart host.
-- Khối PEM giữ dòng BEGIN và END.
-- Thay ngược: `edit` và `write` vào file origin ghi đúng giá trị thật; vào file khác, file mới, lệnh shell, pattern của `grep` thì `secret.placeholder_not_allowed`.
-- Đọc cửa sổ của output shell và job không cắt đôi secret.
-- Giá trị thật không xuất hiện trong content đã lưu, metadata, log, audit hay export (quét toàn bộ DB và log của test bằng giá trị đã cài).
-- Crypto-shred: sau khi xóa session, bảng không mở được.
+- **CS-E01** Mỗi nguồn nhận diện có fixture dương và âm; mỗi luật bỏ qua của nguồn gán theo tên khóa có fixture.
+- **CS-E02** Cùng một giá trị ra cùng `N` trong session, kể cả qua restart host.
+- **CS-E03** Khối PEM giữ dòng BEGIN và END.
+- **CS-E04** Thay ngược: `edit` và `write` vào file origin ghi đúng giá trị thật; vào file khác, file mới, lệnh shell, pattern của `grep` thì `secret.placeholder_not_allowed`.
+- **CS-E05** Đọc cửa sổ của output shell và job không cắt đôi secret.
+- **CS-E06** Giá trị thật không xuất hiện trong content đã lưu, metadata, log, audit hay export (quét toàn bộ DB và log của test bằng giá trị đã cài).
+- **CS-E07** Crypto-shred: sau khi xóa session, bảng không mở được.
 
 **Envelope**
 
-- Mọi khối nội dung đến từ nguồn không tin cậy nằm trong envelope; header của harness nằm ngoài.
-- Nonce duy nhất trong session và không suy ra được từ nội dung.
-- File chứa `⟪/untrusted …⟫` với nonce đoán thử không đóng được envelope; tên file chứa `"`, xuống dòng, `⟫` được escape.
-- Đoạn bắt buộc có trong R0; tóm tắt của compaction và entry W chưa `verified` nằm trong envelope.
-- Replay cho ra result giống từng byte.
-- Fixture injection: file chứa lời yêu cầu đổi mode, cấp grant hoặc chạy lệnh; kiểm tra rằng không có đường nào trong harness biến nội dung đó thành grant, đổi mode hay bỏ qua request duyệt. Không đo việc model có làm theo hay không.
+- **CS-E08** Mọi khối nội dung đến từ nguồn không tin cậy nằm trong envelope; header của harness nằm ngoài.
+- **CS-E09** Nonce duy nhất trong session và không suy ra được từ nội dung.
+- **CS-E10** File chứa `⟪/untrusted …⟫` với nonce đoán thử không đóng được envelope; tên file chứa `"`, xuống dòng, `⟫` được escape.
+- **CS-E11** Đoạn bắt buộc có trong R0; tóm tắt của compaction và entry W chưa `verified` nằm trong envelope.
+- **CS-E12** Replay cho ra result giống từng byte.
+- **CS-E13** Fixture injection: file chứa lời yêu cầu đổi mode, cấp grant hoặc chạy lệnh; kiểm tra rằng không có đường nào trong harness biến nội dung đó thành grant, đổi mode hay bỏ qua request duyệt. Không đo việc model có làm theo hay không.
 
 ## 8. Phụ thuộc
 

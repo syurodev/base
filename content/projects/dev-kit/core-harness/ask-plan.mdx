@@ -102,12 +102,12 @@ Các ràng buộc này áp dụng cho mọi interaction của giai đoạn A, k�
 
 ## 7. Evidence
 
-- `ask_user`: 1 và 4 câu; `multi_select`; gõ tự do không chọn lựa chọn; thiếu một câu thì `Answer` bị từ chối; hủy thì `cancelled`; headless thì `unavailable`; câu trả lời không bị redact và không nằm trong envelope.
-- `plan` ở Plan mode: duyệt kèm chuyển sang mỗi mode, mode đổi đúng ở step kế tiếp, principal của `SetSessionPolicy` là user; revision lệch thì không đổi mode; góp ý giữ Plan.
-- `plan` ở Ask, Auto, Full: chỉ có duyệt và góp ý; mode không đổi.
-- Kế hoạch đã duyệt được lưu và trỏ từ `exec_session_policy`; được gắn lại sau compaction.
-- Danh sách tool giống nhau ở mọi mode (cache key của prompt không đổi khi đổi mode).
-- `fugue answer` trả lời được mọi kind không cần TTY; `fugue pending --json` có đủ dữ liệu để trả lời.
+- **AP-E01** `ask_user`: 1 và 4 câu; `multi_select`; gõ tự do không chọn lựa chọn; thiếu một câu thì `Answer` bị từ chối; hủy thì `cancelled`; headless thì `unavailable`; câu trả lời không bị redact và không nằm trong envelope.
+- **AP-E02** `plan` ở Plan mode: duyệt kèm chuyển sang mỗi mode, mode đổi đúng ở step kế tiếp, principal của `SetSessionPolicy` là user; revision lệch thì không đổi mode; góp ý giữ Plan.
+- **AP-E03** `plan` ở Ask, Auto, Full: chỉ có duyệt và góp ý; mode không đổi.
+- **AP-E04** Kế hoạch đã duyệt được lưu và trỏ từ `exec_session_policy`; được gắn lại sau compaction.
+- **AP-E05** Danh sách tool giống nhau ở mọi mode (cache key của prompt không đổi khi đổi mode).
+- **AP-E06** `fugue answer` trả lời được mọi kind không cần TTY; `fugue pending --json` có đủ dữ liệu để trả lời.
 
 ## 8. Phụ thuộc
 

@@ -68,27 +68,27 @@ Thay cho mục rollback của v0.12. G-06 với Fugue nghĩa là: **lịch sử 
 
 ## 5. Evidence để phát hành giai đoạn A
 
-Mọi mục kèm revision cụ thể; spike dùng dữ liệu giả không tính.
+Mọi mục kèm revision cụ thể; spike dùng dữ liệu giả không tính. Cách kiểm chứng, tầng chạy và bản ghi live theo [bộ kiểm chứng](/dev-kit/core-harness/verification); quy trình phát hành ở [bộ kiểm chứng §7](/dev-kit/core-harness/verification#7-phát-hành).
 
-- G-01 đến G-06 đã đóng; [evidence G-03](/dev-kit/core-harness/storage-security#10-evidence-để-đóng-g-03) đạt. G-04 tính trên adapter ChatGPT và bộ tool ở [mục 2](#2-phạm-vi-giai-đoạn-a).
-- Toàn bộ nhóm trong [tiêu chí kiểm chứng](/dev-kit/core-harness/decisions-and-validation#tiêu-chí-kiểm-chứng) đạt bằng test headless, với deterministic clock và fault injection.
-- Mutation probes ở cùng trang đều làm test fail: bỏ CAS, bỏ current-authority check, dispatch khi replay, retry unknown, coi cancellation là stop proof.
-- Invariant checker SM-01 đến SM-12 chạy sau mỗi batch trong build test và build dogfood. Ở build dogfood, vi phạm dừng run đó và ghi chẩn đoán; không có vi phạm nào trong evidence.
-- Mỗi hàng ở [mục 3](#3-failure-ux-bắt-buộc) có test e2e: CLI chạy với `fugue serve` thật, model là faux provider; kể cả host headless fail closed.
-- Fault injection kill host ở các điểm: model stream, tool dispatch, chờ approval, commit unknown, job shell đang chạy. Chạy trên Linux và macOS trong CI.
-- Smoke sandbox với ba preset trên Linux và macOS.
-- Upgrade drill: đang có run thì dừng host, cài build mới, resume; run đi qua `Waiting(recovery_admission)` và tiếp tục đúng guards. Downgrade drill: build cũ mở data directory mới thì không append.
-- [Spike OpenAI §11.7](/dev-kit/core-harness/model-adapter#117-spike-riêng-cho-openai) và luồng đăng nhập §11.2 từ CLI đã chạy với account ChatGPT thật.
+- **A-E01** G-01 đến G-06 đã đóng; [evidence G-03](/dev-kit/core-harness/storage-security#10-evidence-để-đóng-g-03) đạt. G-04 tính trên adapter ChatGPT và bộ tool ở [mục 2](#2-phạm-vi-giai-đoạn-a).
+- **A-E02** Toàn bộ nhóm trong [tiêu chí kiểm chứng](/dev-kit/core-harness/decisions-and-validation#tiêu-chí-kiểm-chứng) đạt bằng test headless, với deterministic clock và fault injection.
+- **A-E03** Mutation probes ở cùng trang đều làm test fail: bỏ CAS, bỏ current-authority check, dispatch khi replay, retry unknown, coi cancellation là stop proof.
+- **A-E04** Invariant checker SM-01 đến SM-12 chạy sau mỗi batch trong build test và build dogfood. Ở build dogfood, vi phạm dừng run đó và ghi chẩn đoán; không có vi phạm nào trong evidence.
+- **A-E05** Mỗi hàng ở [mục 3](#3-failure-ux-bắt-buộc) có test e2e: CLI chạy với `fugue serve` thật, model là faux provider; kể cả host headless fail closed.
+- **A-E06** Fault injection kill host ở các điểm: model stream, tool dispatch, chờ approval, commit unknown, job shell đang chạy. Chạy trên Linux và macOS trong CI.
+- **A-E07** Smoke sandbox với ba preset trên Linux và macOS.
+- **A-E08** Upgrade drill: đang có run thì dừng host, cài build mới, resume; run đi qua `Waiting(recovery_admission)` và tiếp tục đúng guards. Downgrade drill: build cũ mở data directory mới thì không append.
+- **A-E09** [Spike OpenAI §11.7](/dev-kit/core-harness/model-adapter#117-spike-riêng-cho-openai) và luồng đăng nhập §11.2 từ CLI đã chạy với account ChatGPT thật.
 
 ## 6. A ổn định
 
 Chủ dự án tự dùng giai đoạn A và **duyệt** khi thấy ổn định; quyết định ghi kèm ngày và revision. Trước khi duyệt, các ngưỡng sau MUST đạt; con số chỉ đổi bằng quyết định ghi lại.
 
-| Tiêu chí | Ngưỡng |
-| --- | --- |
-| Recovery drill | ≥ 20 lần kill có chủ đích với ChatGPT thật, phủ các điểm kill ở [mục 5](#5-evidence-để-phát-hành-giai-đoạn-a); trong đó ≥ 5 lần trên macOS |
-| An toàn | 0 vi phạm SM-01 đến SM-12; 0 effect bị dispatch hai lần; 0 lần `Interrupted` không giải thích được nguyên nhân |
-| Độ trễ | Từ lúc gửi prompt đến lúc model request rời host: p50 ≤ 2 s, p95 ≤ 5 s |
+| ID | Tiêu chí | Ngưỡng |
+| --- | --- | --- |
+| **A-S01** (stable) | Recovery drill | ≥ 20 lần kill có chủ đích với ChatGPT thật, phủ các điểm kill ở [mục 5](#5-evidence-để-phát-hành-giai-đoạn-a); trong đó ≥ 5 lần trên macOS |
+| **A-S02** (stable) | An toàn | 0 vi phạm SM-01 đến SM-12; 0 effect bị dispatch hai lần; 0 lần `Interrupted` không giải thích được nguyên nhân |
+| **A-S03** (stable) | Độ trễ | Từ lúc gửi prompt đến lúc model request rời host: p50 ≤ 2 s, p95 ≤ 5 s |
 
 A ổn định không tự mở giai đoạn B.
 
@@ -104,4 +104,4 @@ Chỉ là danh sách; phạm vi và tiêu chí của B là quyết định riên
 
 ## 8. Phụ thuộc
 
-Giai đoạn A cần mọi mảng có giai đoạn A trong [bản đồ thiết kế](/dev-kit/core-harness/design-map) ở trạng thái Đã chốt, gồm các mảng còn mở: H-05 (đóng bằng evidence), H-17, H-18, H-20, H-24, H-25, H-26, H-27, H-34, H-45, H-46 và H-06.
+Giai đoạn A cần mọi mảng có giai đoạn A trong [bản đồ thiết kế](/dev-kit/core-harness/design-map) ở trạng thái Đã chốt, gồm H-05 (review đã chốt, đóng bằng evidence), H-39 (phần test), H-17, H-18, H-20, H-24, H-25, H-26, H-27, H-34, H-45, H-46 và H-06.

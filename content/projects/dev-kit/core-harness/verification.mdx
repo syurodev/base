@@ -1,0 +1,152 @@
+---
+title: Bộ kiểm chứng
+description: H-39 — một bộ kiểm chứng cho giai đoạn A: ID ổn định cho mọi mục evidence, loại harness, tầng chạy, registry trong repo được test cưỡng chế, bản ghi live của owner và luồng phát hành.
+---
+
+# Bộ kiểm chứng
+
+Trạng thái: v0.14, ngày 2026-11-04. **Thiết kế đã chốt** cho phần test của H-39 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Eval prompt và tool để giai đoạn B. Trang này nói **cách** kiểm chứng; **yêu cầu** nằm ở mục Evidence của từng trang thiết kế. Điều kiện phát hành ở [phát hành giai đoạn A §5](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a).
+
+## 1. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| V-01 | Yêu cầu evidence nằm ở trang thiết kế sở hữu nó. Trang này không chép lại yêu cầu |
+| V-02 | Mỗi mục evidence có **ID ổn định** `<PREFIX>-E<NN>` theo tiền tố luật của trang (§2). Đã cấp thì không đổi số; mục bị bỏ thì gạch đi kèm lý do, số không được dùng lại |
+| V-03 | Mỗi ID thuộc đúng một **cổng**: `release` (mặc định), `stable` (["A ổn định"](/dev-kit/core-harness/activation#6-a-ổn-định)) hoặc `B` (không thuộc giai đoạn A). Cổng khác `release` ghi ngay sau ID, ví dụ **FT-E14** (stable) |
+| V-04 | Mỗi ID của cổng `release` và `stable` có đúng một **tầng chạy** (§4), ghi trong registry |
+| V-05 | **Registry** nằm trong repo fugue (`docs/verification.md`) và được test cưỡng chế. Doc không ghi trạng thái hay kết quả |
+| V-06 | Evidence cần account thật do **owner chạy tay** trên máy của mình và ghi thành **bản ghi** trong repo. Token và credential không bao giờ vào CI |
+| V-07 | Test dùng deterministic clock, barrier và fault injection; không dùng sleep để tạo race. Test flaky là bug: không quarantine, không tự retry |
+
+## 2. ID
+
+| Tiền tố | Trang | Số ID |
+| --- | --- | --- |
+| `A-E`, `A-S` | [Phát hành giai đoạn A](/dev-kit/core-harness/activation) §5, §6 | 9, 3 |
+| `AP-E` | [Hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan) §7 | 6 |
+| `BG-E` | [Budget và quota](/dev-kit/core-harness/budget) §9 | 13 |
+| `C-E` | [Context engine](/dev-kit/core-harness/context-engine) §9 | 7 |
+| `CL-E` | [CLI và TUI](/dev-kit/core-harness/cli) §9 | 12 |
+| `CN-E` | [Continuation](/dev-kit/core-harness/continuation) §8 | 5 |
+| `CS-E` | [An toàn nội dung](/dev-kit/core-harness/content-safety) §7 | 13 |
+| `FT-E` | [Tool file](/dev-kit/core-harness/file-tools) §11 | 14 |
+| `HA-E` | [Host API](/dev-kit/core-harness/host-api) §10 | 6 |
+| `I-E` | [Interaction](/dev-kit/core-harness/interaction) §11 | 10 |
+| `J-E` | [Sandbox runtime](/dev-kit/core-harness/sandbox-runtime) §12 | 9 |
+| `M-E` | [Model adapter](/dev-kit/core-harness/model-adapter) §11.7 (E01–E06), §10 (E07–E12, cổng B) | 12 |
+| `Q-E` | [Điều phối input](/dev-kit/core-harness/coordination) §10 | 7 |
+| `S-E` | [Storage và bảo mật](/dev-kit/core-harness/storage-security) §10 | 13 |
+| `SH-E` | [Shell và job](/dev-kit/core-harness/shell-job) §8 | 19 |
+| `T-E` | [Tool system](/dev-kit/core-harness/tool-system) §12 | 8 |
+| `TK-E` | [Task và checklist](/dev-kit/core-harness/tasks) §12 | 12 |
+| `VC-` | [Tiêu chí kiểm chứng](/dev-kit/core-harness/decisions-and-validation#tiêu-chí-kiểm-chứng) | 33 |
+| `WS-E` | [Workspace](/dev-kit/core-harness/workspace) §9 | 13 |
+
+Số ID tính cả mục đã gạch. Thêm mục evidence vào một trang thì cấp số kế tiếp và sửa bảng này cùng PR; registry trong repo đổi theo ở PR roadmap đi kèm.
+
+## 3. Harness
+
+| Harness | Dùng cho | Cách chạy |
+| --- | --- | --- |
+| Kernel property | SM-01 đến SM-12, replay, guard của kernel | `rapid` sinh chuỗi command ngẫu nhiên; invariant checker chạy sau mỗi batch; replay hai lần cho cùng state |
+| Conformance headless | Phần lớn `VC-` và evidence của coordinator, tool, interaction, budget, quota | Coordinator và execstore thật trên SQLite tạm, faux provider, tool giả, fake clock. Mỗi scenario là script command cùng kỳ vọng về facts, projection và số lần dispatch; trace A, B, C và các trace khác là golden file |
+| Crash point | Fault injection, recovery, atomicity | Điểm crash có tên trong store và coordinator, armed qua `internal/config` cho một process. Test chạy `fugue serve` thành subprocess, process chết đúng tại điểm đó, rồi test khởi động lại và kiểm tra |
+| E2E CLI | Mọi hàng failure UX, exit code, lease và tắt host, chạy không tương tác | Binary `fugue` thật nối `fugue serve` thật; model là faux provider đọc file script; chạy cả host headless |
+| OS smoke | Sandbox ba preset, stop proof, reaper, filter shell trên binary thật | Runner Linux và macOS |
+| Probe | Mutation probe mà các trang yêu cầu (bỏ CAS, bỏ current-authority check, dispatch khi replay, retry unknown, coi cancellation là stop proof, bỏ so khớp `grantScopeKey`…) | Mutant viết tay ở `quality/probes/<name>.patch`, mỗi patch kèm danh sách test phải fail. Job áp từng patch và đòi đúng các test đó fail |
+| Drill | Nâng cấp và hạ phiên bản ([activation §4](/dev-kit/core-harness/activation#4-nâng-cấp-và-hạ-phiên-bản-g-06)) | Build hai binary từ merge-base và HEAD khi migration hoặc proto đổi; dừng host giữa run, đổi binary, resume; build cũ mở data directory mới thì không append |
+| Live | Mục cần account ChatGPT thật: spike §11.7, đăng nhập, recovery drill, `fugue bench edit`, độ trễ | `fugue verify live <check>` trên máy owner (§6) |
+
+Crash point có trong mọi build; armed chỉ làm process tự chết tại điểm đó, không mở thêm quyền nào. Faux provider và tool giả chỉ đăng ký được khi host chạy với cấu hình test; host thường từ chối chúng.
+
+## 4. Tầng chạy
+
+| Tầng | Khi nào | Chứa gì |
+| --- | --- | --- |
+| `pr` | Mọi PR, trong `task check` và CI | Kernel property, conformance, crash point, E2E CLI, OS smoke |
+| `nightly` | Mỗi đêm | `-count=5`, fuzz dài, mutation toàn bộ, probe, drill |
+| `release` | Một lần trên commit ứng viên (RC), cả Linux và macOS | Toàn bộ `pr` và `nightly` chạy lại trên RC, cộng `TestReleaseEvidence` (§7) |
+| `live` | Owner chạy tay | Mục cần account thật (§6) |
+
+Tầng của từng ID nằm trong registry, không nằm trong doc. Một ID chỉ chuyển tầng bằng PR sửa registry.
+
+## 5. Registry
+
+`docs/verification.md` trong repo fugue có một hàng cho mỗi ID của cổng `release` và `stable`:
+
+| Cột | Nội dung |
+| --- | --- |
+| `ID` | Như ở trang thiết kế |
+| `Source` | Trang và mục, ví dụ `shell-job §8` |
+| `Gate` | `release` hoặc `stable` |
+| `Tier` | `pr`, `nightly`, `release` hoặc `live` |
+| `Evidence` | Tên test (`Test…`, `Fuzz…`), tên probe, hoặc đường dẫn bản ghi live |
+| `Status` | `Not started`, `In progress`, `Done` |
+
+Đầu trang có bảng đếm số ID theo tiền tố, khớp với §2. `TestVerificationEvidence` (trong `internal/arch`, cùng cơ chế với `TestRoadmapEvidence`) kiểm:
+
+- ID của mỗi tiền tố liên tục từ 01 tới số đếm ở đầu trang, không trùng, không thiếu; ID của cổng `B` và mục đã gạch không có hàng;
+- hàng `Done` ở tầng `pr`, `nightly`, `release` nêu test tồn tại và được CI build trên Linux và macOS;
+- hàng có probe nêu patch tồn tại trong `quality/probes/`;
+- hàng `Done` ở tầng `live` nêu ít nhất một bản ghi tồn tại và đúng schema (§6).
+
+Item roadmap ghi khoảng ID mà nó đóng ở cột Evidence. Item chỉ chuyển `Done` khi mọi ID đó `Done`. Khoảng ID theo item:
+
+| Tiền tố | Item roadmap |
+| --- | --- |
+| `VC-` | F2.1, F2.2, F2.11, F3.1–F3.5 (G-02) |
+| `S-E` | F1.3, F2.4, F2.5 (G-03) |
+| `I-E` | F1.5, F5.3, F6.3 |
+| `M-E01`–`M-E06` | F4.3 |
+| `BG-E` | F2.9, F3.4, F4.4 |
+| `CN-E` | F2.9, F5.5 |
+| `C-E` | F4.5–F4.7 |
+| `HA-E` | F5.1–F5.3 |
+| `Q-E` | F5.4 |
+| `WS-E` | F5.6 |
+| `T-E`, `J-E` | F6.1, F6.4 |
+| `AP-E`, `TK-E` | F6.5, F6.9 |
+| `SH-E`, `CS-E`, `FT-E` | F6.6, F6.7, F6.8 |
+| `CL-E` | F5.1, F7.1, F7.3 |
+| `A-E`, `A-S` | F8.1 |
+
+## 6. Bản ghi live
+
+`fugue verify live <check>` tự chạy phần tự động được: lấy mẫu độ trễ, điều phối recovery drill (kill host ở các điểm của [activation §5](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a) với ChatGPT thật), chạy bench edit. Bước cần người, như đăng nhập, thì lệnh hỏi owner xác nhận. Lệnh dùng data directory riêng cho verify, không đụng session của owner.
+
+Bản ghi là file `quality/records/<ID>/<date>-<os>.json`:
+
+| Field | Nội dung |
+| --- | --- |
+| `id`, `check` | ID và check đã chạy |
+| `revision`, `fugue_version` | Commit và version của binary |
+| `schema_version`, `protocol_version` | Version của `fugue.db` và Host API |
+| `os`, `arch` | Nơi chạy |
+| `started_at`, `finished_at` | UTC |
+| `result` | `pass` hoặc `fail` |
+| `measurements` | Số đo theo check, ví dụ độ trễ từng mẫu, số lần kill theo điểm |
+| `covers` | Glob path mà check phủ, ví dụ `internal/modeladapter/openai/**` |
+| `notes` | Ghi chú của owner |
+
+- Bản ghi **không chứa secret**: nhãn account bị che, không có prompt, output của model hay token. Test quét bản ghi bằng cùng bộ nhận diện của [an toàn nội dung](/dev-kit/core-harness/content-safety).
+- Bản ghi **còn hiệu lực với RC** khi `revision` là ancestor của RC và `git diff <revision>..<RC> -- <covers>` rỗng. Code mà check phủ đổi thì phải chạy lại.
+- Ngưỡng của cổng `stable` được tính gộp từ mọi bản ghi còn hiệu lực: số lần kill theo điểm và theo OS cho **A-S01**, phân vị độ trễ trên toàn bộ mẫu cho **A-S03**.
+
+## 7. Phát hành
+
+1. `task release-check` trên RC chạy tầng `release` ở Linux và macOS.
+2. `TestReleaseEvidence` kiểm: mọi ID cổng `release` có `Status` `Done`; mọi bản ghi live mà các ID đó nêu còn hiệu lực với RC; G-01 đến G-06 đã đóng theo [quyết định](/dev-kit/core-harness/decisions-and-validation#open-decisions-trước-implementation).
+3. Xuất `release-evidence.md`: từng ID, test hoặc bản ghi, run CI và revision. File này đi kèm tag phát hành.
+4. Cổng `stable` dùng cùng cơ chế với ID cổng `stable`, cộng quyết định của owner ghi kèm ngày và revision ([activation §6](/dev-kit/core-harness/activation#6-a-ổn-định)).
+
+## 8. Hoãn sang B
+
+- Eval prompt và eval tool: model dùng tool có tốt không, chất lượng câu trả lời theo bộ task.
+- Evidence của Anthropic (**M-E07**–**M-E12**) và các spike sandbox ở cổng `B`.
+- `fugue bench edit` không hoãn: nó là check `live` của cổng `stable` (**FT-E14**, FT-08).
+
+## 9. Phụ thuộc
+
+- Cần trước: mục Evidence của mọi trang ở §2; `TestRoadmapEvidence` (F0.5) làm nền cho `TestVerificationEvidence`.
+- Mảng liên quan: [phát hành giai đoạn A](/dev-kit/core-harness/activation) (cổng và ngưỡng), [quyết định và kiểm chứng](/dev-kit/core-harness/decisions-and-validation) (gate G-01 đến G-07), [state machine §10](/dev-kit/core-harness/state-machine#10-review-g-02-h-05) (review G-02).

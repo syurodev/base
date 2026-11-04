@@ -25,6 +25,7 @@
     "cli",
     "activation",
     "decisions-and-validation",
+    "verification",
     "design-map",
     "implementation-roadmap"
   ]
