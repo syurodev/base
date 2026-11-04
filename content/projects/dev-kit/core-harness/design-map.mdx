@@ -75,7 +75,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | H-17 | Tool file: read, tìm (grep/glob), edit, write | Đã chốt | [Tool file](/dev-kit/core-harness/file-tools) | A | H-16, H-24, H-25, H-26, H-27, H-28 |
 | H-18 | Tool shell và job | Đã chốt | [Shell và job](/dev-kit/core-harness/shell-job) | A | H-16, H-24, H-25 |
 | H-19 | Tool đọc code: codegraph, LSP, workspace search. Giai đoạn A chỉ đọc code bằng read, grep, glob (H-17) | Chưa | — | B | H-16 |
-| H-20 | Hỏi user có cấu trúc (`ask_user`), plan và todo | Một phần | [Interaction](/dev-kit/core-harness/interaction) §2.2, §4.1 (kind `question`, lối thoát Plan mode) | A | H-24 |
+| H-20 | Hỏi user có cấu trúc (`ask_user`), plan và todo | Đã chốt | [Hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan); `todo` ở [task và checklist](/dev-kit/core-harness/tasks) | A | H-24, H-46 |
 | H-21 | Web fetch và web search: có cần không, và nếu có thì thiết kế ra sao | Chưa | — | B | H-26 |
 | H-22 | ~~Chuyển các group nghiệp vụ của DevKit sang native~~ | Bỏ (A-03): Fugue không có các owner service này | [Activation](/dev-kit/core-harness/activation) §1 | — | — |
 | H-23 | MCP server bên ngoài và plugin làm nguồn tool: adapter, ghim mô tả, trust | Chưa | — | B | H-16, H-26 |
@@ -110,6 +110,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | H-43 | ~~Kiểm kê logic nghiệp vụ ở frontend DevKit~~ | Bỏ (A-03, Q-05): DevKit đóng băng | — | — | — |
 | H-44 | **Electron desktop**: đóng gói binary Go theo nền tảng, khởi động và nối host, preload và bảo mật renderer, hộp thoại native, cửa sổ và title bar, thông báo, tray, auto-update | Chưa | [Host API](/dev-kit/core-harness/host-api) §3, §7, §9 | B | H-42 |
 | H-45 | **CLI/TUI client** `fugue`: client tin cậy duy nhất của giai đoạn A; tạo và chạy session, trả lời interaction, mở vault, đăng nhập ChatGPT (chữ bắt buộc của model adapter §11.6), job và snapshot, mọi hành động failure UX | Chưa | [Activation](/dev-kit/core-harness/activation) §2, §3; [Host API](/dev-kit/core-harness/host-api) | A | H-42, H-24 |
+| H-46 | **Task và checklist**: board task bền và step do model cập nhật trong một mô hình chung; `todo`, `tasks.*`, claim, cổng verify chạy trong jail | Đã chốt | [Task và checklist](/dev-kit/core-harness/tasks) | A | H-20, H-24, H-25, H-26 |
 
 ## H. Vòng đời, chất lượng, vận hành
 
@@ -127,7 +128,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 1. ~~**Context engine và system prompt** (H-10, H-11, H-12, H-13)~~: đã chốt ở [Context engine](/dev-kit/core-harness/context-engine).
 2. ~~**Model adapter, usage, account** (H-07, H-08, H-09)~~: đã chốt ở [model adapter](/dev-kit/core-harness/model-adapter).
 3. ~~**Host API** (H-42, gộp H-32 và H-35)~~: đã chốt ở [Host API](/dev-kit/core-harness/host-api).
-4. **Hỏi user** (H-20); ~~tool file~~ (H-17) đã chốt ở [tool file](/dev-kit/core-harness/file-tools); ~~shell/job~~ (H-18) đã chốt ở [shell và job](/dev-kit/core-harness/shell-job).
+4. ~~**Hỏi user**~~ (H-20) đã chốt ở [hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan) và [task và checklist](/dev-kit/core-harness/tasks); ~~tool file~~ (H-17) đã chốt ở [tool file](/dev-kit/core-harness/file-tools); ~~shell/job~~ (H-18) đã chốt ở [shell và job](/dev-kit/core-harness/shell-job).
 5. ~~**Interaction API**~~ (H-24): đã chốt ở [interaction](/dev-kit/core-harness/interaction). ~~**Sandbox runtime**~~ (H-25) đã chốt ở [sandbox runtime](/dev-kit/core-harness/sandbox-runtime). ~~Nội dung không tin cậy, redact~~ (H-26, H-27) đã chốt ở [an toàn nội dung](/dev-kit/core-harness/content-safety).
 6. ~~**Queue/steering** (H-29) và **continuation** (H-31)~~: đã chốt ở [điều phối input](/dev-kit/core-harness/coordination) và [continuation](/dev-kit/core-harness/continuation).
 7. **CLI/TUI client và cấu hình workspace** (H-45, H-34).

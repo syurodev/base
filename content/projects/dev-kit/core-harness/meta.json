@@ -13,6 +13,8 @@
     "shell-job",
     "file-tools",
     "content-safety",
+    "ask-plan",
+    "tasks",
     "context-engine",
     "model-adapter",
     "coordination",

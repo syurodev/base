@@ -38,7 +38,7 @@ Profile là cấu hình của jail theo session ([tool system §6](/dev-kit/core
 
 | Mode | Hành vi |
 | --- | --- |
-| **Plan** | Chỉ chạy tool `risk = read`. Mọi tool khác bị từ chối ở check, không hỏi. Thoát Plan qua tool `plan` (H-20): model nộp kế hoạch, user duyệt và chọn mode kế tiếp |
+| **Plan** | Chỉ chạy tool `risk = read`. Mọi tool khác bị từ chối ở check, không hỏi. Thoát Plan qua tool `plan` ([hỏi user và kế hoạch §3](/dev-kit/core-harness/ask-plan#3-plan)): model nộp kế hoạch, user duyệt và chọn mode kế tiếp |
 | **Ask** | Hỏi mọi tool `risk ≠ read` chưa có grant phủ `grantScope` |
 | **Auto** (mặc định) | Tự chạy trong sandbox; chỉ hỏi `risk ∈ {destructive, external}`, lệnh shell khớp luật tĩnh (§3.3) và escalation |
 | **Full** | Không hỏi ngoài luật cứng (I-03) và escalation |
@@ -117,7 +117,7 @@ Owner là `internal/interaction` (F1.5). Mục này chỉ ghi phần thay đổi
 | --- | --- | --- | --- |
 | `confirm` | Duyệt thực thi, escalation | `allowed_once`, `allowed_session` (chỉ khi được đề nghị), `denied`, `cancelled`, `unavailable`, `expired` | Cho phép **đúng một** attempt khớp `Binding` |
 | `select` | Chọn target, profile, account | Một `option_id` đã đề nghị; `cancelled`, `unavailable`, `expired` | Ghi lựa chọn cho `Prepare`; **không** cho phép thực thi |
-| `question` (mới) | `ask_user` (H-20) | `answered` (text, có thể kèm `option_id` gợi ý), `cancelled`, `unavailable`, `expired` | Mang câu trả lời cho `Execute`; không cho phép tác động khác |
+| `question` (mới) | `ask_user`, `plan` ([hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan)) | `answered` (mỗi câu một `Answer`: `option_ids` và text), `cancelled`, `unavailable`, `expired` | Mang câu trả lời cho `Execute`; không cho phép tác động khác |
 
 `denied` của `confirm` có thể kèm `text` (lời nhắn). Lời nhắn và câu trả lời là nội dung (§7).
 
@@ -127,10 +127,10 @@ Owner là `internal/interaction` (F1.5). Mục này chỉ ghi phần thay đổi
 | --- | --- |
 | `Kind` | Thêm `KindQuestion` |
 | `Outcome` | Thêm `OutcomeAnswered` |
-| `Spec` | Thêm `Offers` (tập outcome được đề nghị cho `confirm`), `GrantScopeKey`, `GrantScopeLabel`, `Prompt` (câu hỏi của `question`). `Important` được thay bằng `Offers` không chứa `allowed_session` |
+| `Spec` | Thêm `Offers` (tập outcome được đề nghị cho `confirm`), `GrantScopeKey`, `GrantScopeLabel`, `Questions[]` và `Body` của `question` ([hỏi user và kế hoạch §4](/dev-kit/core-harness/ask-plan#4-thay-đổi-ở-interaction)). `Important` được thay bằng `Offers` không chứa `allowed_session` |
 | `Binding` | Thêm `PolicyRevision`, `GrantScopeKey`; giữ `EnvTag` |
-| `Decision` | Thêm `Text` (lời nhắn khi `denied`, câu trả lời khi `answered`) |
-| `Receipt` | Thêm `AnswerText` cho `question`; xóa khỏi memory khi claim hoặc khi invalidate |
+| `Decision` | Thêm `Text` (lời nhắn khi `denied`) và `Answers[]` (khi `answered`) |
+| `Receipt` | Thêm `Answers[]` cho `question`; xóa khỏi memory khi claim hoặc khi invalidate |
 | `grantKey` | `(sessionID, workspaceID, toolName, grantScopeKey, envTag, policyRevision)`; bỏ `targetRevision`, `envRevision` |
 | `Config` | `Responder = nil` **không** còn nghĩa là fail closed; chỉ `Headless = true` cho `unavailable` (I-07). `TestNilResponderAndHeadlessFailClosed` đổi theo |
 
@@ -171,6 +171,7 @@ Approval mode và sandbox profile là **control state của session**, không ph
 | `sandbox_profile` | `read-only`, `workspace-write`, `full-access` |
 | `revision` | Tăng mỗi lần đổi; lệnh đổi mang revision mong đợi, lệch thì từ chối có kiểu |
 | `updated_at` | |
+| `approved_plan_payload_id` | Kế hoạch đã duyệt mới nhất của session, protected payload ([hỏi user và kế hoạch §3.2](/dev-kit/core-harness/ask-plan#32-hành-vi)); NULL khi chưa có |
 
 Không thêm event vào kernel. Đổi mode trong lúc có run thì coordinator chèn `ContextInjected` (nguồn `approval_mode`) ở ranh giới step kế tiếp để model biết.
 
@@ -204,7 +205,7 @@ Service `fugue.interaction.v1`:
 | RPC | Input | Ghi chú |
 | --- | --- | --- |
 | `ListPending` | — | Snapshot các request đang chờ của incarnation hiện tại, kèm sequence của topic |
-| `Answer` | `command_id`, `incarnation`, `request_id`, `outcome`, `option_id?`, `text?` | Dedup theo `command_id`; từ chối nếu incarnation lệch, request không tồn tại, đã trả lời, outcome hay option không được đề nghị, hoặc `text` vượt giới hạn |
+| `Answer` | `command_id`, `incarnation`, `request_id`, `outcome`, `option_id?`, `text?`, `answers[]?` (kind `question`) | Dedup theo `command_id`; từ chối nếu incarnation lệch, request không tồn tại, đã trả lời, outcome hay option không được đề nghị, hoặc `text` vượt giới hạn |
 
 Topic `interaction` (host API §6) phát `requested`, `resolved` (kèm outcome, không kèm nội dung) với sequence, snapshot và catch-up.
 

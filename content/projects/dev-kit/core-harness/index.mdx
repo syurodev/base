@@ -29,6 +29,8 @@ Tài liệu này đặc tả nền tảng để DevKit sở hữu vòng gọi mo
 | [Shell và job](/dev-kit/core-harness/shell-job) | H-18: tool `shell`, `shell.output` và `job.*`, phân loại risk theo lệnh, grant scope, output compact và full, timeout thành job |
 | [Tool file](/dev-kit/core-harness/file-tools) | H-17: `read`, `grep`, `glob`, `edit`, `write`; so khớp nhiều tầng ở host, phạm vi đọc ghi, risk và grant scope, benchmark sửa file |
 | [An toàn nội dung](/dev-kit/core-harness/content-safety) | H-26, H-27: phân loại tin cậy, redact secret bằng placeholder đảo ngược, envelope có nonce, bất biến chống prompt injection |
+| [Hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan) | H-20: `ask_user` hỏi 1–4 câu có lựa chọn, `plan` ở mọi mode và lối thoát Plan mode, ràng buộc CLI-first cho interaction |
+| [Task và checklist](/dev-kit/core-harness/tasks) | H-20, H-46: task bền trên board và step do model cập nhật, `todo`, `tasks.*`, claim, cổng verify, lưu trữ |
 | [Interaction và approval policy](/dev-kit/core-harness/interaction) | H-24: approval mode, sandbox profile, policy khi nào hỏi, env tag, grant scope, request/receipt/question, interaction service |
 | [Context engine](/dev-kit/core-harness/context-engine) | Bố cục prompt cho cache, tầng rule R0–R3, context bền của workspace, đo token, pruning, compaction và kiểm tra ngôn ngữ |
 | [Model adapter](/dev-kit/core-harness/model-adapter) | Contract gọi model, phân loại lỗi và retry, converter, catalog, usage và cost, account, auth pluggable và failover |
@@ -37,7 +39,7 @@ Tài liệu này đặc tả nền tảng để DevKit sở hữu vòng gọi mo
 | [Host API](/dev-kit/core-harness/host-api) | API duy nhất giữa lõi Go và mọi UI: cách chạy process, contract Connect/protobuf, event stream, principal, version, lộ trình bỏ Wails |
 | [Phát hành giai đoạn A và failure UX](/dev-kit/core-harness/activation) | G-07 và Q-02 của Fugue: phạm vi giai đoạn A, failure UX trên CLI, nâng cấp và hạ phiên bản, evidence phát hành |
 | [Quyết định và kiểm chứng](/dev-kit/core-harness/decisions-and-validation) | Phương án thay thế, so sánh Pi/Harness², rollout gates, failure scenarios và các điểm còn mở |
-| [Phụ lục: bản đồ thiết kế](/dev-kit/core-harness/design-map) | Danh mục mọi mảng thiết kế (H-01–H-45), trạng thái, phụ thuộc và tiêu chí một trang thiết kế đầy đủ |
+| [Phụ lục: bản đồ thiết kế](/dev-kit/core-harness/design-map) | Danh mục mọi mảng thiết kế (H-01–H-46), trạng thái, phụ thuộc và tiêu chí một trang thiết kế đầy đủ |
 | [Lộ trình triển khai](/dev-kit/core-harness/implementation-roadmap) | Bảng việc theo phase, trạng thái và evidence; agent triển khai cập nhật trang này |
 
 ## Mục tiêu

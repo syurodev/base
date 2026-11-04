@@ -74,7 +74,7 @@ Shell luôn là `side_effecting` + `touchesWorkspace`, không bao giờ `pure_re
 
 ## 4. Registry và nạp tool
 
-**Lúc tạo session.** Bộ cơ bản luôn bật, không tắt được: đọc, tìm, sửa và ghi file; shell và `shell.output`; nhóm `job.*`; codegraph đọc; tool goal (`goal.get`, `goal.create`, `goal.update`, [continuation](/dev-kit/core-harness/continuation) §5.4); `harness.profile.propose`. User chọn thêm group (db, git, ssh, kafka, tasks…) trong picker, xuất phát từ workspace profile W; lựa chọn thành session override S. Picker hiển thị chi phí định nghĩa của mỗi group (đã có ở `harness.profile.get`).
+**Lúc tạo session.** Bộ cơ bản luôn bật, không tắt được: đọc, tìm, sửa và ghi file; shell và `shell.output`; nhóm `job.*`; `ask_user`, `plan`, `todo` và nhóm `tasks.*` ([hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan), [task và checklist](/dev-kit/core-harness/tasks)); codegraph đọc; tool goal (`goal.get`, `goal.create`, `goal.update`, [continuation](/dev-kit/core-harness/continuation) §5.4); `harness.profile.propose`. User chọn thêm group (db, git, ssh, kafka, tasks…) trong picker, xuất phát từ workspace profile W; lựa chọn thành session override S. Picker hiển thị chi phí định nghĩa của mỗi group (đã có ở `harness.profile.get`).
 
 **Danh mục trong system prompt.** Tên mỗi group chưa bật kèm một dòng mô tả, không kèm schema, để agent biết còn gì có thể xin.
 
