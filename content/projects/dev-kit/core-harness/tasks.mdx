@@ -127,7 +127,7 @@ Owner là package `internal/tasks`, đường ghi duy nhất cho board, task, st
 
 ## 7. Cổng sang terminal
 
-| Đích | Workspace có lệnh verify (H-34) | Không có lệnh verify |
+| Đích | Workspace có lệnh verify (`tasks.verify`, [workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)) | Không có lệnh verify |
 | --- | --- | --- |
 | `done` | Fugue chạy lệnh verify (§7.1); exit code 0 thì chuyển, khác 0 thì giữ trạng thái | Hỏi user: `confirm`, chỉ "cho 1 lần". Host headless thì từ chối `tasks.confirmation_required` |
 | `wont_do` | Hỏi user, chỉ "cho 1 lần" | Hỏi user, chỉ "cho 1 lần" |
@@ -136,7 +136,7 @@ User đóng task trực tiếp từ CLI thì không qua cổng.
 
 ### 7.1 Lệnh verify
 
-- Lệnh và timeout (mặc định 15 phút, tối đa 60 phút) nằm trong cấu hình workspace. Model kích hoạt được nhưng không sửa được, vì ghi vào thư mục cấu hình của Fugue luôn hỏi ([tool file §7](/dev-kit/core-harness/file-tools#7-risk-confirm-và-grant-scope)).
+- Lệnh, timeout (mặc định 15 phút, tối đa 60 phút) và root chạy lệnh nằm trong `tasks.verify` của cấu hình workspace; cwd của lệnh là root đó. Model kích hoạt được nhưng không sửa được, vì ghi vào thư mục cấu hình của Fugue luôn hỏi ([tool file §7](/dev-kit/core-harness/file-tools#7-risk-confirm-và-grant-scope)).
 - Chạy trong một **jail dùng một lần** với profile `workspace-write`, env snapshot và network theo profile đó của workspace ([sandbox runtime](/dev-kit/core-harness/sandbox-runtime)). Không chạy trong jail của session, để daemon hay biến env do model để lại không ảnh hưởng kết quả.
 - Mỗi workspace chạy tối đa một lần verify một lúc; yêu cầu sau xếp hàng. Yêu cầu chờ quá 24 giờ thành `stale`.
 - `tasks.transition` trả ngay `verifying` kèm `run_id`. Kết quả được báo cho model ở ranh giới step kế tiếp, cùng cơ chế với job xong ([shell và job §5](/dev-kit/core-harness/shell-job#5-job)), và ghi thành comment hệ thống gồm exit code, thời gian và tối đa 4 KiB phần cuối của output đã redact.
@@ -219,4 +219,4 @@ Nhiều board mỗi workspace, workflow tùy biến, sync giữa thiết bị, l
 ## 14. Phụ thuộc
 
 - Cần trước: [interaction](/dev-kit/core-harness/interaction) (H-24), [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (H-25), [an toàn nội dung](/dev-kit/core-harness/content-safety) (H-26, H-27), vault record (`internal/vault`).
-- Mảng liên quan: [hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan) (H-20), [context engine](/dev-kit/core-harness/context-engine), H-34 (lệnh verify, `key_prefix`), H-45 (lệnh `fugue tasks`, view session), [continuation](/dev-kit/core-harness/continuation) (goal có thể trỏ tới task ở giai đoạn B).
+- Mảng liên quan: [hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan) (H-20), [context engine](/dev-kit/core-harness/context-engine), [workspace](/dev-kit/core-harness/workspace) (H-34: lệnh verify, `key_prefix`), H-45 (lệnh `fugue tasks`, view session), [continuation](/dev-kit/core-harness/continuation) (goal có thể trỏ tới task ở giai đoạn B).

@@ -89,7 +89,7 @@ Row chỉ chứa metadata (INV-09): không có argv, env hay output. Output nằ
 - **Denylist** (không phân biệt hoa thường), bỏ biến khi:
   - Tên chứa `TOKEN`, `SECRET`, `PASSWORD`, `PASSWD`, `CREDENTIAL`, `PRIVATE`; tên kết thúc bằng `_KEY`; tên bắt đầu bằng `AWS_`; tên là `GOOGLE_APPLICATION_CREDENTIALS` hoặc `SSH_AUTH_SOCK`.
   - Giá trị có dạng URL kèm thông tin đăng nhập (`scheme://user:pass@…`).
-- Workspace khai báo tên được giữ (H-34). Giữ `SSH_AUTH_SOCK` thì socket của nó được thêm vào `Policy.AllowUnixSockets`.
+- Workspace khai báo tên được giữ (`env.keep`, [workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)). Giữ `SSH_AUTH_SOCK` thì socket của nó được thêm vào `Policy.AllowUnixSockets`.
 - CLI hiện **tên** các biến bị bỏ, không hiện giá trị.
 - Env được gửi kèm mỗi `Exec`; refresh snapshot không dựng lại jail. Daemon giữ env lúc nó khởi động.
 - Giá trị env không vào journal, log, audit hay registry. Journal chỉ ghi `envRevision` là ID ngẫu nhiên của snapshot, không phải hash của giá trị.
@@ -120,12 +120,13 @@ Chỉ khi sandbox profile là `full-access` (J-05), theo [tool system §8](/dev-
 
 - Chỉ hai lệnh chạy ngoài sandbox: env snapshot và `docker context inspect`. Cả hai do host khởi tạo, argv cố định, không nhận input của model.
 - Thư mục nhạy cảm luôn bị chặn đọc: `~/.ssh`, `~/.gnupg`, `~/.aws`, cấu hình gcloud, data directory của Fugue (`Policy.DenyReadPaths`, cộng phần chặn có sẵn của `internal/sandbox`).
+- Mount của jail theo bảng quyền ở [workspace §2.2](/dev-kit/core-harness/workspace#22-quyền-của-agent): root `rw` ghi được theo profile, root `ro` chỉ đọc ở mọi profile, `scratch/` ghi được, `fugue.toml`, `WORKSPACE.md` và `~/Fugue/config.toml` chỉ đọc, workspace khác bị chặn đọc. Danh sách root cố định lúc jail khởi động; root đổi thì jail khởi động lại ([workspace §4](/dev-kit/core-harness/workspace#4-thay-đổi-root)).
 - Supervisor và mọi message của nó là không tin cậy (§3). Output của lệnh là nội dung không tin cậy ([an toàn nội dung](/dev-kit/core-harness/content-safety)).
 - Network `host` ở giai đoạn A không chặn dữ liệu bị gửi ra ngoài ([phát hành giai đoạn A §2](/dev-kit/core-harness/activation#2-phạm-vi-giai-đoạn-a)).
 
 ## 11. Giới hạn
 
-| Thứ | Mặc định (cấu hình theo workspace, H-34) |
+| Thứ | Mặc định (cấu hình theo workspace, [workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)) |
 | --- | --- |
 | Rảnh thì dừng jail | 30 phút |
 | Ân hạn khi cancel | 5 s, sau đó `SIGKILL`; supervisor không trả lời thì dừng jail |
@@ -157,4 +158,4 @@ Chỉ khi sandbox profile là `full-access` (J-05), theo [tool system §8](/dev-
 ## 14. Phụ thuộc
 
 - Cần trước: H-16, F1.6 (`internal/sandbox`), [interaction](/dev-kit/core-harness/interaction) (sandbox profile, escalation).
-- Mảng dùng trang này: H-18 ([shell và job](/dev-kit/core-harness/shell-job)); H-34 (thời gian rảnh, allowlist env, timeout); H-45 (hiển thị jail, daemon, nhãn host-root, biến env bị bỏ).
+- Mảng dùng trang này: H-18 ([shell và job](/dev-kit/core-harness/shell-job)); H-34 ([workspace](/dev-kit/core-harness/workspace): root và quyền mount, thời gian rảnh, allowlist env, timeout); H-45 (hiển thị jail, daemon, nhãn host-root, biến env bị bỏ).

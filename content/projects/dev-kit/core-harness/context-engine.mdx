@@ -35,7 +35,7 @@ Từ ổn định nhất tới hay đổi nhất. Thứ gì đổi giữa sessio
 | L0 | Khai báo tool theo binding revision | Chỉ ở ranh giới step (`ToolBindingRevised`) |
 | L1 | System prompt lõi R0 của DevKit: có version, không chứa đường dẫn, giờ, tên máy | Khi nâng cấp DevKit |
 | L2 | Rule R1, R2, R3 đang luôn áp dụng | Hiếm; đổi thì gửi patch (§2.1) |
-| L3 | Context của session: thông tin workspace, danh mục tool group, mô tả preset, **pinned block W**, **chỉ mục W** | Hiếm; đổi thì gửi patch |
+| L3 | Context của session: thông tin workspace (tên, danh sách root với path thật và quyền), danh mục tool group, mô tả preset, **pinned block W**, **chỉ mục W** | Hiếm; đổi thì gửi patch |
 | L4 | Hội thoại: [bản tóm tắt compaction] + các message canonical giữ lại của epoch hiện tại | Mỗi step |
 | L5 | Runtime context của step, có nhãn: giờ, cwd, job đã xong, preset vừa đổi, env refresh, rule theo path vừa kích hoạt | Mỗi step |
 
@@ -62,8 +62,8 @@ Nối từ rộng tới cụ thể; lớp sau đứng sau trong prompt.
 | --- | --- | --- | --- |
 | R0 | System prompt lõi của DevKit | DevKit; user **xem được** (chỉ đọc) | — |
 | R1 | Rule global của user, lưu trong preferences (**chỉ local** ở v1) | User, trong Settings | 8 KiB |
-| R2 | File của repo: chuỗi từ root workspace xuống cwd, kể cả thư mục con khi agent đụng tới | Team (git) | 32 KiB cho cả chuỗi |
-| R3 | Rule cá nhân theo workspace, không nằm trong repo | User, trong settings của workspace | 8 KiB |
+| R2 | File của repo: chuỗi từ root xuống cwd, kể cả thư mục con khi agent đụng tới; mỗi root của workspace là một chuỗi riêng, kích hoạt theo path ([workspace §2](/dev-kit/core-harness/workspace#2-thư-mục-và-root)) | Team (git) | 32 KiB cho cả chuỗi |
+| R3 | Rule cá nhân theo workspace, không nằm trong repo | User, trong `~/Fugue/workspaces/<id>/AGENTS.md` | 8 KiB |
 
 - R2: mỗi thư mục lấy **một** file theo thứ tự `AGENTS.override.md` → `AGENTS.md` → `CLAUDE.md`. `CLAUDE.md` chỉ được nạp khi thư mục đó không có `AGENTS.md`. Hai file cùng nội dung (kể cả symlink) chỉ nạp một lần.
 - Vượt budget của chuỗi: bỏ file rộng trước, file cụ thể nhất bị cắt sau cùng, kèm ghi chú đường dẫn để agent tự đọc phần còn lại.

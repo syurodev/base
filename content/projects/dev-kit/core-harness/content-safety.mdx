@@ -46,7 +46,7 @@ Package `internal/secrets`: bộ nhận diện, bảng placeholder của session
 
 Luật bỏ qua của nguồn gán theo tên khóa: value rỗng hoặc ngắn hơn 4 ký tự; value có dấu ngoặc, khoảng trắng hoặc toán tử (là biểu thức, ví dụ `os.Getenv("X")`); tham chiếu `${…}`, `$VAR`, `{{…}}`, `<…>`; chuỗi một ký tự lặp lại (`xxxx`, `****`); giá trị mẫu (`changeme`, `example`, `placeholder`, `dummy`); `true`, `false`, `null`; số ngắn hơn 8 chữ số.
 
-Thứ tự ưu tiên khi các nguồn chồng nhau: giá trị đã biết, rồi mẫu token, rồi gán theo tên khóa. Workspace thêm được ngoại lệ theo tên khóa hoặc theo glob path (H-34); ngoại lệ không áp dụng cho giá trị đã biết.
+Thứ tự ưu tiên khi các nguồn chồng nhau: giá trị đã biết, rồi mẫu token, rồi gán theo tên khóa. Workspace thêm được ngoại lệ theo tên khóa hoặc theo glob path (`redact.allow_keys`, `redact.allow_paths`, [workspace §5.2](/dev-kit/core-harness/workspace#52-khóa)); ngoại lệ không áp dụng cho giá trị đã biết.
 
 ### 3.3 Placeholder và bảng của session
 
@@ -187,4 +187,4 @@ Prompt injection có thể làm model *muốn* làm điều sai. Các bất bi�
 
 - Cần trước: [storage-security](/dev-kit/core-harness/storage-security) (protected payload, session key, vault observation), [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (denylist J-04), [context engine](/dev-kit/core-harness/context-engine) (R0, compaction, W).
 - Mảng dùng trang này: [tool file](/dev-kit/core-harness/file-tools) (H-17), [shell và job](/dev-kit/core-harness/shell-job) (H-18), H-20, H-21 và H-23 (web và MCP, giai đoạn B).
-- Mảng liên quan: H-34 (ngoại lệ redact theo tên khóa và path), H-45 (xem giá trị thật trong client tin cậy).
+- Mảng liên quan: [workspace](/dev-kit/core-harness/workspace) (H-34: ngoại lệ redact theo tên khóa và path), H-45 (xem giá trị thật trong client tin cậy).

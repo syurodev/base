@@ -104,7 +104,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | --- | --- | --- | --- | --- | --- |
 | H-32 | Read model và streaming tới client: timeline, delta, catch-up | Gộp vào H-42 | Event storage §9 | A | H-42 |
 | H-33 | UI desktop cho session: picker tool và preset, failure UX, view job/daemon/snapshot | Một phần | Activation §3 | B | H-32, H-44 |
-| H-34 | Cấu hình theo workspace: mode và sandbox profile mặc định, luật shell, chế độ output và cap của shell, ánh xạ tag, hạn mức, timeout, danh sách loại trừ, network | Một phần | Tool system, storage-security, [interaction](/dev-kit/core-harness/interaction) §3.3 | A | H-24 |
+| H-34 | Cấu hình theo workspace: mode và sandbox profile mặc định, luật shell, chế độ output và cap của shell, ánh xạ tag, hạn mức, timeout, danh sách loại trừ, network | Đã chốt | [Workspace và cấu hình](/dev-kit/core-harness/workspace) | A | H-24 |
 | H-35 | Host khác: server mode, CLI, Telegram control cho session native | Gộp vào H-42 | Architecture §7 | A | H-42 |
 | H-42 | **Host API**: contract command, query và event có schema và version, không gắn Wails; transport (Wails, socket local, HTTP/WebSocket loopback, MCP); read model với snapshot và catch-up; tin cậy client (ai được duyệt approval, mở vault); lệch version giữa UI và lõi; cách chạy process (nhúng, daemon hoặc cả hai) | Đã chốt | [Host API](/dev-kit/core-harness/host-api) | A | H-02, H-24 |
 | H-43 | ~~Kiểm kê logic nghiệp vụ ở frontend DevKit~~ | Bỏ (A-03, Q-05): DevKit đóng băng | — | — | — |
@@ -131,6 +131,6 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 4. ~~**Hỏi user**~~ (H-20) đã chốt ở [hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan) và [task và checklist](/dev-kit/core-harness/tasks); ~~tool file~~ (H-17) đã chốt ở [tool file](/dev-kit/core-harness/file-tools); ~~shell/job~~ (H-18) đã chốt ở [shell và job](/dev-kit/core-harness/shell-job).
 5. ~~**Interaction API**~~ (H-24): đã chốt ở [interaction](/dev-kit/core-harness/interaction). ~~**Sandbox runtime**~~ (H-25) đã chốt ở [sandbox runtime](/dev-kit/core-harness/sandbox-runtime). ~~Nội dung không tin cậy, redact~~ (H-26, H-27) đã chốt ở [an toàn nội dung](/dev-kit/core-harness/content-safety).
 6. ~~**Queue/steering** (H-29) và **continuation** (H-31)~~: đã chốt ở [điều phối input](/dev-kit/core-harness/coordination) và [continuation](/dev-kit/core-harness/continuation).
-7. **CLI/TUI client và cấu hình workspace** (H-45, H-34).
+7. **CLI/TUI client** (H-45); ~~cấu hình workspace~~ (H-34) đã chốt ở [workspace và cấu hình](/dev-kit/core-harness/workspace).
 8. ~~**Phát hành giai đoạn A và compatibility** (H-37, H-36)~~: đã chốt ở [activation](/dev-kit/core-harness/activation) v0.13. Còn **budget** (H-06).
 9. **Đặt package** (H-04) **không chờ** các mảng trên: nó là việc đầu tiên trước mọi production code của core (R0.1 trong [lộ trình](/dev-kit/core-harness/implementation-roadmap)). **Review transition** (H-05) chạy song song với P1–P2 và đóng gate G-02 bằng evidence. Với D-29, harness nằm trong `internal/` của DevKit, theo đúng các tầng của architecture rules, không cần chuẩn bị để tách repo.
