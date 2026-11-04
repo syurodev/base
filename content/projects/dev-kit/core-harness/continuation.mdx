@@ -13,7 +13,7 @@ Tham khảo: vòng lặp của pi (`agent-loop.ts`: chạy tiếp khi còn tool 
 
 | ID | Quyết định |
 | --- | --- |
-| CN-01 | Mỗi run có `maxSteps` mặc định **100**, cấu hình được theo workspace; chạm giới hạn thì run **chờ** ở `Waiting(step_budget)`, user bấm **"Chạy thêm N step"** để chạy tiếp trong cùng run hoặc kết thúc run |
+| CN-01 | Mỗi run có `maxSteps` mặc định **100**, cấu hình được theo workspace; chạm giới hạn thì run **chờ** ở `Waiting(budget)`, user bấm **"Chạy thêm N step"** để chạy tiếp trong cùng run hoặc kết thúc run |
 | CN-02 | Câu trả lời bị cắt vì `length` mà không có tool call: **tự chạy tiếp một lần** |
 | CN-03 | Phát hiện lặp **giống deepseek-harness**: chỉ **nhắc** ở lần lặp thứ 3, 5 và 8; không dừng cứng |
 | CN-04 | **Chế độ goal** (mục tiêu dài hạn tự chạy nhiều vòng) thuộc **giai đoạn A** |
@@ -32,8 +32,9 @@ Kernel quyết định bằng một hàm xác định sau mỗi step; lý do đ�
 | Không có tool call, `length`, **đã** tự chạy tiếp một lần | Kết thúc `completed` kèm cờ `truncated`; UI hiện nút Continue | `truncated_end` |
 | Mọi tool trong batch đều xin kết thúc (cờ `terminate`) | Kết thúc sau step này | `tool_terminate` |
 | `refusal`, `content_filter` | Kết thúc `refused` | `refused` |
-| Số step đã dùng chạm `maxSteps` (cộng phần đã gia hạn) | Chờ `step_budget`, không kết thúc (§3) | `step_budget` |
-| Có stop intent, hoặc budget khác đã hết | Theo stop intent hoặc budget (state machine §6, §9) | `stop_intent`, `budget` |
+| Số step đã dùng chạm `maxSteps` (cộng phần đã gia hạn) | Chờ `budget(steps)`, không kết thúc (§3) | `budget` (kind `steps`) |
+| Có stop intent | Theo stop intent (state machine §6) | `stop_intent` |
+| Budget `tokens`, `time` hoặc `tool_calls` đã hết | Chờ `budget(kind)`, không kết thúc ([budget và quota](/dev-kit/core-harness/budget) §4) | `budget` |
 
 - Cờ `terminate` chỉ có hiệu lực với tool **khai báo sẵn trong descriptor** (ví dụ tool goal ở §5); model không tự đặt được.
 - Lần tự chạy tiếp vì `length` tính là một step bình thường và được đếm vào `maxSteps`.
@@ -41,8 +42,8 @@ Kernel quyết định bằng một hàm xác định sau mỗi step; lý do đ�
 
 ## 3. Giới hạn step
 
-- `maxSteps` là một loại budget đã có trong state machine §9 (budget theo step). Mặc định 100, cấu hình theo workspace, ghim theo run.
-- Step chạm giới hạn vẫn chạy xong tool của nó (không bỏ dở tool đã dispatch). `StepCompleted` ghi `continuation=step_budget`; run **chưa kết thúc** mà vào `Waiting(step_budget)` ([state machine §9](/dev-kit/core-harness/state-machine#9-budgets-và-transcript-ordering)). Thời gian chờ không bị tính vào time budget. Trạng thái chờ là facts bền nên còn sau restart.
+- `maxSteps` là budget `steps`, một trong bốn budget theo run của [budget và quota](/dev-kit/core-harness/budget) §4. Mặc định 100, cấu hình theo workspace, ghim theo run.
+- Step chạm giới hạn vẫn chạy xong tool của nó (không bỏ dở tool đã dispatch). `StepCompleted` ghi `continuation=budget` (kind `steps`); run **chưa kết thúc** mà vào `Waiting(budget)` ([state machine §9](/dev-kit/core-harness/state-machine#9-budgets-và-transcript-ordering)). Thời gian chờ không bị tính vào time budget. Trạng thái chờ là facts bền nên còn sau restart.
 - User bấm **"Chạy thêm N step"** (mặc định N = 50): coordinator ghi `BudgetExtended(kind=steps, by=N, actor=user)`, run **chạy tiếp trong cùng run**, không đếm lại từ đầu. Steer gửi trong lúc chờ được gộp vào step kế tiếp. Chỉ user được gia hạn; peer, parent, model và chế độ goal thì không.
 - User bấm **"Kết thúc"**: run kết thúc `budget_exceeded(kind=steps)`, queue đứng như hết budget ([điều phối input §6](/dev-kit/core-harness/coordination#6-khi-run-kết-thúc)). Stop thường vẫn là ngắt (`cancelled`, tin chờ về ô soạn thảo); parent vẫn hủy được child.
 - Trong lúc chờ, run vẫn chiếm session: prompt mới vào queue và chờ. DevKit gửi thông báo, nhất là khi run là agent con hoặc vòng goal.
@@ -84,7 +85,7 @@ Goal là **một mục tiêu dài hạn** mà session tự chạy nhiều vòng 
 | Model báo `blocked` đủ **3 vòng liên tiếp** | Chuyển `blocked` (mã `model-reported`); dưới ngưỡng thì lần báo chỉ được ghi lại, goal vẫn `active` |
 | Hết `maxRounds` | Chuyển `blocked` (mã `round_limit`) |
 | User bấm Stop | Run bị ngắt như thường (tin chờ về ô soạn thảo); goal `disarmed`, vẫn `active` |
-| Run vào `Waiting(step_budget)` | Goal `disarmed`; user gia hạn chỉ chạy tiếp vòng hiện tại, muốn có vòng mới phải bấm tiếp tục goal |
+| Run vào `Waiting(budget)` | Goal `disarmed`; user gia hạn chỉ chạy tiếp vòng hiện tại, muốn có vòng mới phải bấm tiếp tục goal |
 | Lỗi, hết budget khác, `Interrupted` | Goal `disarmed`; queue đứng như thường |
 
 User dừng, tiếp tục, sửa hay xóa goal bất kỳ lúc nào từ UI. Tiếp tục một goal `blocked` hoặc `paused` chỉ được khi còn vòng; muốn chạy quá `maxRounds` thì user sửa `maxRounds`.
@@ -113,8 +114,8 @@ Tool nội bộ của harness, nằm trong bộ tool cơ bản:
 
 | Event / bảng | Nội dung |
 | --- | --- |
-| `StepCompleted` (bổ sung) | Field `continuation`: `tool_calls`, `truncated_args`, `steer_pending`, `natural_end`, `truncated_continue`, `truncated_end`, `tool_terminate`, `refused`, `step_budget`, `stop_intent`, `budget` |
-| `BudgetExtended` | Kind (v1 chỉ `steps`), lượng gia hạn, actor (luôn là user); resolve `Waiting(step_budget)` |
+| `StepCompleted` (bổ sung) | Field `continuation`: `tool_calls`, `truncated_args`, `steer_pending`, `natural_end`, `truncated_continue`, `truncated_end`, `tool_terminate`, `refused`, `budget` (kèm kind), `stop_intent` |
+| `BudgetExtended` | Kind ∈ `steps`, `tokens`, `time`, `tool_calls`, lượng gia hạn, actor (luôn là user); resolve `Waiting(budget)` |
 | `RunAccepted` (bổ sung) | `origin=goal`, `goal_id`, số vòng |
 | `RunFinished` (bổ sung) | Cờ `truncated` khi kết thúc vì `truncated_end` |
 | `exec_goal_events` | `GoalCreated`, `GoalEdited`, `GoalPaused`, `GoalResumed`, `GoalCompleted`, `GoalBlocked`, `GoalBlockReported`, `GoalCleared`, kèm actor, revision và run nếu có |
@@ -132,6 +133,6 @@ Tool nội bộ của harness, nằm trong bộ tool cơ bản:
 | --- | --- |
 | Quyết định sau step | Bảng test cho từng dòng của §2 |
 | `length` | Tự chạy tiếp đúng một lần; lần hai kết thúc với cờ `truncated`; tool call bị cắt không chạy |
-| `maxSteps` | Step chạm giới hạn vẫn chạy xong tool rồi vào `Waiting(step_budget)`, không `RunFinished`; chờ không charge time; còn sau restart; `BudgetExtended` chỉ từ user và chạy tiếp cùng run; "Kết thúc" cho `budget_exceeded`; budget khác vẫn terminal |
+| `maxSteps` | Step chạm giới hạn vẫn chạy xong tool rồi vào `Waiting(budget)`, không `RunFinished`; chờ không charge time; còn sau restart; `BudgetExtended` chỉ từ user và chạy tiếp cùng run; "Kết thúc" cho `budget_exceeded`; budget khác vẫn terminal |
 | Lặp | Nhắc ở lần 3, 5, 8; bộ đếm về 0 khi có input, steer, tool khác hoặc run mới; không chặn lời gọi |
 | Goal | Chỉ bắt đầu vòng khi queue rỗng và không đứng; prompt của user luôn đi trước; restart thì `disarmed`; `blocked` cần 3 vòng liên tiếp; hết `maxRounds` thì `blocked`; chỉ prompt trực tiếp của user mới tạo hoặc sửa goal; revision cũ bị từ chối |

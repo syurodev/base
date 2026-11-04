@@ -84,7 +84,7 @@ Peer và agent **không bao giờ** chen ngang.
 | Hoàn tất bình thường | Tự admit tin kế tiếp (nếu không đứng) | — |
 | **Ngắt** (Stop) | Rỗng | **Mọi tin trong queue và mọi steer còn chờ về ô soạn thảo**, theo thứ tự, kèm đính kèm |
 | `InterruptAndPrompt` | Prompt mới lên đầu và chạy ngay; các tin khác giữ nguyên | Steer còn chờ của run cũ được gộp vào prompt mới |
-| Chờ `step_budget` (chưa kết thúc) | Chờ sau run như khi run đang chạy | Steer gửi lúc chờ được gộp khi user gia hạn; "Kết thúc" xử lý như hết budget |
+| Chờ `budget(kind)` hoặc `quota_refresh` (chưa kết thúc) | Chờ sau run như khi run đang chạy | Steer gửi lúc chờ được gộp khi user gia hạn; "Kết thúc" xử lý như hết budget |
 | Lỗi, hết budget, `Interrupted` | **Đứng** | Steer còn chờ gắn với run; `Continue` chèn chúng |
 | Sau restart | **Đứng** (cùng cơ chế `recovery_admission`) | Giữ nguyên |
 

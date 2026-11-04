@@ -286,7 +286,7 @@ Lớp cải tiến tương lai có thể đề xuất cấu hình, chạy thử 
 
 ## D-32 — Luật dừng xác định trong kernel
 
-**Lựa chọn:** sau mỗi step, kernel quyết định chạy tiếp hay kết thúc theo một bảng cố định và ghi lý do vào `StepCompleted`; `maxSteps` mặc định 100 là một budget, hết thì run chờ ở `Waiting(step_budget)` (không kết thúc), chỉ user gia hạn trong cùng run hoặc kết thúc; câu trả lời bị cắt vì `length` tự chạy tiếp một lần; lặp vòng chỉ được nhắc ở lần 3, 5, 8. Chi tiết ở [continuation](/dev-kit/core-harness/continuation).
+**Lựa chọn:** sau mỗi step, kernel quyết định chạy tiếp hay kết thúc theo một bảng cố định và ghi lý do vào `StepCompleted`; `maxSteps` mặc định 100 là một budget, hết thì run chờ ở `Waiting(budget)` (không kết thúc; cùng cơ chế cho token, active time và tool call, [budget và quota](/dev-kit/core-harness/budget) §4), chỉ user gia hạn trong cùng run hoặc kết thúc; câu trả lời bị cắt vì `length` tự chạy tiếp một lần; lặp vòng chỉ được nhắc ở lần 3, 5, 8. Chi tiết ở [continuation](/dev-kit/core-harness/continuation).
 
 **Lý do:** vòng lặp phải có điểm dừng chắc chắn mà không cắt ngang việc hợp lệ; lời nhắc đủ để model tự thoát lặp như deepseek-harness đã dùng.
 
