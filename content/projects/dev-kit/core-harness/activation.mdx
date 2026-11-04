@@ -68,7 +68,7 @@ Thay cho mục rollback của v0.12. G-06 với Fugue nghĩa là: **lịch sử 
 
 ## 5. Evidence để phát hành giai đoạn A
 
-Mọi mục kèm revision cụ thể; spike dùng dữ liệu giả không tính.
+Mọi mục kèm revision cụ thể; spike dùng dữ liệu giả không tính. Cách kiểm chứng, tầng chạy và bản ghi live theo [bộ kiểm chứng](/dev-kit/core-harness/verification); quy trình phát hành ở [bộ kiểm chứng §7](/dev-kit/core-harness/verification#7-phát-hành).
 
 - **A-E01** G-01 đến G-06 đã đóng; [evidence G-03](/dev-kit/core-harness/storage-security#10-evidence-để-đóng-g-03) đạt. G-04 tính trên adapter ChatGPT và bộ tool ở [mục 2](#2-phạm-vi-giai-đoạn-a).
 - **A-E02** Toàn bộ nhóm trong [tiêu chí kiểm chứng](/dev-kit/core-harness/decisions-and-validation#tiêu-chí-kiểm-chứng) đạt bằng test headless, với deterministic clock và fault injection.
@@ -104,4 +104,4 @@ Chỉ là danh sách; phạm vi và tiêu chí của B là quyết định riên
 
 ## 8. Phụ thuộc
 
-Giai đoạn A cần mọi mảng có giai đoạn A trong [bản đồ thiết kế](/dev-kit/core-harness/design-map) ở trạng thái Đã chốt, gồm các mảng còn mở: H-05 (đóng bằng evidence), H-17, H-18, H-20, H-24, H-25, H-26, H-27, H-34, H-45, H-46 và H-06.
+Giai đoạn A cần mọi mảng có giai đoạn A trong [bản đồ thiết kế](/dev-kit/core-harness/design-map) ở trạng thái Đã chốt, gồm H-05 (review đã chốt, đóng bằng evidence), H-39 (phần test), H-17, H-18, H-20, H-24, H-25, H-26, H-27, H-34, H-45, H-46 và H-06.

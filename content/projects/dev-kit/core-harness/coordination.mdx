@@ -129,6 +129,6 @@ Thứ tự và trạng thái đứng của queue nằm trong `exec_queue` (contr
 | **Q-E02** | Steer | Gộp nhiều steer; steer tới lúc model vừa trả lời xong thì chạy tiếp một step; không tách tool call/result |
 | **Q-E03** | Chen ngang | Từng trạng thái ở §5; tool `side_effecting` luôn chạy xong; usage của attempt bị hủy vẫn được tính |
 | **Q-E04** | Ngắt | Mọi tin chờ về ô soạn thảo đúng thứ tự, kèm đính kèm |
-| **Q-E05** | Peer | Đúng một lần khi crash giữa outbox và coordinator; child → parent xếp sau input của user; không chen ngang |
+| **Q-E05** | ~~Peer~~ | Bỏ: peer message không thuộc giai đoạn A (A-03) |
 | **Q-E06** | Ưu tiên | Lớp ưu tiên và thứ tự do user đổi bằng tay |
 | **Q-E07** | Revision | Thao tác trên queue với revision cũ bị từ chối |

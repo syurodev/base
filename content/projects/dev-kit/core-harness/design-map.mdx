@@ -45,7 +45,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | H-02 | Event store, admission, recovery | Đã chốt | [Event storage](/dev-kit/core-harness/event-storage-recovery) | A | H-01 |
 | H-03 | Storage và bảo mật payload (G-03) | Đã chốt, chờ evidence | [Storage-security](/dev-kit/core-harness/storage-security) | A | H-02 |
 | H-04 | Đặt package và dependency (G-01) | Đã chốt | [ADR R0.1 đã duyệt](https://github.com/syurodev/dev-kit/blob/main/docs/adr/2026-10-31-harness-package-ownership.md), [PR #412](https://github.com/syurodev/dev-kit/pull/412); evidence luật arch ở R0.2 | A | D-29, H-42 (đã chốt); process root tạo core rồi inject qua contracts vào app; người thiết kế duyệt ngày 2026-10-31 |
-| H-05 | Review transition toàn bộ (G-02) | Chưa | [Quyết định](/dev-kit/core-harness/decisions-and-validation) | A | Thiết kế H-01–H-03 (đã chốt); chạy song song với P1–P2 và đóng bằng evidence (R1.1, R1.2, R2.4); review lại mỗi khi catalog có event mới |
+| H-05 | Review transition toàn bộ (G-02) | Đã chốt (review v0.14), đóng bằng evidence | [State machine §10](/dev-kit/core-harness/state-machine#10-review-g-02-h-05) | A | Thiết kế H-01–H-03 (đã chốt); G-02 đóng bằng evidence F2.1, F2.2, F2.11 và **VC-01**–**VC-32**; review lại mỗi khi catalog có event, command hoặc wait reason mới |
 | H-06 | Budget: token, thời gian, tool, storage | Đã chốt | [Budget và quota](/dev-kit/core-harness/budget); state machine §7, §9; storage-security §4 | A | H-08 |
 
 ## B. Model
@@ -119,7 +119,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | H-36 | Tương thích phiên bản Fugue: nâng cấp, hạ phiên bản, lệch version client và host (G-06) | Đã chốt | [Activation](/dev-kit/core-harness/activation) §4 | A | H-02, H-42 |
 | H-37 | Phát hành giai đoạn A (G-07, Q-02) | Đã chốt (v0.13) | [Activation](/dev-kit/core-harness/activation) | A | Mọi mảng A |
 | H-38 | Observability: telemetry, chẩn đoán, export, metrics | Một phần | — | B | H-32 |
-| H-39 | Test và eval: conformance headless, fault injection, eval prompt và tool, benchmark | Một phần (tiêu chí kiểm chứng) | [Quyết định](/dev-kit/core-harness/decisions-and-validation#tiêu-chí-kiểm-chứng) | A (test), B (eval) | — |
+| H-39 | Test và eval: conformance headless, fault injection, eval prompt và tool, benchmark | Đã chốt (phần test, v0.14); eval ở B | [Bộ kiểm chứng](/dev-kit/core-harness/verification) | A (test), B (eval) | Mục Evidence của mọi trang giai đoạn A |
 | H-40 | Hiệu năng: độ trễ khởi động, chi phí token mỗi turn, chi phí snapshot | Một phần | Activation §6 | B | H-10 |
 | H-41 | Lớp tự cải tiến harness | Ngoài v1 | D-07 | Sau | — |
 
@@ -133,4 +133,4 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 6. ~~**Queue/steering** (H-29) và **continuation** (H-31)~~: đã chốt ở [điều phối input](/dev-kit/core-harness/coordination) và [continuation](/dev-kit/core-harness/continuation).
 7. ~~**CLI/TUI client**~~ (H-45) đã chốt ở [CLI và TUI](/dev-kit/core-harness/cli); ~~cấu hình workspace~~ (H-34) đã chốt ở [workspace và cấu hình](/dev-kit/core-harness/workspace).
 8. ~~**Phát hành giai đoạn A và compatibility** (H-37, H-36)~~: đã chốt ở [activation](/dev-kit/core-harness/activation) v0.13. ~~Budget~~ (H-06) đã chốt ở [budget và quota](/dev-kit/core-harness/budget).
-9. **Đặt package** (H-04) **không chờ** các mảng trên: nó là việc đầu tiên trước mọi production code của core (R0.1 trong [lộ trình](/dev-kit/core-harness/implementation-roadmap)). **Review transition** (H-05) chạy song song với P1–P2 và đóng gate G-02 bằng evidence. Với D-29, harness nằm trong `internal/` của DevKit, theo đúng các tầng của architecture rules, không cần chuẩn bị để tách repo.
+9. **Đặt package** (H-04) **không chờ** các mảng trên: nó là việc đầu tiên trước mọi production code của core (R0.1 trong [lộ trình](/dev-kit/core-harness/implementation-roadmap)). ~~**Review transition** (H-05)~~ đã chốt ở [state machine §10](/dev-kit/core-harness/state-machine#10-review-g-02-h-05); gate G-02 đóng bằng evidence. ~~**Bộ kiểm chứng**~~ (H-39, phần test) đã chốt ở [bộ kiểm chứng](/dev-kit/core-harness/verification). Với D-29, harness nằm trong `internal/` của DevKit, theo đúng các tầng của architecture rules, không cần chuẩn bị để tách repo.

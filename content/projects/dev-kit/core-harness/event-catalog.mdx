@@ -5,7 +5,7 @@ description: Danh mục command/event v0.12 và ba chuỗi thực thi để revi
 
 # Event catalog và execution traces
 
-Trạng thái: foundation contract v0.12, tên/schema logic để review; chưa là public wire API. Đây là catalog tối thiểu của native execution. Event batch được append bởi coordinator; projection được cập nhật đồng bộ như [storage protocol](/dev-kit/core-harness/event-storage-recovery).
+Trạng thái: foundation contract v0.14 (2026-11-04, [review G-02](/dev-kit/core-harness/state-machine#10-review-g-02-h-05)), tên/schema logic để review; chưa là public wire API. Đây là catalog tối thiểu của native execution. Event batch được append bởi coordinator; projection được cập nhật đồng bộ như [storage protocol](/dev-kit/core-harness/event-storage-recovery).
 
 ## 1. Quy ước
 
@@ -15,6 +15,16 @@ Envelope chung có run/sequence, command/causation, authenticated origin và wri
 
 `RunWaitEntered/Exited`, `PhaseChanged`, `IntentInserted` và `TranscriptAppended` không có trong catalog v1: chúng là projection/derived changes từ facts dưới đây, không là nguồn dữ liệu thứ hai.
 
+Catalog chỉ chứa facts của **run kernel**. Các trạng thái sau do owner khác giữ, có CAS theo revision riêng và chỉ giao với run qua các điểm ghi trong bảng; evidence của chúng nằm ở trang của owner, không thuộc G-02.
+
+| Trạng thái | Owner và lưu trữ | Điểm giao với run |
+| --- | --- | --- |
+| Goal | `exec_goals`, `exec_goal_events` ([continuation §5](/dev-kit/core-harness/continuation)) | `RunAccepted` mang `origin=goal`, `goal_id`, số vòng; kết thúc run chỉ đổi trạng thái goal ở owner |
+| Task và checklist | `internal/tasks`, bảng `task_*` ([task và checklist](/dev-kit/core-harness/tasks)) | Tool `todo` và `tasks.*` là tool thường; kết quả verify báo cho model ở ranh giới step |
+| Quota và account | `internal/quota`, bảng `quota_*` ([budget và quota](/dev-kit/core-harness/budget)) | `PickAccount` trước mỗi attempt; command `QuotaChanged` đánh thức wait `quota_refresh` |
+| Session policy | `exec_session_policy` ([interaction](/dev-kit/core-harness/interaction)) | `SetSessionPolicy` tăng `policy_revision`; request đang live bị `Refused` khi scope đổi; mode mới áp dụng từ step kế tiếp |
+| Cấu hình workspace | `fugue.toml` theo tầng ([workspace](/dev-kit/core-harness/workspace)) | Nạp lại ở ranh giới step; đổi root qua đường gỡ và thêm root của workspace §4 |
+
 ## 2. Run và step
 
 | Event | Fields/control facts chính | Guard / thay đổi projection |
@@ -23,7 +33,7 @@ Envelope chung có run/sequence, command/causation, authenticated origin và wri
 | `RunAdmitted` | Admission token, owner incarnation, queue decision reference, context epoch/startRunID và initial context revision nếu là admission đầu | CAS session admission thành công; materialize input trong canonical transcript |
 | `RunOwnershipAcquired` | Token mới, previous token, recovery receipt và data-directory lock generation | Chỉ session owner trong process giữ exclusive lock phục hồi cùng active run; cùng batch thêm recovery dependency, đồng bộ vault theo owner revision, không tạo dispatch |
 | `RunStopRequested` | Reason, mode terminal/suspend, actor, target, request time | Ghi stop intent; terminal primary reason không bị callback ghi đè |
-| `RunBlockAdded` | Blocker ID/kind/reference, resume condition | Thêm dependency có kiểu; lifecycle/wait reasons được suy ra |
+| `RunBlockAdded` | Blocker ID/kind/reference, resume condition; `budget_kind` (`steps`, `tokens`, `time`, `tool_calls`) bắt buộc khi kind là `budget` và rỗng với kind khác | Thêm dependency có kiểu; lifecycle/wait reasons được suy ra |
 | `RunBlockCleared` | Blocker ID, resolving owner evidence | Chỉ đúng dependency/version và current authority; không tự dispatch |
 | `RunInterrupted` | Typed cause, affected attempt/payload refs | Ghi interruption cause cần đối soát/can thiệp, khác wait dependency của `RunBlockAdded`; không phát chỉ vì run đang Queued lúc restart |
 | `RunRecoveryCleared` | Cause IDs, owner evidence, disposition reconciled/accepted_unknown/closed_unavailable, authorized next action | Clear đúng interruption, không xóa unknown evidence cũ hoặc tự gỡ user/vault blocks |
@@ -73,7 +83,7 @@ Planning chỉ ghi budget estimate; reservation có hiệu lực được lập 
 | `ToolCallPlanned` | Tool call/source position, validated-or-raw input ref, descriptor/effect-class version, first attempt | Response đã complete/selected; tạo candidate, chưa cấp quyền |
 | `ToolCheckReset` | Old/new check generation, owner invalidation/read-back receipt, resolved dependency refs | Recovery của Checking/AwaitingApproval/Ready chưa dispatch; invalidate request/receipt/reservation và gỡ dependency cùng batch về Planned; không project refusal hoặc chạy check từ replay |
 | `ToolCheckStarted` | Frontier cursor, invocation/attempt, check generation | Chỉ tool tại frontier; chuyển `Checking`, validate input và nối gateway qua adapter |
-| `ToolApprovalRequested` | Check generation, owner request/ref/revision, exact args ref, approver route, expiry, gate observation ([interaction §6.2](/dev-kit/core-harness/interaction#62-gate-observation)) | Owner receipt hợp lệ; tạo approval dependency đúng một tool |
+| `ToolApprovalRequested` | Check generation, owner request/ref/revision, request kind (`confirm`, `select`, `question`), exact args ref, approver route, expiry, gate observation ([interaction §6.2](/dev-kit/core-harness/interaction#62-gate-observation)) | Owner receipt hợp lệ; tạo interaction dependency đúng một tool: `user_input` cho `question`, `approval` cho kind khác |
 | `ToolApprovalResolved` | Check generation, owner resolution/evidence, approved/denied/expired/invalidated | Chỉ receipt đúng request; gỡ dependency và cập nhật approval observation |
 | `ToolReadyRecorded` | Check generation, validated args ref, gate observation, one-use approval receipt ref nếu cần | Sau check/approval đủ điều kiện scheduling; không là durable grant |
 | `ToolDispatchStarted` | Attempt/fence/check generation, current dispatch authorization/receipt ref, budget reservation | Worker slot đã giữ; append trước handoff; gateway revalidate/claim receipt tại execute, không hỏi đôi |
@@ -88,7 +98,7 @@ Denied/refused/cancelled trước dispatch được kết thúc bằng `ToolResu
 
 `ToolResultRecorded(abandoned_unknown)` là canonical control disposition, không là observation rằng tool kết thúc. Nó chỉ hợp lệ sau `UnknownAccepted(close)` hoặc `ToolAttemptAbandoned(next=close)` hoặc `RunClosureConfirmed` trong cùng batch; `exposure=unknown` vẫn được giữ. Abandon để retry không project canonical result trước attempt được chọn.
 
-Interaction bridge phải có owner operation identity và read-back/ensure contract để không tạo hai câu hỏi nếu crash khi nối request. `ToolApprovalRequested` chỉ ghi receipt thật, không tự fabricate request ID. Check/request/execute và one-use receipt theo [approval protocol](/dev-kit/core-harness/architecture#approval-qua-owning-gateway) là yêu cầu tường minh của G-04/G-05; không suy ra execution transaction bao trùm interaction owner transaction.
+Interaction owner phải có operation identity và read-back/ensure contract để không tạo hai câu hỏi nếu crash khi nối request. `ToolApprovalRequested` chỉ ghi receipt thật, không tự fabricate request ID. Check/request/execute và one-use receipt theo [approval protocol](/dev-kit/core-harness/architecture#approval-qua-owning-gateway) là yêu cầu tường minh của G-04/G-05; không suy ra execution transaction bao trùm interaction owner transaction.
 
 Retry/abandon trong bảng áp dụng cho attempt. Logical invocation chỉ đóng khi có selected terminal disposition; abandon để retry chưa đóng invocation, attempt mới cùng invocation được tạo theo policy/timer. Chấp nhận unknown để close thì không còn attempt mới.
 
@@ -103,7 +113,7 @@ Retry/abandon trong bảng áp dụng cho attempt. Logical invocation chỉ đó
 | `TimerCancelled` | Timer/generation, cause reference | Pending timer không được đánh thức execution sau stop/finish |
 | `BudgetObserved` | Usage/reservation counters, known/unknown coverage, source attempt/window, measured hoặc reserved_after_crash basis | Không double-count, không đổi unknown thành zero |
 
-Worker capacity dùng RunBlockAdded(worker_capacity, pool/generation/frontier) khi không có slot và RunBlockCleared cùng dispatch khi slot đã giữ; khi quiescent lifecycle Waiting, time window đóng. Vault/pause/dependency observations dùng `RunBlockAdded/Cleared` với kind/reference rõ ràng. Structured question cũng liên kết interaction owner bằng blocker `user_input`; không parse text assistant để tạo wait state.
+Worker capacity dùng RunBlockAdded(worker_capacity, pool/generation/frontier) khi không có slot và RunBlockCleared cùng dispatch khi slot đã giữ; khi quiescent lifecycle Waiting, time window đóng. Vault, pause, budget và quota observations dùng `RunBlockAdded/Cleared` với kind/reference rõ ràng. Structured question (`ask_user`, `plan`) liên kết interaction owner bằng dependency `user_input` của request kind `question` ([state machine §5](/dev-kit/core-harness/state-machine#5-tool-invocation-và-effect-class)); không parse text assistant để tạo wait state.
 
 Timer expiry chỉ là fact thời gian; approval outcome cần owner receipt. `RunFinished` có thể cùng batch cancel các timers còn pending. Timer/accounting projection không có worker tự ghi DB.
 
