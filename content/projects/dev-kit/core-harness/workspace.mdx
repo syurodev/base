@@ -224,25 +224,25 @@ Kích thước viết có đơn vị (`64MiB`), thời lượng viết dạng `1
 
 **Workspace và root**
 
-- Tạo workspace: thư mục theo `id`, `fugue.toml`, `WORKSPACE.md`; đổi tên không đổi thư mục.
-- Validate root: lồng nhau, trong `~/Fugue/` hay data dir, tên trùng, path không tồn tại đều bị từ chối; hai workspace dùng chung root được.
-- Bảng quyền §2.2 cho jail và tool file ở mỗi profile; root `ro` không ghi được ở `full-access`; workspace khác bị chặn đọc; agent không ghi được `fugue.toml` qua shell hay tool file.
-- Chọn workspace theo cwd: một, nhiều, không có.
-- Root mất: đánh dấu, cảnh báo, lỗi có kiểu.
+- **WS-E01** Tạo workspace: thư mục theo `id`, `fugue.toml`, `WORKSPACE.md`; đổi tên không đổi thư mục.
+- **WS-E02** Validate root: lồng nhau, trong `~/Fugue/` hay data dir, tên trùng, path không tồn tại đều bị từ chối; hai workspace dùng chung root được.
+- **WS-E03** Bảng quyền §2.2 cho jail và tool file ở mỗi profile; root `ro` không ghi được ở `full-access`; workspace khác bị chặn đọc; agent không ghi được `fugue.toml` qua shell hay tool file.
+- **WS-E04** Chọn workspace theo cwd: một, nhiều, không có.
+- **WS-E05** Root mất: đánh dấu, cảnh báo, lỗi có kiểu.
 
 **Thay đổi root khi có session**
 
-- Thêm: tool file thấy từ step kế tiếp; jail khởi động lại hoặc hoãn khi có job; khối danh sách root được patch.
-- Gỡ: hỏi khi có job; gỡ ngay có proof dừng; cwd reset; request chờ bị invalidate; grant và phiên bản đã thấy của root bị bỏ; không restore vào root đã gỡ.
-- Đổi path, tên, quyền theo §4.3.
-- Sửa thẳng `fugue.toml` và dùng lệnh `root …` cho cùng kết quả; lệnh ghi khi file đã đổi bị từ chối.
+- **WS-E06** Thêm: tool file thấy từ step kế tiếp; jail khởi động lại hoặc hoãn khi có job; khối danh sách root được patch.
+- **WS-E07** Gỡ: hỏi khi có job; gỡ ngay có proof dừng; cwd reset; request chờ bị invalidate; grant và phiên bản đã thấy của root bị bỏ; không restore vào root đã gỡ.
+- **WS-E08** Đổi path, tên, quyền theo §4.3.
+- **WS-E09** Sửa thẳng `fugue.toml` và dùng lệnh `root …` cho cùng kết quả; lệnh ghi khi file đã đổi bị từ chối.
 
 **Cấu hình**
 
-- Key lạ, sai kiểu, ngoài khoảng bị từ chối với vị trí đúng; khóa nới luật cứng bị từ chối.
-- Gộp tầng: ghi đè theo key; mảng thay cả mảng; `_add` thêm vào; dùng cả hai trong một tầng là lỗi; `show --effective` ghi đúng tầng.
-- File lỗi: session đang chạy giữ bản hợp lệ gần nhất; session mới bị từ chối.
-- Nạp lại ở ranh giới step; job đang chạy giữ timeout cũ; đổi khóa policy bỏ grant và báo model; đổi cap giữ grant.
+- **WS-E10** Key lạ, sai kiểu, ngoài khoảng bị từ chối với vị trí đúng; khóa nới luật cứng bị từ chối.
+- **WS-E11** Gộp tầng: ghi đè theo key; mảng thay cả mảng; `_add` thêm vào; dùng cả hai trong một tầng là lỗi; `show --effective` ghi đúng tầng.
+- **WS-E12** File lỗi: session đang chạy giữ bản hợp lệ gần nhất; session mới bị từ chối.
+- **WS-E13** Nạp lại ở ranh giới step; job đang chạy giữ timeout cũ; đổi khóa policy bỏ grant và báo model; đổi cap giữ grant.
 
 ## 10. Phụ thuộc
 

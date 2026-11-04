@@ -245,24 +245,24 @@ Preview chỉ hiện metadata cho phép theo INV-09; nội dung payload chỉ hi
 
 **Host**
 
-- Tự khởi động khi chưa có host; hai client cùng khởi động chỉ ra một host.
-- Lease: host tắt sau 10 s khi client cuối rời; client mới trong 10 s hủy việc tắt; `fugue serve` foreground không tự tắt.
-- TUI cuối cùng thoát khi còn việc thì hỏi; tắt có trật tự (stop intent, job có proof, request bị bỏ); run chờ quota và budget còn sau khi host khởi động lại.
-- Version: tương thích, host cũ rảnh (đề nghị khởi động lại), host cũ có việc, host mới hơn (exit 8).
+- **CL-E01** Tự khởi động khi chưa có host; hai client cùng khởi động chỉ ra một host.
+- **CL-E02** Lease: host tắt sau 10 s khi client cuối rời; client mới trong 10 s hủy việc tắt; `fugue serve` foreground không tự tắt.
+- **CL-E03** TUI cuối cùng thoát khi còn việc thì hỏi; tắt có trật tự (stop intent, job có proof, request bị bỏ); run chờ quota và budget còn sau khi host khởi động lại.
+- **CL-E04** Version: tương thích, host cũ rảnh (đề nghị khởi động lại), host cũ có việc, host mới hơn (exit 8).
 
 **TUI**
 
-- Golden test bằng teatest: mỗi loại mục scrollback, hộp `confirm`/escalation, `ask_user` nhiều câu, duyệt `plan`, dòng trạng thái ở 80 và 120 cột, terminal dưới 80 cột.
-- Bảng phím: steer, xếp hàng, interject, dừng và gửi ngay, đổi mode.
-- Mục chỉ được in khi đã xong; mục đang chạy chỉ ở vùng sống.
-- Mọi chuỗi giao diện tiếng Anh: test quét chuỗi literal trong `internal/tui`.
+- **CL-E05** Golden test bằng teatest: mỗi loại mục scrollback, hộp `confirm`/escalation, `ask_user` nhiều câu, duyệt `plan`, dòng trạng thái ở 80 và 120 cột, terminal dưới 80 cột.
+- **CL-E06** Bảng phím: steer, xếp hàng, interject, dừng và gửi ngay, đổi mode.
+- **CL-E07** Mục chỉ được in khi đã xong; mục đang chạy chỉ ở vùng sống.
+- **CL-E08** Mọi chuỗi giao diện tiếng Anh: test quét chuỗi literal trong `internal/tui`.
 
 **Lệnh con**
 
-- Mỗi lệnh chạy không TTY; `--json` khớp schema; exit code theo §5.2.
-- `fugue run` với ba chế độ `--on-approval` và `--detach`.
-- Password chỉ qua nhập ẩn hoặc `--password-stdin`.
-- Mỗi dòng của §6 có hiển thị TUI và exit code hoặc mã lỗi.
+- **CL-E09** Mỗi lệnh chạy không TTY; `--json` khớp schema; exit code theo §5.2.
+- **CL-E10** `fugue run` với ba chế độ `--on-approval` và `--detach`.
+- **CL-E11** Password chỉ qua nhập ẩn hoặc `--password-stdin`.
+- **CL-E12** Mỗi dòng của §6 có hiển thị TUI và exit code hoặc mã lỗi.
 
 ## 10. Phụ thuộc
 

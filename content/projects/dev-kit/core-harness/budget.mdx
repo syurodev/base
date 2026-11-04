@@ -200,25 +200,25 @@ Các thay đổi này cần review G-02 cùng bảng transition.
 
 **Quota và gộp quan sát**
 
-- Bảng test luật gộp §2.2: lệch thứ tự, cùng epoch, epoch mới, epoch cũ, đã qua `reset_at`, `limit_error` có và không có `reset_at`, lệch 119 s và 121 s.
-- Test song song: N goroutine gửi quan sát theo thứ tự ngẫu nhiên; trạng thái cuối giống nhau với mọi hoán vị; UPSERT trong SQL cho cùng kết quả với memory.
-- Ghi lại một quan sát sau crash không đổi kết quả.
-- Quan sát có `credential_revision` cũ không xóa `auth_failed`.
-- Topic `quota` phát đúng một `changed` cho mỗi lần `revision` tăng.
+- **BG-E01** Bảng test luật gộp §2.2: lệch thứ tự, cùng epoch, epoch mới, epoch cũ, đã qua `reset_at`, `limit_error` có và không có `reset_at`, lệch 119 s và 121 s.
+- **BG-E02** Test song song: N goroutine gửi quan sát theo thứ tự ngẫu nhiên; trạng thái cuối giống nhau với mọi hoán vị; UPSERT trong SQL cho cùng kết quả với memory.
+- **BG-E03** Ghi lại một quan sát sau crash không đổi kết quả.
+- **BG-E04** Quan sát có `credential_revision` cũ không xóa `auth_failed`.
+- **BG-E05** Topic `quota` phát đúng một `changed` cho mỗi lần `revision` tăng.
 
 **Chọn và chuyển account**
 
-- Chuyển khi dưới ngưỡng, khi `limit_error` (thử lại ngay, không tính backoff), khi `auth_failed`; giữ model và binding; bỏ reasoning đã mã hóa của account cũ.
-- `best` rải theo số attempt đang chạy; `model.accounts` giới hạn phạm vi; `manual` không tự chuyển.
-- Không bao giờ chuyển giữa gói ChatGPT và API key.
-- Gói ChatGPT nhận 429: account `paused`, không có giờ reset hay timer, không tự thử lại; attempt sang tài khoản ChatGPT khác; mọi account `paused` thì chờ không timer và chỉ `ResumeAccount` đánh thức.
+- **BG-E06** Chuyển khi dưới ngưỡng, khi `limit_error` (thử lại ngay, không tính backoff), khi `auth_failed`; giữ model và binding; bỏ reasoning đã mã hóa của account cũ.
+- **BG-E07** `best` rải theo số attempt đang chạy; `model.accounts` giới hạn phạm vi; `manual` không tự chuyển.
+- **BG-E08** Không bao giờ chuyển giữa gói ChatGPT và API key.
+- **BG-E09** Gói ChatGPT nhận 429: account `paused`, không có giờ reset hay timer, không tự thử lại; attempt sang tài khoản ChatGPT khác; mọi account `paused` thì chờ không timer và chỉ `ResumeAccount` đánh thức.
 
 **Chờ**
 
-- `Waiting(quota_refresh)`: tự chạy tiếp lúc reset; đánh thức sớm bằng `QuotaChanged`; revision cũ bị bỏ qua; còn đúng sau restart; queue không bắt đầu run mới cho provider đang hết.
-- `use-reserve` hết hiệu lực ở lần reset kế tiếp.
-- Bốn budget theo run: chờ ở đúng ranh giới của mỗi kind; tool đang chạy chạy xong; gia hạn chỉ từ user; "Kết thúc" ra `budget_exceeded(kind)`; chờ không tính active time; goal `disarmed`; token đã cache không tính.
-- Hết `time` không ghi `RunStopRequested`; retry budget vẫn kết thúc run.
+- **BG-E10** `Waiting(quota_refresh)`: tự chạy tiếp lúc reset; đánh thức sớm bằng `QuotaChanged`; revision cũ bị bỏ qua; còn đúng sau restart; queue không bắt đầu run mới cho provider đang hết.
+- **BG-E11** `use-reserve` hết hiệu lực ở lần reset kế tiếp.
+- **BG-E12** Bốn budget theo run: chờ ở đúng ranh giới của mỗi kind; tool đang chạy chạy xong; gia hạn chỉ từ user; "Kết thúc" ra `budget_exceeded(kind)`; chờ không tính active time; goal `disarmed`; token đã cache không tính.
+- **BG-E13** Hết `time` không ghi `RunStopRequested`; retry budget vẫn kết thúc run.
 
 ## 10. Phụ thuộc
 

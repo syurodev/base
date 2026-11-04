@@ -129,10 +129,10 @@ Tool nội bộ của harness, nằm trong bộ tool cơ bản:
 
 ## 8. Evidence
 
-| Evidence | Cách chứng minh |
-| --- | --- |
-| Quyết định sau step | Bảng test cho từng dòng của §2 |
-| `length` | Tự chạy tiếp đúng một lần; lần hai kết thúc với cờ `truncated`; tool call bị cắt không chạy |
-| `maxSteps` | Step chạm giới hạn vẫn chạy xong tool rồi vào `Waiting(budget)`, không `RunFinished`; chờ không charge time; còn sau restart; `BudgetExtended` chỉ từ user và chạy tiếp cùng run; "Kết thúc" cho `budget_exceeded`; budget khác vẫn terminal |
-| Lặp | Nhắc ở lần 3, 5, 8; bộ đếm về 0 khi có input, steer, tool khác hoặc run mới; không chặn lời gọi |
-| Goal | Chỉ bắt đầu vòng khi queue rỗng và không đứng; prompt của user luôn đi trước; restart thì `disarmed`; `blocked` cần 3 vòng liên tiếp; hết `maxRounds` thì `blocked`; chỉ prompt trực tiếp của user mới tạo hoặc sửa goal; revision cũ bị từ chối |
+| ID | Evidence | Cách chứng minh |
+| --- | --- | --- |
+| **CN-E01** | Quyết định sau step | Bảng test cho từng dòng của §2 |
+| **CN-E02** | `length` | Tự chạy tiếp đúng một lần; lần hai kết thúc với cờ `truncated`; tool call bị cắt không chạy |
+| **CN-E03** | `maxSteps` | Step chạm giới hạn vẫn chạy xong tool rồi vào `Waiting(budget)`, không `RunFinished`; chờ không charge time; còn sau restart; `BudgetExtended` chỉ từ user và chạy tiếp cùng run; "Kết thúc" cho `budget_exceeded`; budget khác vẫn terminal |
+| **CN-E04** | Lặp | Nhắc ở lần 3, 5, 8; bộ đếm về 0 khi có input, steer, tool khác hoặc run mới; không chặn lời gọi |
+| **CN-E05** | Goal | Chỉ bắt đầu vòng khi queue rỗng và không đứng; prompt của user luôn đi trước; restart thì `disarmed`; `blocked` cần 3 vòng liên tiếp; hết `maxRounds` thì `blocked`; chỉ prompt trực tiếp của user mới tạo hoặc sửa goal; revision cũ bị từ chối |

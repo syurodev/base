@@ -207,12 +207,12 @@ Tỷ lệ và độ dài tối thiểu cấu hình được. Không bao giờ t�
 
 ## 9. Evidence cần có
 
-| Evidence | Cách chứng minh |
-| --- | --- |
-| Lắp context xác định | Cùng journal dựng lại đúng cùng view; đổi rule hay W giữa session chỉ thêm patch, không đổi prefix |
-| Prompt cache | Đo tỷ lệ cache hit qua nhiều step, qua patch và qua binding revision |
-| Compaction | Không tách tool call/result; turn quá dài; tràn context rồi retry; crash giữa compaction; nhiều lần compact liên tiếp |
-| Pruning | Chỉ khi vượt ngưỡng và tiết kiệm ≥ 5k token |
-| Rule | Thứ tự R0–R3; `AGENTS.md` thắng; budget và cắt file; rule theo path được gắn lại sau compaction |
-| W | Độ tươi theo hash; INVALIDATE giữ lịch sử; CAS khi duyệt gợi ý; redact |
-| Ngôn ngữ | Tiếng Việt có dấu, không dấu, trộn từ khóa; câu ngắn; trích dẫn |
+| ID | Evidence | Cách chứng minh |
+| --- | --- | --- |
+| **C-E01** | Lắp context xác định | Cùng journal dựng lại đúng cùng view; đổi rule hay W giữa session chỉ thêm patch, không đổi prefix |
+| **C-E02** | Prompt cache | Đo tỷ lệ cache hit qua nhiều step, qua patch và qua binding revision |
+| **C-E03** | Compaction | Không tách tool call/result; turn quá dài; tràn context rồi retry; crash giữa compaction; nhiều lần compact liên tiếp |
+| **C-E04** | Pruning | Chỉ khi vượt ngưỡng và tiết kiệm ≥ 5k token |
+| **C-E05** | Rule | Thứ tự R0–R3; `AGENTS.md` thắng; budget và cắt file; rule theo path được gắn lại sau compaction |
+| **C-E06** | W | Độ tươi theo hash; INVALIDATE giữ lịch sử; CAS khi duyệt gợi ý; redact |
+| **C-E07** | Ngôn ngữ | Tiếng Việt có dấu, không dấu, trộn từ khóa; câu ngắn; trích dẫn |

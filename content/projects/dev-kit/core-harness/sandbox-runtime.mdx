@@ -136,15 +136,15 @@ Chỉ khi sandbox profile là `full-access` (J-05), theo [tool system §8](/dev-
 
 ## 12. Evidence
 
-- Linux: Gradle daemon sống qua nhiều lời gọi dưới `--unshare-pid`; `Stop` không để lại process nào (kiểm tra bằng `/proc`).
-- Kill host: Linux không còn process của jail; macOS reaper dọn được daemon đã `setsid` khi host khởi động lại.
-- Cancel: `SIGTERM` đủ; cần `SIGKILL`; supervisor bị treo dẫn tới `Stop` cả jail.
-- Rảnh 30 phút (fake clock) dừng jail; đổi sandbox profile dựng lại jail; escalation chạy trong jail riêng và không đổi jail của session.
-- Lọc env: mọi mẫu của denylist bị bỏ; tên được workspace cho phép thì giữ; không giá trị nào xuất hiện trong journal, log, audit hay registry.
-- Docker: endpoint chỉ được mở ở `full-access`; `ssh://` bị từ chối.
-- cwd do supervisor báo nằm ngoài workspace bị từ chối.
-- Fuzz cho parser frame; frame quá lớn dừng jail.
-- `sandbox_unavailable` khi thiếu backend; không có đường chạy ngoài sandbox.
+- **J-E01** Linux: Gradle daemon sống qua nhiều lời gọi dưới `--unshare-pid`; `Stop` không để lại process nào (kiểm tra bằng `/proc`).
+- **J-E02** Kill host: Linux không còn process của jail; macOS reaper dọn được daemon đã `setsid` khi host khởi động lại.
+- **J-E03** Cancel: `SIGTERM` đủ; cần `SIGKILL`; supervisor bị treo dẫn tới `Stop` cả jail.
+- **J-E04** Rảnh 30 phút (fake clock) dừng jail; đổi sandbox profile dựng lại jail; escalation chạy trong jail riêng và không đổi jail của session.
+- **J-E05** Lọc env: mọi mẫu của denylist bị bỏ; tên được workspace cho phép thì giữ; không giá trị nào xuất hiện trong journal, log, audit hay registry.
+- **J-E06** Docker: endpoint chỉ được mở ở `full-access`; `ssh://` bị từ chối.
+- **J-E07** cwd do supervisor báo nằm ngoài workspace bị từ chối.
+- **J-E08** Fuzz cho parser frame; frame quá lớn dừng jail.
+- **J-E09** `sandbox_unavailable` khi thiếu backend; không có đường chạy ngoài sandbox.
 
 ## 13. Spike còn mở (giai đoạn B)
 
