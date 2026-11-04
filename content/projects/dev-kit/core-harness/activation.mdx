@@ -27,7 +27,7 @@ Trạng thái: v0.13, viết lại ngày 2026-11-03 để trả lời Q-02 trong
 | Process | Một host `fugue serve` giữ data directory ([host API §3](/dev-kit/core-harness/host-api#3-cách-chạy-process)); CLI tự khởi động host nếu chưa có |
 | Client | CLI/TUI `fugue` là client tin cậy duy nhất: tạo và chạy session, trả lời interaction, mở vault, đăng nhập ChatGPT, xem job và snapshot, mọi hành động failure UX ở [mục 3](#3-failure-ux-bắt-buộc). Thiết kế chi tiết ở H-45 |
 | Provider | OpenAI Responses, auth bằng gói ChatGPT. Đăng nhập từ CLI theo §11.2 (PKCE, `state`, `nonce`, mở trình duyệt hệ thống). Các chữ bắt buộc của §11.6 hiện dạng text trong CLI: "Continue with ChatGPT", thông báo lần đầu bật plan usage, "Using ChatGPT plan" kèm link "Manage usage". Không failover tự động (M-09) |
-| Tool | File: read, grep, glob, edit, write ([tool file](/dev-kit/core-harness/file-tools), H-17). Shell và job (H-18, H-25). `ask_user`, plan, todo (H-20). Turn và tool snapshot, restore (H-28) |
+| Tool | File: read, grep, glob, edit, write ([tool file](/dev-kit/core-harness/file-tools), H-17). Shell và job (H-18, H-25). `ask_user`, `plan` ([hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan), H-20); `todo` và task tối giản ([task và checklist](/dev-kit/core-harness/tasks), H-20, H-46). Turn và tool snapshot, restore (H-28) |
 | Mode và sandbox | Approval mode Plan / Ask / Auto / Full và sandbox profile theo [interaction §2](/dev-kit/core-harness/interaction#2-hai-trục-sandbox-profile-và-approval-mode); mặc định `workspace-write` + Auto. Với `workspace-write` và `full-access`, CLI MUST nói rõ network là `host`: sandbox chặn ghi ngoài workspace nhưng **không chặn dữ liệu bị gửi ra ngoài** |
 | Lưu trữ | Execution history chỉ local (S-04). Vault phải mở để chạy hoặc resume (S-01, S-02) |
 
@@ -103,4 +103,4 @@ Chỉ là danh sách; phạm vi và tiêu chí của B là quyết định riên
 
 ## 8. Phụ thuộc
 
-Giai đoạn A cần mọi mảng có giai đoạn A trong [bản đồ thiết kế](/dev-kit/core-harness/design-map) ở trạng thái Đã chốt, gồm các mảng còn mở: H-05 (đóng bằng evidence), H-17, H-18, H-20, H-24, H-25, H-26, H-27, H-34, H-45 và H-06.
+Giai đoạn A cần mọi mảng có giai đoạn A trong [bản đồ thiết kế](/dev-kit/core-harness/design-map) ở trạng thái Đã chốt, gồm các mảng còn mở: H-05 (đóng bằng evidence), H-17, H-18, H-20, H-24, H-25, H-26, H-27, H-34, H-45, H-46 và H-06.

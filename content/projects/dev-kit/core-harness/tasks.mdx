@@ -1,0 +1,222 @@
+---
+title: Task và checklist
+description: H-20 (todo) và H-46 — một mô hình chung gồm task bền trên board và step là checklist do model cập nhật; tool todo và tasks.*, claim, cổng verify chạy trong jail, lưu trữ, CLI-first.
+---
+
+# Task và checklist
+
+Trạng thái: v0.13, ngày 2026-11-04. **Thiết kế đã chốt** cho phần `todo` của H-20 và cho H-46 (task) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. `ask_user` và `plan` ở [hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan).
+
+## 1. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| TK-01 | **Một mô hình chung, hai cấp:** *task* là việc bền nằm trên board; *step* là checklist của một task, hoặc của session khi session chưa claim task nào |
+| TK-02 | Step không phải ticket: không hiện thành cột trên board, không có claim, comment, phụ thuộc hay cổng verify. Board chỉ chứa task |
+| TK-03 | Model cập nhật step bằng `todo`, **gửi cả danh sách mỗi lần**; model không phải biết có hai cấp |
+| TK-04 | Giai đoạn A có board tối giản: một board mỗi workspace, workflow mặc định cố định |
+| TK-05 | Agent không tự đóng task: sang `done` phải qua **lệnh verify do user đặt**, chạy trong jail, exit code quyết định; không có lệnh verify thì hỏi user. Sang `wont_do` luôn hỏi user. **Xóa chỉ user làm** |
+| TK-06 | Nội dung (title, description, step, comment) được seal bằng vault record, vì task sống qua nhiều session; metadata không chứa nội dung (INV-09) |
+| TK-07 | CLI-first: mọi thứ xem và làm được bằng lệnh text, có `--json`; board của giai đoạn A là danh sách nhóm theo trạng thái |
+
+## 2. Mô hình
+
+```text
+Board (một mỗi workspace)
+ └─ Task FUG-12  [in_progress, claim bởi session S1]
+     ├─ Subtask FUG-13 (một cấp)
+     └─ Checklist
+         ☑ đọc internal/x/load.go
+         ◐ sửa Load trả errcode
+         ☐ chạy go test ./internal/x/...
+
+Session S2 (chưa claim task)
+ └─ Checklist của session
+```
+
+| | Task | Step |
+| --- | --- | --- |
+| Trạng thái | Workflow của board (§2.1) | `pending`, `in_progress`, `completed`; tối đa một `in_progress` trên mỗi cha |
+| Cha | Board; subtask có task cha (một cấp) | Task mà session đang claim, hoặc session |
+| Tạo bởi | User (CLI) hoặc agent (`tasks.create`, `tasks.promote`) | Model của session đang giữ cha, qua `todo` |
+| Vòng đời | Bền; archive được; xóa chỉ user | Theo cha. Task đóng thì checklist được giữ làm lịch sử |
+
+### 2.1 Workflow mặc định
+
+| Trạng thái | Category |
+| --- | --- |
+| `todo` | open |
+| `in_progress`, `review` | active |
+| `done`, `wont_do` | terminal |
+
+Mọi luật đọc **category**, không đọc tên trạng thái, để giai đoạn B thêm workflow tùy biến mà không đổi luật.
+
+## 3. Owner và dữ liệu
+
+Owner là package `internal/tasks`, đường ghi duy nhất cho board, task, step, comment và lần verify. Tool, CLI, context engine và Host API đều đi qua owner.
+
+| Bảng | Khóa / cột chính | Ràng buộc |
+| --- | --- | --- |
+| `task_boards` | PK `board_id`; `workspace_id` UNIQUE, `key_prefix`, `next_number`, `revision` | Tạo khi workspace có task đầu tiên; `key_prefix` mặc định từ tên workspace, user đổi được |
+| `task_items` | PK `item_id`; `kind` ∈ `task`, `step`; `board_id`; `parent_id`; `session_id`; `number` (task); `status`, `position`, `priority`, `assignee_session`, `archived_at`, `revision`, `created_at`, `updated_at`; `sealed` | Step có đúng một trong `parent_id` (task) và `session_id`. Subtask chỉ một cấp. Mọi thay đổi kiểm tra `revision` |
+| `task_edges` | PK (`item_id`, `blocked_by`) | Chỉ giữa task cùng board; từ chối nếu tạo vòng |
+| `task_comments` | PK `comment_id`; `item_id`, `kind` ∈ `human`, `agent`, `system`, `author`, `created_at`, `sealed` | `author` lấy từ principal hoặc session, không lấy từ args |
+| `task_verify_runs` | PK `run_id`; `item_id`, `state`, `exit_code`, `requested_by`, thời gian | `state` ∈ `queued`, `running`, `passed`, `failed`, `cancelled`, `lost`, `stale` |
+
+- `sealed` dùng `vault.SealRecord` với `RecordBinding{RecordType: "tasks.item" | "tasks.comment", RecordID, KeyID: "v1"}`: title, description, labels, nội dung step, thân comment. Liệt kê task khi vault khóa chỉ thấy key, trạng thái và thời gian.
+- Key hiển thị là `key_prefix-number` (ví dụ `FUG-12`), `number` tăng dần trong board. Giai đoạn B có sync thì cách đánh số được xem lại.
+- Thua race (`revision` lệch) thì từ chối có kiểu, không ghi đè.
+
+## 4. Tool `todo`
+
+```json
+{"steps": [{"content": "Sửa Load trả errcode", "status": "in_progress"},
+           {"content": "Chạy go test ./internal/x/...", "status": "pending"}],
+ "explanation": "Đã đọc xong load.go"}
+```
+
+| Field | Ràng buộc |
+| --- | --- |
+| `steps` | 0–50 phần tử; `content` 1–300 ký tự; `status` ∈ `pending`, `in_progress`, `completed`; tối đa một `in_progress` |
+| `explanation` | Tùy chọn; ≤ 500 ký tự; hiện cho user, không lưu vào step |
+
+- `risk = read`, `confirm = never`: chỉ ghi vào dữ liệu của Fugue, không tác động tới workspace hay bên ngoài. Chạy ở mọi mode, kể cả Plan.
+- Cha là task mà session đang claim; không có thì là session.
+- **Giữ danh tính step:** host so danh sách mới với checklist hiện tại theo nội dung, theo thứ tự. Step có nội dung giống hệt giữ `item_id` và chỉ đổi trạng thái hoặc vị trí. Step mới được tạo. Step cũ không còn trong danh sách: đã `completed` thì giữ làm lịch sử (hiện thu gọn), chưa xong thì bị xóa.
+- Result là một dòng xác nhận số step theo trạng thái, không lặp lại danh sách.
+- Claim task khác thì các lần `todo` sau ghi vào task mới; checklist cũ ở lại với cha cũ.
+
+## 5. Tool `tasks.*`
+
+| Tool | `risk` | Ghi chú |
+| --- | --- | --- |
+| `tasks.list` | `read` | Lọc theo trạng thái, category, assignee, `parent`, `archived`; trả bản tóm tắt không có description; tối đa 100 mỗi trang |
+| `tasks.get` | `read` | Description, checklist, subtask, `blocked_by`, 20 comment gần nhất, lần verify gần nhất |
+| `tasks.create` | `write` | Title, description, priority, labels, `parent`; trạng thái đầu là `todo` |
+| `tasks.update` | `write` | Đổi title, description, priority, labels, `parent`. Đổi `blocked_by` phải kèm `expected_blocked_by` lấy từ `tasks.get` |
+| `tasks.claim` | `write` | §5.1 |
+| `tasks.release` | `write` | Bỏ claim, giữ trạng thái |
+| `tasks.transition` | `write` | Open và active chuyển thẳng; sang terminal qua cổng (§7) |
+| `tasks.comment` | `write` | Kind `agent`, tác giả là session |
+| `tasks.promote` | `write` | Nâng một step thành task ở `todo`; step được đánh dấu `completed` kèm tham chiếu tới key mới |
+| `tasks.archive` | `write` | Khôi phục được; agent được phép làm |
+
+- Mọi tool có `confirm = never`. Plan mode từ chối các tool `write`; ở Auto chúng tự chạy, vì chỉ ghi vào dữ liệu của Fugue. Cổng sang terminal có quy tắc hỏi riêng (§7).
+- Không có tool xóa task hay comment.
+- Nội dung trong result của `tasks.*` có thể do agent khác viết, nên nằm trong envelope `source=task` ([an toàn nội dung §4](/dev-kit/core-harness/content-safety#4-envelope)).
+
+### 5.1 Claim
+
+- Mỗi session claim **tối đa một task**. Claim task mới thì task cũ được tự release, giữ nguyên trạng thái.
+- Claim task đang ở category open thì task chuyển sang trạng thái active đầu tiên (`in_progress`).
+- Task đang được một session **còn sống** claim: lỗi `tasks.claimed`. Session đã kết thúc hoặc host đã restart: claim được tiếp quản, kèm comment hệ thống.
+- Task terminal hoặc đã archive không claim được (`tasks.not_assignable`).
+- Run kết thúc không đổi trạng thái task; model tự chuyển sang `review` khi xong.
+
+## 6. Context
+
+- Context engine gắn vào runtime context ([context engine §2.1](/dev-kit/core-harness/context-engine#21-patch-và-runtime-context)), qua `ContextInjected`:
+  - sau mỗi compaction;
+  - ở step đầu tiên sau khi session claim một task.
+- Nội dung gắn vào:
+  - task đang claim: key, title, trạng thái;
+  - checklist hiện tại;
+  - kế hoạch đã duyệt mới nhất ([hỏi user và kế hoạch §3.2](/dev-kit/core-harness/ask-plan#32-hành-vi)).
+- Tổng tối đa 12 KiB; kế hoạch bị cắt còn 8 KiB trước nếu cần.
+- Khối này nằm trong envelope `source=task`, vì nó do model hoặc agent khác viết từ trước.
+
+## 7. Cổng sang terminal
+
+| Đích | Workspace có lệnh verify (H-34) | Không có lệnh verify |
+| --- | --- | --- |
+| `done` | Fugue chạy lệnh verify (§7.1); exit code 0 thì chuyển, khác 0 thì giữ trạng thái | Hỏi user: `confirm`, chỉ "cho 1 lần". Host headless thì từ chối `tasks.confirmation_required` |
+| `wont_do` | Hỏi user, chỉ "cho 1 lần" | Hỏi user, chỉ "cho 1 lần" |
+
+User đóng task trực tiếp từ CLI thì không qua cổng.
+
+### 7.1 Lệnh verify
+
+- Lệnh và timeout (mặc định 15 phút, tối đa 60 phút) nằm trong cấu hình workspace. Model kích hoạt được nhưng không sửa được, vì ghi vào thư mục cấu hình của Fugue luôn hỏi ([tool file §7](/dev-kit/core-harness/file-tools#7-risk-confirm-và-grant-scope)).
+- Chạy trong một **jail dùng một lần** với profile `workspace-write`, env snapshot và network theo profile đó của workspace ([sandbox runtime](/dev-kit/core-harness/sandbox-runtime)). Không chạy trong jail của session, để daemon hay biến env do model để lại không ảnh hưởng kết quả.
+- Mỗi workspace chạy tối đa một lần verify một lúc; yêu cầu sau xếp hàng. Yêu cầu chờ quá 24 giờ thành `stale`.
+- `tasks.transition` trả ngay `verifying` kèm `run_id`. Kết quả được báo cho model ở ranh giới step kế tiếp, cùng cơ chế với job xong ([shell và job §5](/dev-kit/core-harness/shell-job#5-job)), và ghi thành comment hệ thống gồm exit code, thời gian và tối đa 4 KiB phần cuối của output đã redact.
+- User hủy được một lần verify từ CLI (`cancelled`).
+
+## 8. Failure và recovery
+
+| Tình huống | Hành vi |
+| --- | --- |
+| Host restart khi verify đang chạy | Jail dừng cùng host; lần verify thành `lost`, task giữ trạng thái; comment hệ thống ghi lý do |
+| Host restart khi có claim | Claim của session đã mất được coi là tiếp quản được (§5.1) |
+| Vault khóa | Tool `tasks.*` và `todo` trả `vault_locked`; run vào `Waiting(vault_locked)` như mọi thao tác cần payload |
+| `revision` lệch | `tasks.revision_conflict`; model đọc lại bằng `tasks.get` |
+| Tạo vòng phụ thuộc | `tasks.dependency_cycle` |
+
+## 9. Bảo mật
+
+- Tác giả của comment và người chuyển trạng thái lấy từ principal hoặc session, không bao giờ từ args.
+- Agent không đóng, không xóa và không sửa lệnh verify. Cổng verify dùng exit code, không dùng lời báo cáo của model.
+- Nội dung task có thể chứa instruction do agent khác viết; nó luôn nằm trong envelope và không cấp quyền gì.
+- Output của lệnh verify được redact trước khi thành comment.
+
+## 10. CLI
+
+Theo ràng buộc CLI-first ở [hỏi user và kế hoạch §5](/dev-kit/core-harness/ask-plan#5-ràng-buộc-cli-first); chi tiết hiển thị thuộc H-45.
+
+| Lệnh | Việc |
+| --- | --- |
+| `fugue tasks` | Danh sách task của workspace, nhóm theo trạng thái; `--all`, `--json` |
+| `fugue tasks show KEY` | Chi tiết, checklist, subtask, comment, lần verify gần nhất |
+| `fugue tasks new` | Tạo task; description mở `$EDITOR` |
+| `fugue tasks move KEY <status>` | Chuyển trạng thái; user không qua cổng |
+| `fugue tasks comment KEY` | Viết comment kind `human` bằng `$EDITOR` |
+| `fugue tasks verify KEY` / `cancel-verify RUN` | Chạy hoặc hủy verify |
+| `fugue tasks archive KEY`, `fugue tasks rm KEY` | Archive; xóa (có xác nhận, chỉ user) |
+
+Checklist của session đang chạy hiện trong view của session. Kanban theo cột là phần thêm của TUI, không bắt buộc ở giai đoạn A.
+
+## 11. Giới hạn
+
+| Mục | Giới hạn |
+| --- | --- |
+| Step mỗi cha | 50 đang hoạt động; lịch sử giữ 200 step gần nhất |
+| Title / description | 200 ký tự / 32 KiB |
+| Comment | 16 KiB |
+| Task mỗi trang của `tasks.list` | 100 |
+| Context gắn lại | 12 KiB |
+| Verify | Một lần một lúc mỗi workspace; timeout mặc định 15 phút, tối đa 60 phút; `stale` sau 24 giờ |
+
+## 12. Evidence
+
+**Step và `todo`**
+
+- Cha đúng theo claim; danh tính step giữ nguyên khi nội dung không đổi; step xong bị bỏ khỏi danh sách được giữ làm lịch sử, step chưa xong bị xóa; quá một `in_progress` bị từ chối.
+- `todo` chạy ở Plan mode; result không lặp lại danh sách.
+- Checklist và kế hoạch đã duyệt được gắn lại sau compaction và sau khi claim, trong envelope `source=task`, không vượt 12 KiB.
+
+**Task**
+
+- Claim: một task mỗi session; claim mới tự release cũ; session sống giữ claim; session chết bị tiếp quản kèm comment hệ thống.
+- `blocked_by`: thiếu `expected_blocked_by` hoặc lệch thì từ chối; tạo vòng thì từ chối.
+- Subtask chỉ một cấp; `tasks.promote` tạo task và đánh dấu step.
+- Tác giả comment lấy từ session; không có tool xóa; Plan mode từ chối tool `write`.
+
+**Cổng**
+
+- Có lệnh verify: exit code 0 thì `done`, khác 0 thì giữ trạng thái; comment hệ thống có output đã redact; một lần mỗi workspace; xếp hàng; `stale`; hủy; restart thành `lost`.
+- Không có lệnh verify: hỏi user, chỉ "cho 1 lần"; headless thì từ chối. `wont_do` luôn hỏi.
+- Lệnh verify chạy trong jail dùng một lần, không thấy daemon của jail session.
+
+**Lưu trữ và CLI**
+
+- Nội dung không có trong metadata; liệt kê khi vault khóa chỉ có key, trạng thái, thời gian.
+- Mọi lệnh `fugue tasks` chạy không cần TTY; `--json` có đủ field để script dùng.
+
+## 13. Để sang giai đoạn B
+
+Nhiều board mỗi workspace, workflow tùy biến, sync giữa thiết bị, liên kết với đọc code (H-19), giao task cho session khác, user sửa checklist, Kanban theo cột trong TUI.
+
+## 14. Phụ thuộc
+
+- Cần trước: [interaction](/dev-kit/core-harness/interaction) (H-24), [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (H-25), [an toàn nội dung](/dev-kit/core-harness/content-safety) (H-26, H-27), vault record (`internal/vault`).
+- Mảng liên quan: [hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan) (H-20), [context engine](/dev-kit/core-harness/context-engine), H-34 (lệnh verify, `key_prefix`), H-45 (lệnh `fugue tasks`, view session), [continuation](/dev-kit/core-harness/continuation) (goal có thể trỏ tới task ở giai đoạn B).

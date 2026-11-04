@@ -45,6 +45,7 @@ Model adapter đặt điểm cache sau L3 và ở cuối prompt. Request tóm t�
 
 - Mỗi khối ở L1–L3 có **tag ổn định** (ví dụ `<rules-user>`, `<workspace-memory-index>`). Khi một khối đổi, một message có nhãn cùng tag được gắn vào L5 với nội dung mới; model được dặn rằng khối mới nhất cùng tag thay khối cũ.
 - Khi compaction dựng lại view, các khối đã patch được gộp về trạng thái hiện hành ở L2–L3, nên prefix mới phản ánh đúng nội dung mới nhất.
+- Task đang claim, checklist và kế hoạch đã duyệt được gắn vào runtime context sau compaction và sau khi claim, trong envelope `source=task` ([task và checklist §6](/dev-kit/core-harness/tasks#6-context)).
 - Mọi patch và runtime context đi vào transcript qua event `ContextInjected`; không có đường ghi riêng.
 
 ### 2.2 Lắp context là hàm xác định

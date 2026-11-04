@@ -1,0 +1,115 @@
+---
+title: Hỏi user và kế hoạch
+description: H-20 — tool ask_user hỏi 1–4 câu có lựa chọn, tool plan nộp kế hoạch để duyệt ở mọi mode và là lối thoát Plan mode; thay đổi kind question của interaction; ràng buộc CLI-first.
+---
+
+# Hỏi user và kế hoạch
+
+Trạng thái: v0.13, ngày 2026-11-04. **Thiết kế đã chốt** cho phần `ask_user` và `plan` của H-20 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Phần `todo` của H-20 nằm ở [task và checklist](/dev-kit/core-harness/tasks). Trang này dùng kind `question` và lối thoát Plan mode của [interaction](/dev-kit/core-harness/interaction).
+
+## 1. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| AP-01 | `ask_user` hỏi **1–4 câu** trong một lần gọi; mỗi câu có tối đa 6 lựa chọn gợi ý; user luôn gõ tự do được |
+| AP-02 | Câu trả lời là **input của user**: không redact, không bọc envelope |
+| AP-03 | `plan` có mặt ở **mọi mode**: danh sách tool không đổi theo mode, nên prompt cache không bị phá |
+| AP-04 | Ở Plan mode, duyệt kế hoạch kèm chọn mode kế tiếp; **mode đổi bởi câu trả lời của user**, không bởi model |
+| AP-05 | Mọi interaction có **dạng text thuần** và trả lời được bằng một lệnh không tương tác (§5) |
+
+## 2. `ask_user`
+
+### 2.1 Args
+
+```json
+{"questions": [
+  {"id": "db", "question": "Dùng DB nào cho test?", "header": "DB test",
+   "options": [{"id": "pg", "label": "Postgres", "description": "Giống production"},
+               {"id": "sqlite", "label": "SQLite"}],
+   "multi_select": false}
+]}
+```
+
+| Field | Ràng buộc |
+| --- | --- |
+| `questions` | 1–4 phần tử; `id` duy nhất trong lời gọi |
+| `question` | Bắt buộc; ≤ 1 KiB |
+| `header` | Tùy chọn; ≤ 24 ký tự, nhãn ngắn để hiện trong danh sách |
+| `options` | 0–6 phần tử; `id` duy nhất trong câu; `label` ≤ 80 ký tự; `description` ≤ 300 ký tự |
+| `multi_select` | Tùy chọn; mặc định `false` |
+
+### 2.2 Hành vi
+
+- `risk = read`, `confirm = never`; chạy ở mọi mode, kể cả Plan.
+- `Prepare` dựng request kind `question` với `Spec.Questions` từ args canonical. Text của câu hỏi và lựa chọn là nội dung do model viết; owner không ghi chúng vào audit (interaction §4.3).
+- User phải trả lời **mọi** câu (chọn lựa chọn, gõ text, hoặc cả hai) hoặc hủy cả bộ. Không có trả lời từng phần.
+- Result cho model: mỗi câu một dòng gồm `id`, các lựa chọn đã chọn (theo `id` và `label`) và text của user. Kết quả `cancelled` thì model nhận câu "user không trả lời", không có nội dung.
+- Request không hết hạn và chờ khi không có client (I-07). Trong goal mode, vòng goal chờ câu trả lời và Fugue gửi thông báo.
+- Host headless: `unavailable`. Result nói rõ không hỏi được; model tiếp tục với giả định của mình và ghi giả định đó trong câu trả lời cuối.
+
+## 3. `plan`
+
+### 3.1 Args
+
+| Field | Ràng buộc |
+| --- | --- |
+| `plan` | Bắt buộc; markdown; ≤ 32 KiB |
+| `title` | Tùy chọn; ≤ 120 ký tự |
+
+### 3.2 Hành vi
+
+- `risk = read`, `confirm = never`; có mặt ở mọi mode.
+- `Prepare` dựng request kind `question` có **một câu hỏi do host dựng**; text kế hoạch đi kèm làm phần thân để client hiển thị.
+
+| Mode lúc gọi | Lựa chọn của user |
+| --- | --- |
+| Plan | "Duyệt, chuyển sang Ask", "Duyệt, chuyển sang Auto", "Duyệt, chuyển sang Full"; hoặc góp ý bằng text và ở lại Plan. Lựa chọn được chọn sẵn là mode trước khi vào Plan; không có thì là mode mặc định của workspace (H-34) |
+| Ask, Auto, Full | "Duyệt"; hoặc góp ý bằng text. Mode không đổi |
+
+- **Đổi mode:** khi user chọn "Duyệt, chuyển sang X", host gọi `SetSessionPolicy` với principal là user đã trả lời, revision hiện tại và `approval_mode = X`. Mode mới có hiệu lực từ step kế tiếp (interaction §3.2). Revision lệch (mode đã bị đổi ở chỗ khác) thì không đổi mode, result cho model ghi rõ mode hiện tại.
+- Result cho model: `approved` kèm mode hiệu lực, hoặc `feedback` kèm text góp ý của user, hoặc `cancelled`.
+- **Kế hoạch đã duyệt** mới nhất của session được lưu thành protected payload và trỏ tới từ `exec_session_policy.approved_plan_payload_id`. CLI hiện kế hoạch này; context engine gắn lại sau compaction ([task và checklist §6](/dev-kit/core-harness/tasks#6-context)).
+- Model tự chuyển kế hoạch thành checklist bằng `todo`; host không tự tách kế hoạch thành step.
+
+## 4. Thay đổi ở interaction
+
+| Chỗ | Thay đổi |
+| --- | --- |
+| `Spec` | `Prompt` thay bằng `Questions[]`: `id`, `question`, `header`, `options[]` (`id`, `label`, `description`), `multi_select`. Thêm `Body` (text kèm theo, dùng cho kế hoạch) |
+| `Decision` | Outcome `answered` mang `Answers[]`: `question_id`, `option_ids[]`, `text`. `Text` chỉ còn là lời nhắn khi `denied` |
+| `Receipt` | `AnswerText` thay bằng `Answers[]` |
+| Host API `Answer` | Thêm `answers[]` cho kind `question`; từ chối nếu thiếu câu, `option_id` không được đề nghị, nhiều lựa chọn ở câu không phải `multi_select`, hoặc text vượt 8 KiB mỗi câu |
+| View của request | Thêm `questions` và `body` |
+| Kiểm tra | Mọi câu có ít nhất một lựa chọn hoặc text không rỗng |
+
+## 5. Ràng buộc CLI-first
+
+Các ràng buộc này áp dụng cho mọi interaction của giai đoạn A, kể cả `confirm` và `select`; client là CLI/TUI (H-45).
+
+1. Mọi request có **dạng text thuần**: câu hỏi, lựa chọn đánh số, ô nhập text. TUI có thể vẽ form, nhưng không có thông tin nào chỉ hiện được trong TUI.
+2. Mọi request trả lời được bằng một lệnh không tương tác: `fugue answer <request_id> --choice 2 --text "…"`, với `--question <id>` khi có nhiều câu. `fugue pending` liệt kê request đang chờ, có `--json`.
+3. Text dài (kế hoạch, góp ý) đọc qua pager và nhập qua `$EDITOR`.
+4. Có request mới mà không có client nào đang hiện nó thì Fugue gửi thông báo của hệ điều hành; chi tiết thuộc H-45.
+
+## 6. Giới hạn
+
+| Mục | Giới hạn |
+| --- | --- |
+| Câu hỏi mỗi lời gọi | 4 |
+| Lựa chọn mỗi câu | 6 |
+| Text trả lời mỗi câu | 8 KiB |
+| Kế hoạch | 32 KiB |
+
+## 7. Evidence
+
+- `ask_user`: 1 và 4 câu; `multi_select`; gõ tự do không chọn lựa chọn; thiếu một câu thì `Answer` bị từ chối; hủy thì `cancelled`; headless thì `unavailable`; câu trả lời không bị redact và không nằm trong envelope.
+- `plan` ở Plan mode: duyệt kèm chuyển sang mỗi mode, mode đổi đúng ở step kế tiếp, principal của `SetSessionPolicy` là user; revision lệch thì không đổi mode; góp ý giữ Plan.
+- `plan` ở Ask, Auto, Full: chỉ có duyệt và góp ý; mode không đổi.
+- Kế hoạch đã duyệt được lưu và trỏ từ `exec_session_policy`; được gắn lại sau compaction.
+- Danh sách tool giống nhau ở mọi mode (cache key của prompt không đổi khi đổi mode).
+- `fugue answer` trả lời được mọi kind không cần TTY; `fugue pending --json` có đủ dữ liệu để trả lời.
+
+## 8. Phụ thuộc
+
+- Cần trước: [interaction](/dev-kit/core-harness/interaction) (H-24).
+- Mảng liên quan: [task và checklist](/dev-kit/core-harness/tasks) (`todo`, H-46), H-34 (mode mặc định của workspace), H-45 (hiển thị, `fugue answer`, thông báo), [continuation](/dev-kit/core-harness/continuation) (goal chờ câu trả lời).
