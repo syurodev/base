@@ -5,7 +5,7 @@ description: H-33 — client desktop của Fugue viết bằng Gio; binary riên
 
 # Desktop app
 
-Trạng thái: **đề xuất v0.2, ngày 2026-11-07, chờ chủ dự án duyệt**. v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) vẫn là client cho headless và script.
+Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B.
 
 ## 1. Phạm vi
 
@@ -32,8 +32,9 @@ Ngoài phạm vi giai đoạn A: Windows, đóng gói có ký, auto-update, nhi�
 | DA-04 | **Font đóng gói**: Inter cho chữ, JetBrains Mono cho code (đều OFL, có đủ tiếng Việt). Font hệ thống chỉ làm dự phòng cho ký tự thiếu |
 | DA-05 | **Ngân sách hiệu năng** (§9) là điều kiện phát hành, đo trên máy Ubuntu của chủ dự án |
 | DA-06 | **Gõ tiếng Việt** (Telex qua IBus, Wayland và X11) là điều kiện phát hành (DA-E02). Không đạt thì sửa trong Gio hoặc đóng góp upstream trước khi phát hành |
-| DA-07 | App dùng chung host với CLI; app có chế độ chạy nền (`app-background`) giữ host sống khi đóng cửa sổ ([cli](/dev-kit/core-harness/cli) CL-05) |
+| DA-07 | **v0.3**: app là client duy nhất của giai đoạn A và **tự khởi động host**: mở app mà chưa có host thì app chạy `fugue serve` tách riêng (process riêng, log trong data dir), chờ sẵn sàng tối đa 10 s rồi `Hello` ([cli](/dev-kit/core-harness/cli) §2.1). Lease và 10 s ân hạn theo cli §2.2. Chế độ chạy nền (`app-background`) giữ host sống khi đóng cửa sổ; đóng cửa sổ cuối mà còn phiên hoặc đội đang chạy và chưa bật chạy nền thì app hỏi trước (dừng hết rồi thoát, hoặc ở lại). Host cũ hoặc mới hơn app xử lý theo cli §2.3 |
 | DA-08 | Thao tác chính có phím tắt; giao diện sáng và tối |
+| DA-09 | Mọi việc của giai đoạn A làm được trên app: mở và khoá vault (master password nhập trong app, không bao giờ qua argv hay env), đăng nhập account (chạy lệnh login của CLI vendor), phiên, duyệt, đội, tích hợp. Test e2e dùng `pkg/client` thay cho CLI |
 
 ## 4. Kiến trúc
 
@@ -126,6 +127,7 @@ Ngưỡng phát hành trên máy Ubuntu của chủ dự án: **60 fps** khi str
 | **DA-E05** | Mọi hàng failure UX ở §6 có test e2e với host thật và vendor giả |
 | **DA-E06** | Arch test: module lõi không import module UI; app không có đường ghi ngoài Host API |
 | **DA-E07** | Thẻ đề xuất đội: sửa model và bỏ một nút rồi duyệt, host nhận đúng bản đã sửa; bảng đội 12 agent cập nhật state liên tục vẫn đạt ngưỡng §9 |
+| **DA-E08** | Vòng đời host theo app: mở app khi chưa có host thì host khởi động và app nối được; đóng cửa sổ cuối khi còn phiên chạy thì app hỏi; bật chạy nền thì host sống sau khi đóng cửa sổ; tắt chạy nền và không còn client thì host tắt sau 10 s |
 
 ## 11. Phụ thuộc
 

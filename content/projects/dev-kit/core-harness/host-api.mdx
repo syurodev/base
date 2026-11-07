@@ -17,7 +17,7 @@ Tham khảo: RPC mode của pi (JSONL qua stdio: command có `id`, response, eve
 | --- | --- |
 | HA-01 | **Host là process đang giữ data-directory lock (`fugue.lock`)**; host luôn mở một socket local cho client |
 | HA-02 | Contract dùng **protobuf với Connect** (`connect-go`, `connect-es`/`protobuf-es`, `buf`), **schema trước**; `buf breaking` chạy trong CI |
-| HA-03 | **v0.14**: client của giai đoạn A là **desktop app Gio** ([desktop app](/dev-kit/core-harness/desktop-app), H-33) và **CLI/TUI** ([cli](/dev-kit/core-harness/cli), H-45). Electron bỏ. Web, Telegram để sau. Bản v0.12: chỉ desktop trên Electron |
+| HA-03 | **v0.14 (sửa 2026-11-08)**: client duy nhất của giai đoạn A là **desktop app Gio** ([desktop app](/dev-kit/core-harness/desktop-app), H-33); CLI/TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B. Electron bỏ. Web, Telegram để sau. Bản v0.12: chỉ desktop trên Electron |
 | HA-04 | Truy cập từ xa (Telegram, điện thoại) với role riêng: **giai đoạn B** |
 | HA-05 | UI không chứa logic nghiệp vụ; mọi quyết định nằm trong lõi (H-43 kiểm kê phần còn sót) |
 | HA-06 | **v0.14**: phiên vendor gọi tool của Fugue qua `fugue mcp-bridge`, nối host bằng **token theo phiên** (principal `session`, §7). Token chỉ mở tool của đúng phiên và đúng vai trò, không bao giờ mở vault, duyệt quyền hay thao tác của user |
