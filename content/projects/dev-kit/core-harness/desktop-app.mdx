@@ -1,0 +1,132 @@
+---
+title: Desktop app
+description: H-33 — client desktop của Fugue viết bằng Gio; binary riêng nói chuyện với host qua Host API, màn hình transcript, composer với slash command, hộp duyệt, thẻ đề xuất đội, bảng đội dạng cây, account và quota, vault; renderer markdown riêng, font đóng gói, ngân sách hiệu năng và IME tiếng Việt.
+---
+
+# Desktop app
+
+Trạng thái: **đề xuất v0.2, ngày 2026-11-07, chờ chủ dự án duyệt**. v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) vẫn là client cho headless và script.
+
+## 1. Phạm vi
+
+App desktop để làm việc hằng ngày với Fugue trên Ubuntu và macOS: trò chuyện với phiên chính, duyệt đề xuất đội, theo dõi đội, duyệt quyền, xem và tích hợp kết quả, quản lý account và vault.
+
+Ngoài phạm vi giai đoạn A: Windows, đóng gói có ký, auto-update, nhiều cửa sổ, điện thoại.
+
+## 2. Vì sao Gio
+
+| Lựa chọn | Kết luận |
+| --- | --- |
+| Webview (Wails, Electron, Tauri) | Loại: nhiều khả năng là nguồn lag của DevKit và Orca trên Linux |
+| Fyne | Có widget sẵn và markdown, nhưng bó trong theme, IME tiếng Trung và fcitx5 còn lỗi mở |
+| GTK4 hoặc SwiftUI | Hai codebase UI |
+| **Gio** | Một codebase Go, immediate mode vẽ bằng GPU, toàn quyền giao diện; spike đạt (§9) |
+
+## 3. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| DA-01 | App là binary riêng `fugue-app` viết bằng **Gio**, module Go riêng trong repo; chỉ nói chuyện với host qua **Host API** (principal `local`, client kind `app`). Không có logic nghiệp vụ trong app (CL-03) |
+| DA-02 | Không webview, không widget terminal. Phiên hiển thị bằng [transcript](/dev-kit/core-harness/transcript); việc chỉ TUI làm được thì dùng nút "Mở trong terminal" ([vendor runtime §14](/dev-kit/core-harness/vendor-runtime#14-ux)) |
+| DA-03 | **Renderer markdown riêng** dựng trên goldmark, xuất layout của Gio. Không dùng `gioui.org/x/markdown` (spike: mất khoảng trắng quanh code và chữ đậm, tab thành ô vuông) |
+| DA-04 | **Font đóng gói**: Inter cho chữ, JetBrains Mono cho code (đều OFL, có đủ tiếng Việt). Font hệ thống chỉ làm dự phòng cho ký tự thiếu |
+| DA-05 | **Ngân sách hiệu năng** (§9) là điều kiện phát hành, đo trên máy Ubuntu của chủ dự án |
+| DA-06 | **Gõ tiếng Việt** (Telex qua IBus, Wayland và X11) là điều kiện phát hành (DA-E02). Không đạt thì sửa trong Gio hoặc đóng góp upstream trước khi phát hành |
+| DA-07 | App dùng chung host với CLI; app có chế độ chạy nền (`app-background`) giữ host sống khi đóng cửa sổ ([cli](/dev-kit/core-harness/cli) CL-05) |
+| DA-08 | Thao tác chính có phím tắt; giao diện sáng và tối |
+
+## 4. Kiến trúc
+
+- Một Go module riêng ở thư mục `ui/` của repo (`ui/cmd/fugue-app`, `ui/internal/...`), để cgo và dependency đồ hoạ không lọt vào module lõi; arch test chặn lõi import module UI. Module UI chỉ import một package client công khai do lõi xuất (code sinh từ proto hiện nằm dưới `internal/hostapi/internal/pb`, nên lõi cần thêm package client ngoài `internal/`, cùng với CLI dùng chung).
+- Client Connect sinh từ proto như CLI; một goroutine giữ stream theo topic và chuyển event vào vòng lặp UI qua channel; mọi state của UI chỉ đổi trên goroutine của cửa sổ.
+- Danh sách dài (transcript, task) dựng ảo hoá: chỉ layout phần đang thấy, cache kết quả layout theo `item_id` và `revision`.
+
+## 5. Màn hình
+
+| Màn hình | Nội dung |
+| --- | --- |
+| Thanh bên | Workspace; phiên nhóm theo đội; mỗi phiên có vendor, account, state, số yêu cầu chờ duyệt |
+| Transcript | Item theo [transcript §3](/dev-kit/core-harness/transcript#3-loại-item); `tool_call` và `reasoning` gập; diff mở tại chỗ |
+| Composer | Nhập nhiều dòng, IME; menu slash gồm nhóm của vendor và nhóm `fugue:` ([vendor runtime §9](/dev-kit/core-harness/vendor-runtime#9-slash-command)); chọn model và hồ sơ; nút dừng lượt |
+| Hộp duyệt | Mọi yêu cầu duyệt, câu hỏi "cần bạn", đề xuất và bổ sung đội đang chờ của mọi phiên; allow, deny kèm lời nhắn, grant theo phạm vi ([interaction](/dev-kit/core-harness/interaction)) |
+| Bảng đội | Cây agent của đội (§5.2) |
+| Chi tiết agent | Đặc tả task, transcript của agent, diff, kết quả check, review chéo; nhắn trực tiếp, dừng, chạy lại; duyệt tích hợp cuối của đội |
+| Account và quota | Account theo vendor, trạng thái (`ok`, `paused`, `needs_login`), mức dùng từng cửa sổ, thời điểm reset; thêm account bằng luồng login của CLI |
+| Vault | Mở khoá bằng master password khi host khởi động; khoá thủ công |
+| Cài đặt | Hồ sơ phiên và task, giới hạn scheduler, lệnh terminal ngoài |
+
+### 5.1 Thẻ đề xuất đội
+
+Item `team_proposal` hiện ngay trong transcript của phiên đề xuất và trong hộp duyệt ([orchestration §5.3](/dev-kit/core-harness/orchestration#53-đề-xuất-và-duyệt)):
+
+- Đầu thẻ: tên đội, bản tóm tắt, số agent, ước tính mức dùng cả đội, deadline.
+- Một cây xem trước giống bảng đội (§5.2) nhưng mọi nút ở trạng thái "đề xuất"; mỗi nút: vai trò, việc, `write_scope`, phụ thuộc, và một ô chọn **model** (theo vendor đã cài và account còn quota), ô chọn account, ước tính mức dùng.
+- Sửa tại chỗ: đổi model hoặc account, bỏ một nút, thêm nút từ danh mục vai trò, sửa ngân sách. Nút bị sửa có dấu "đã sửa".
+- Cảnh báo của Fugue hiện cạnh nút liên quan (vai trò mới, model không có trên account, quota gần ngưỡng, `write_scope` chồng nhau).
+- Bốn nút: **Duyệt**, **Duyệt có sửa** (hiện khi có thay đổi, thay cho Duyệt), **Làm một mình**, **Từ chối** kèm ô lời nhắn.
+
+Composer có nút "Lập đội" gửi `/fugue:team`; khi phiên đã là lead thì nút đó mở bảng đội.
+
+### 5.2 Bảng đội
+
+Cây agent từ trên xuống: lead ở gốc, trưởng nhóm ở tầng 2, thành viên thụt vào dưới trưởng nhóm, nối bằng đường thẳng.
+
+- **Thanh đầu**: số agent, số đang chạy, chip **cần bạn** (màu cảnh báo) và **thất bại** (màu lỗi) khi lớn hơn 0, mỗi chip mở danh sách để nhảy tới nút; tổng mức dùng của đội (phần trăm quota theo account, USD nếu là API key).
+- **Thẻ của mỗi agent**: vai trò, vendor và model, badge state ([orchestration §3.1](/dev-kit/core-harness/orchestration#31-task)), một dòng việc, biểu tượng các MCP hoặc tool chính đang bật, mức dùng, thời gian chạy, số agent con với nút gập.
+- Màu badge: đang chạy (xanh dương), xong (xanh lá), cần bạn (cam), thất bại (đỏ), `stopped` và `queued` (xám, thẻ mờ), `unknown` (tím). Task được chạy lại hiện ngay dưới bản cũ đã `stopped`.
+- Bấm một thẻ mở **chi tiết agent** ở panel bên: transcript của agent đó, diff, check; user nhắn trực tiếp được (người giao nhận một dòng theo [orchestration §6.2](/dev-kit/core-harness/orchestration#62-định-tuyến)).
+- Cập nhật theo topic `team:<id>`; thẻ chỉ vẽ lại khi revision của nó đổi.
+- Khi đội ở `final_review`, đầu bảng có nút **Xem và tích hợp** mở tóm tắt theo nhánh và toàn bộ diff của nhánh đội.
+
+## 6. Failure UX
+
+Mọi hàng ở [activation §3](/dev-kit/core-harness/activation#3-failure-ux-bắt-buộc) có trên app, cộng:
+
+| Tình huống | Hiển thị và hành động |
+| --- | --- |
+| CLI của vendor chưa cài hoặc version không hỗ trợ | Tên CLI, version thấy được, dải version đã kiểm; hướng dẫn cài |
+| Chưa đăng nhập vendor | Nút đăng nhập chạy lệnh login của CLI |
+| Phiên `detached` sau khi host khởi động lại | Nút resume hoặc đóng |
+| Task `unknown` | Trạng thái worktree, diff hiện có; tiếp tục, giữ diff, huỷ |
+| Account `paused` | Thời điểm reset do vendor báo; không đoán |
+
+## 7. Giới hạn
+
+| Giới hạn | Mặc định |
+| --- | --- |
+| Item layout sẵn ngoài vùng nhìn | 50 phía trên, 50 phía dưới |
+| Cache layout | 2.000 item |
+| Tần suất vẽ khi stream | Theo màn hình, tối đa 120 lần mỗi giây; delta được gộp ở host (30 lần mỗi giây) |
+
+## 8. Phân phối
+
+Giai đoạn A: build từ source (A-04). Linux có file `.desktop` và icon; macOS là app bundle không ký. Yêu cầu build trên Ubuntu: `gcc`, `pkg-config`, các gói dev của Wayland, X11, xkbcommon, EGL, GLES và Vulkan.
+
+## 9. Ngân sách hiệu năng
+
+Spike ngày 2026-11-07 (transcript giả 2.000 item gồm markdown, code, card tool, diff; stream 600 ký tự mỗi giây với markdown dựng lại mỗi frame) trên MacBook M3 Pro, màn 120 Hz:
+
+| Pha | fps | Layout p95 | CPU (một core) | RAM |
+| --- | --- | --- | --- | --- |
+| Stream | 120 | 2,7 ms | 34% | 157 MB |
+| Cuộn | 120 | 2,9 ms | 33% | 157 MB |
+| Rảnh | gần 0 | — | 0,3% | 157 MB |
+| 10.000 item, 3.000 ký tự mỗi giây | 120 | 3,7 ms | 42% | 198 MB |
+
+Ngưỡng phát hành trên máy Ubuntu của chủ dự án: **60 fps** khi stream và cuộn với 2.000 item, layout p95 ≤ 8 ms, CPU khi rảnh ≤ 1% một core, RAM ≤ 300 MB.
+
+## 10. Evidence
+
+| ID | Nội dung |
+| --- | --- |
+| **DA-E01** | Ngưỡng §9 đạt trên máy Ubuntu của chủ dự án, ghi bản ghi live |
+| **DA-E02** | Gõ Telex qua IBus trên Ubuntu (Wayland và X11) và bộ gõ của macOS: chữ đang soạn hiện đúng, commit đúng, backspace xoá đúng một ký tự |
+| **DA-E03** | Renderer markdown: golden cho khoảng trắng quanh code và chữ đậm, list, bảng, code block có tab, link |
+| **DA-E04** | Mất kết nối host: app hiện trạng thái, tự nối lại và đọc bù từ sequence |
+| **DA-E05** | Mọi hàng failure UX ở §6 có test e2e với host thật và vendor giả |
+| **DA-E06** | Arch test: module lõi không import module UI; app không có đường ghi ngoài Host API |
+| **DA-E07** | Thẻ đề xuất đội: sửa model và bỏ một nút rồi duyệt, host nhận đúng bản đã sửa; bảng đội 12 agent cập nhật state liên tục vẫn đạt ngưỡng §9 |
+
+## 11. Phụ thuộc
+
+H-42 ([host API](/dev-kit/core-harness/host-api)), H-48 ([transcript](/dev-kit/core-harness/transcript)), H-47 ([vendor runtime](/dev-kit/core-harness/vendor-runtime)), H-49 ([orchestration](/dev-kit/core-harness/orchestration)), H-24 ([interaction](/dev-kit/core-harness/interaction)).

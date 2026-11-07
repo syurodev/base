@@ -1,0 +1,239 @@
+---
+title: Vendor runtime
+description: H-47 — Fugue chạy CLI chính chủ của vendor (Claude Code, Codex, Antigravity) bằng chính login của user qua surface có cấu trúc; adapter và capability contract, giữ mặc định của vendor, duyệt quyền, process, resume, slash command và các bài học từ Agent Hub của DevKit.
+---
+
+# Vendor runtime
+
+Trạng thái: **đề xuất v0.1, ngày 2026-11-07, chờ chủ dự án duyệt**. Trang này thay quyết định A-01 cũ ("chỉ native runtime") theo [activation](/dev-kit/core-harness/activation) v0.14. Mảng H-47 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map).
+
+Tham khảo đã nghiên cứu: Agent Hub của DevKit (`internal/acp`, `internal/agenthub`, trang `agent-hub`), [stablyai/orca](https://github.com/stablyai/orca) (ba lớp nối với CLI, hook, orchestration), [earendil-works/pi](https://github.com/earendil-works/pi) và [NousResearch/hermes-agent](https://github.com/nousresearch/hermes-agent) (harness native, cách auth gói sub), cùng các spike ngày 2026-11-07 trên máy chủ dự án (§12).
+
+## 1. Phạm vi
+
+Fugue khởi chạy và điều khiển **CLI chính chủ của vendor**, chạy bằng login của chính user, để dùng gói đăng ký (Claude, ChatGPT/Codex, Google) mà không vi phạm điều khoản. Fugue giữ vault, storage, policy, scheduler và UI; vendor giữ vòng lặp model và tool của nó.
+
+| Trong phạm vi | Ngoài phạm vi |
+| --- | --- |
+| Claude Code (`claude`), Codex (`codex`), Antigravity CLI (`agy`) | Gọi API của provider bằng token gói sub (bị chặn hoặc tính phí riêng, §2) |
+| Surface có cấu trúc chính chủ của từng CLI (§5) | Nhúng TUI của vendor, widget terminal, parse output dạng text |
+| Phiên solo và các phiên trong đội: lead, trưởng nhóm, thành viên ([orchestration](/dev-kit/core-harness/orchestration)) | Bridge ACP của cộng đồng; đọc file nội bộ của vendor làm nguồn sự thật |
+| Duyệt quyền qua policy của Fugue, process, resume, slash command | ZCode (§5.4, chờ kiểm chứng); Windows |
+
+Transcript chuẩn hoá ở [transcript](/dev-kit/core-harness/transcript) (H-48). Lập đội, lead, trưởng nhóm, thành viên, account và tích hợp kết quả ở [orchestration](/dev-kit/core-harness/orchestration) (H-49). Tầng native (kernel của Fugue gọi model qua API key, OpenRouter) giữ thiết kế hiện có và vào giai đoạn B (M-12).
+
+## 2. Vì sao là CLI chính chủ
+
+| Đường | Kết quả nghiên cứu |
+| --- | --- |
+| OAuth gói Claude trong app bên thứ ba | Anthropic chỉ trừ vào **extra usage** của gói Max, không bao giờ vào hạn mức gốc; gói Pro không dùng được (tài liệu provider của Hermes). Design đã cấm từ trước (M-03) |
+| OAuth Antigravity hoặc Gemini CLI trong harness khác | Google khoá hàng loạt tài khoản từ 02/2026; lệnh cấm vẫn còn; pi đã gỡ hẳn hai provider này |
+| Gói GLM Coding Plan qua SDK hoặc app tự viết | Usage policy của Z.ai chỉ cho dùng trong tool được hỗ trợ; vi phạm bị giới hạn, quá ba lần có thể bị khoá |
+| Codex qua client ID của Codex CLI | Trái M-10 |
+| **Chạy chính CLI của hãng** | Hợp lệ: chính hãng xác thực và tính hạn mức. Spike xác nhận `claude -p` dùng đúng hạn mức 5 giờ và 7 ngày của gói |
+
+## 3. Bài học từ Agent Hub của DevKit
+
+Agent Hub chạy vendor qua ACP và không ổn định. Mỗi nguyên nhân có một quyết định chặn lại:
+
+| Nguyên nhân ở DevKit | Quyết định |
+| --- | --- |
+| Claude không có ACP chính chủ; dùng `claude-agent-acp` của Zed, cách ly permission dựa vào `_meta.claudeCode.options` ngoài spec, đổi là mất lặng lẽ | VR-02: chỉ surface chính chủ; `_meta` và field ngoài schema không bao giờ là điều kiện an toàn |
+| Field chuẩn mỏng, dữ liệu thật nằm trong `_meta` riêng của vendor | VR-07: adapter khai báo capability và được kiểm bằng conformance theo version ghim |
+| Jail của DevKit đánh nhau với auth của gói sub (keychain, `USER`, `~/.claude`) | VR-04: giữ sandbox mặc định của vendor; Fugue không bọc jail quanh CLI |
+| Session tương tác chạy lâu, mirror transcript, permission hỏi qua lại | VR-05, H-48: một transcript chuẩn hoá do adapter sinh, duyệt quyền qua policy |
+| `invokeAgent` chặn chờ | [orchestration](/dev-kit/core-harness/orchestration) OR-03: giao việc không chặn, mailbox |
+| Khối dữ liệu lạ bị bỏ qua | VR-08: event lạ thành item có kiểu, không bị bỏ |
+
+## 4. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| VR-01 | Phiên vendor là **domain riêng** (`internal/vendor`, store `internal/vendorstore`), không phải native run giả ([architecture](/dev-kit/core-harness/architecture)). Dùng chung host, Host API, vault, storage, policy duyệt quyền, scheduler |
+| VR-02 | Chỉ dùng **surface có cấu trúc chính chủ**: `claude -p` stream-json hai chiều, `codex app-server`, `agy acp`. Không bridge cộng đồng, không parse TUI. Field mở rộng (`_meta`, extension) chỉ để đọc thêm thông tin, không bao giờ là điều kiện cho một bảo đảm |
+| VR-03 | Fugue **không đọc, chép, lưu hay refresh credential gói sub** của vendor. Đăng nhập bằng lệnh login của chính CLI. Ngoại lệ duy nhất: API key mà user muốn dùng qua CLI (ví dụ key Z.ai cho Claude Code trỏ endpoint GLM) nằm trong vault và được bơm vào env của đúng process đó |
+| VR-04 | **Giữ mặc định của vendor**: sandbox, permission rule, config, plugin, skill, MCP của user. Thay đổi chỉ là tuỳ chọn opt-in theo hồ sơ (§7) |
+| VR-05 | Mọi yêu cầu duyệt mà surface phát ra đi tới **policy của Fugue** thay cho người bấm duyệt; dùng nguyên semantics của [interaction](/dev-kit/core-harness/interaction) (mode, grant scope, luật cứng env tag I-03, chờ khi không có client I-07). Mọi quyết định có receipt |
+| VR-06 | Phiên solo và lead chạy ở thư mục user chọn. Trưởng nhóm và thành viên chạy trong **worktree do Fugue tạo**; commit, branch, rebase và merge để tích hợp kết quả do Fugue làm ([orchestration](/dev-kit/core-harness/orchestration) OR-11) |
+| VR-07 | Mỗi adapter khai báo **capability contract** (§6). UI và policy chỉ dựa vào capability đã khai báo; capability được kiểm bằng conformance trên version ghim |
+| VR-08 | **Ghim version**: mỗi adapter có dải version đã kiểm. Version mới hơn vẫn chạy, kèm cảnh báo "chưa kiểm"; event không nhận ra thành item `notice(unsupported_event)` có tham chiếu payload gốc, không bao giờ bị bỏ lặng lẽ |
+| VR-09 | Mỗi phiên là một **process có cây con được giám sát** (§8). Dừng theo thứ tự interrupt của giao thức → SIGINT → SIGTERM → SIGKILL cả cây. Không có stop proof thì kết quả là `unknown`, không đoán |
+| VR-10 | Lượt đang chạy mà kết quả không rõ thì **không bao giờ tự chạy lại**. Resume phiên vendor chỉ khi user hoặc lead yêu cầu, bằng lệnh resume của chính vendor |
+| VR-11 | **Slash command**: lệnh do vendor công bố được chuyển nguyên; Codex dùng bảng ánh xạ sang RPC (port từ DevKit, đo lại); lệnh của Fugue nằm trong namespace `fugue:` và chạy ở host (§9) |
+| VR-12 | ZCode và CLI khác chỉ thêm khi có surface có cấu trúc chính chủ và qua đủ evidence của trang này |
+
+## 5. Surface của từng vendor
+
+Đã kiểm trên máy chủ dự án ngày 2026-11-07: `claude` 2.1.319, `codex` 0.167.0, `agy` 1.5.2.
+
+### 5.1 Claude Code
+
+- Lệnh: `claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --permission-prompt-tool mcp__fugue__approve --mcp-config <cấu hình bridge của Fugue>`, thêm `--resume <id>` khi resume, `--model`, `--effort` khi hồ sơ chọn.
+- Hội thoại nhiều lượt: mỗi tin nhắn user là một dòng JSON trên stdin; stdout là luồng event (`system/init`, `assistant`, `user` mang `tool_result`, `result`, `rate_limit_event`, `stream_event` khi bật partial).
+- Duyệt quyền: khi Claude Code **theo rule của chính nó** cần hỏi, nó gọi tool MCP `approve` của Fugue (`--permission-prompt-tool`). Fugue trả allow, deny hoặc input đã sửa. Rule và mode mặc định của user giữ nguyên (VR-04).
+- Dừng lượt: control message interrupt trên stdin (dạng mà Claude Agent SDK chính chủ dùng; xác nhận trong VR-E01); không phản hồi trong 10 s thì SIGINT.
+- Quota: `rate_limit_event` mang cửa sổ `five_hour`, `seven_day`, `utilization`, `resetsAt`.
+- Slash command: `init.slash_commands`; ẩn các lệnh trong `init.terminal_slash_commands` (lệnh chỉ chạy trong TUI).
+- Version và danh tính: `init.claude_code_version`, `session_id`, `model`, `permissionMode`.
+
+### 5.2 Codex
+
+- Lệnh: `codex app-server` (JSON-RPC qua stdio). Schema sinh bằng `codex app-server generate-json-schema` cho mỗi version ghim và được lưu làm fixture.
+- Luồng: `thread/start` hoặc resume, `turn/start`, notification `item/*` (tin nhắn, reasoning, lệnh, file change), `turn/completed`.
+- Duyệt quyền: request `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`, `item/permissions/requestApproval` đi tới policy. Approval policy mặc định của Codex giữ nguyên; Fugue chỉ trả lời những gì Codex hỏi.
+- Điều khiển: `turn/interrupt`, `turn/steer`.
+- Quota: `account/rateLimits/read` và notification `account/rateLimits/updated`.
+- Slash command: app-server không tự chạy slash command. Fugue công bố bảng lệnh và chạy mỗi lệnh qua RPC tương ứng (port `codex_commands.go` của DevKit, đo lại trên 0.167). Chỉ lệnh đã đo mới có trong bảng.
+- Spike cho thấy `codex exec` ở sandbox `workspace-write` **không commit được trong linked worktree** (`.git/worktrees/<name>/index.lock` nằm ngoài vùng ghi). Đó là lý do git thuộc Fugue (VR-06).
+
+### 5.3 Antigravity
+
+- Lệnh: `agy acp` (ACP chính chủ của Google, protocol version 1).
+- Handshake đã kiểm: `initialize` trả `loadSession`, `resume`, `close`, `list`, `additionalDirectories`, prompt có ảnh và embedded context. `session/new` trả `models`, `modes`, `configOptions`.
+- Luồng: `session/prompt`, notification `session/update` (message chunk, tool call, plan, `available_commands_update`), `session/cancel`.
+- Duyệt quyền: `session/request_permission` đi tới policy. Spike cho thấy ở chế độ print, mode `accept-edits` và `auto` đều từ chối lệnh shell; với ACP, yêu cầu này về policy của Fugue, cần evidence VR-E07.
+- `_meta.antigravity` chỉ đọc thêm thông tin (VR-02).
+- Quota: chưa có tín hiệu local; scheduler coi là "không biết" ([orchestration](/dev-kit/core-harness/orchestration) OR-09).
+
+### 5.4 Ngoài danh sách
+
+- **GLM**: gói Coding Plan chỉ dùng được trong tool được Z.ai hỗ trợ; Claude Code nằm trong danh sách đó. Fugue chạy GLM bằng adapter Claude với một account home riêng, `ANTHROPIC_BASE_URL` trỏ endpoint Anthropic của Z.ai và key Z.ai lấy từ vault (VR-03). Cần evidence VR-E12 trước khi bật.
+- **ZCode**: chờ kiểm có surface có cấu trúc chính chủ (VR-12).
+
+## 6. Adapter và capability contract
+
+```go
+// Port của domain vendor; mỗi CLI có một implementation trong internal/vendor/<name>.
+type Adapter interface {
+	Probe(ctx context.Context, home AccountHome) (Probe, error) // version, đã đăng nhập chưa, capability
+	Start(ctx context.Context, spec StartSpec) (Session, error)
+}
+
+type Session interface {
+	Send(ctx context.Context, in Input) (TurnRef, error)            // tin nhắn hoặc slash command
+	Interrupt(ctx context.Context, turn TurnRef) error
+	Steer(ctx context.Context, turn TurnRef, in Input) error        // ErrUnsupported nếu không có capability
+	Resolve(ctx context.Context, req ApprovalRef, d Decision) error
+	Close(ctx context.Context, reason CloseReason) (StopProof, error)
+}
+```
+
+Event gốc đi qua **normalizer** của adapter thành item transcript ([transcript](/dev-kit/core-harness/transcript)) và event domain (§10). Adapter không ghi storage; nó báo về actor của phiên, actor là người ghi duy nhất.
+
+| Capability | Claude | Codex | agy |
+| --- | --- | --- | --- |
+| Duyệt từng yêu cầu | Khi Claude cần hỏi (`--permission-prompt-tool`) | Lệnh, file change, permission | `session/request_permission` |
+| Chặn mọi tool call (hồ sơ `strict`) | Hook `PreToolUse` | Không | Không |
+| Interrupt | Control message, SIGINT | `turn/interrupt` | `session/cancel` |
+| Steer giữa lượt | Tin nhắn stream-json | `turn/steer` | Không (gửi lượt mới) |
+| Resume | `--resume <session_id>` | Resume thread | `session/load` |
+| Delta từng đoạn | `--include-partial-messages` | Notification item | `session/update` chunk |
+| Slash command | `init.slash_commands` | Bảng của Fugue | `available_commands_update` |
+| Quota trực tiếp | `rate_limit_event` | `account/rateLimits/*` | Không |
+| Danh sách model | Không | Có | `session/new.models` |
+
+## 7. Mặc định và tuỳ chọn opt-in
+
+Mặc định Fugue chạy CLI đúng như khi user tự mở: home mặc định của vendor, plugin, skill, MCP và permission rule của user. Hồ sơ phiên (profile) bật thêm:
+
+| Tuỳ chọn | Claude | Codex | agy |
+| --- | --- | --- | --- |
+| Cô lập config của user | `--setting-sources project --strict-mcp-config --disable-slash-commands` | Profile `-p` riêng, tắt plugin bằng `-c` | `--disable-slash-commands` |
+| Permission mode | `--permission-mode`, `--allowedTools` | `-c approval_policy`, sandbox level | Mode của ACP |
+| Chặn mọi tool call qua policy | Hook `PreToolUse` của Fugue | — | — |
+| Thư mục thêm | `--add-dir` | Writable root | `additionalDirectories` |
+| Model và effort | `--model`, `--effort` | Tham số `turn/start` | Model trong `session/new` hoặc config option của phiên |
+| Giới hạn | `--max-turns`, `--max-budget-usd` | Deadline của Fugue | Deadline của Fugue |
+
+Tên cờ của Codex và agy được xác nhận trong conformance của version ghim; cờ không tồn tại thì hồ sơ bị từ chối khi tạo, không âm thầm bỏ qua.
+
+Chi phí của mặc định: phiên kéo theo plugin của user làm tăng token cố định mỗi lượt (spike: một task nhỏ của Codex dùng khoảng 83 nghìn token đầu vào). Quota tracker tính phần này; hồ sơ worker nên bật cô lập khi cần tiết kiệm.
+
+## 8. Process và tài nguyên
+
+- **Env**: allowlist gồm `PATH`, `HOME`, `USER`, `LOGNAME`, `LANG`, `TERM=dumb`, biến home của vendor (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) khi dùng account phụ, và biến hồ sơ cho phép. Không bao giờ có secret của Fugue; key từ vault (VR-03) chỉ vào đúng process cần.
+- **Cây process**: mỗi phiên ở process group riêng. Trên Linux, phiên chạy trong scope systemd của user (`systemd-run --user --scope`, cgroup v2) với `MemoryMax` và `CPUWeight` do scheduler cấp; cgroup rỗng là **stop proof**. Trên macOS, host ghi lại mọi pid con thấy được (đọc bảng process qua `sysctl kern.proc` theo chu kỳ, không cần cgo) và kill cả danh sách; không có stop proof, kết quả dừng là `unknown`.
+- **Thứ tự dừng**: interrupt của giao thức → 10 s → SIGINT → 5 s → SIGTERM → 5 s → SIGKILL cả cây. Spike: SIGTERM vào Codex để lại một process con mồ côi đã tự `setsid`; SIGINT thì Codex dọn sạch.
+- **Stdout** đọc liên tục; một dòng JSON vượt 8 MiB làm phiên lỗi có kiểu (`frame_too_large`). **Stderr** giữ ring buffer 64 KiB, redact trước khi ghi log.
+- **Spawn lỗi** (không tìm thấy binary, chưa đăng nhập, version không hỗ trợ) hiện ngay ở UI với hành động sửa; không tạo phiên.
+
+## 9. Slash command
+
+- Nguồn danh sách: Claude `init.slash_commands` trừ `terminal_slash_commands`; agy `available_commands_update`; Codex bảng của Fugue (VR-11). Danh sách cập nhật khi vendor gửi lại.
+- Quy tắc của composer (giữ từ DevKit): lệnh là **toàn bộ prompt**; gợi ý tên bắt đầu bằng chuỗi đang gõ trước, tên chứa chuỗi đó sau, giữ thứ tự của vendor.
+- Lệnh của Fugue có dạng `/fugue:<tên>` (ví dụ `/fugue:team`, `/fugue:solo`, `/fugue:account`), hiện thành nhóm riêng trong cùng menu, chạy ở host và **không bao giờ gửi cho vendor**. Prompt bắt đầu bằng `/fugue:` mà không khớp lệnh nào bị từ chối, không chuyển cho vendor.
+
+## 10. State, event và lưu trữ
+
+Phiên có state machine thuần trong `internal/vendor` (không clock, không I/O, cùng quy tắc với kernel):
+
+| State | Nghĩa |
+| --- | --- |
+| `starting` | Đang spawn và handshake |
+| `ready` | Chờ input |
+| `running` | Có lượt đang chạy |
+| `awaiting_approval` | Có yêu cầu duyệt chưa trả lời (lượt vẫn mở) |
+| `waiting(reason)` | `vault_locked`, `quota(account)`, `capacity` |
+| `detached` | Host khởi động lại sau khi process đã dừng; resume được nếu vendor hỗ trợ |
+| `closed` | Đã đóng, có stop proof hoặc `unknown` ghi kèm |
+
+Lượt kết thúc bằng `completed`, `interrupted`, `failed(code)` hoặc `unknown` (process chết giữa lượt, không có event kết thúc). Spike: không CLI nào phát event kết thúc khi bị kill.
+
+Event domain (append-only, sequence theo phiên, projection trong cùng transaction như [event storage](/dev-kit/core-harness/event-storage-recovery)): `VendorSessionStarted`, `VendorTurnStarted`, `TranscriptItemRecorded`, `ApprovalRequested`, `ApprovalDecided`, `VendorTurnEnded`, `UsageObserved`, `QuotaObserved`, `VendorProcessExited`, `VendorSessionClosed`. Nội dung (tin nhắn, args, output, diff) là **payload được bảo vệ** dưới khóa của session ([storage-security](/dev-kit/core-harness/storage-security)); metadata theo INV-09. Bảng thuộc `internal/vendorstore`, cùng file database, migration riêng.
+
+## 11. Failure và recovery
+
+| Tình huống | Hành vi |
+| --- | --- |
+| Process chết giữa lượt | Lượt `unknown`, phiên `closed` với stop proof hoặc `unknown`; UI đề nghị resume (lượt mới) hoặc đóng |
+| Host crash | Process con nhận EOF trên stdin và tự thoát; khởi động lại, host tìm pid đã ghi (pid kèm thời điểm bắt đầu), kill cây còn sót, đánh dấu phiên `detached`, lượt dở `unknown` |
+| Vault bị khoá | Không ghi được payload: interrupt lượt đang chạy, phiên `waiting(vault_locked)`; mở vault rồi tiếp tục bằng lượt mới |
+| Yêu cầu duyệt khi không có client | Chờ (I-07); host headless thì từ chối có kiểu |
+| Hết quota giữa lượt | Lượt `failed(quota)`, account `paused`; [orchestration](/dev-kit/core-harness/orchestration) quyết định giao lại |
+| Event lạ hoặc version chưa kiểm | Item `notice(unsupported_event)`, payload gốc giữ lại, bộ đếm hiện ở UI |
+| Chưa đăng nhập hoặc token hết hạn | Lượt `failed(auth)`; UI mở luồng login của chính CLI |
+
+## 12. Bảo mật
+
+- Output của vendor, transcript, báo cáo của agent trong đội là **dữ liệu không tin cậy**, không bao giờ là lệnh cho Fugue.
+- Fugue phục vụ tool MCP cho phiên qua lệnh `fugue mcp-bridge`, nối vào host bằng socket với **token theo phiên** (principal `session`, [host API §7](/dev-kit/core-harness/host-api#7-principal-và-tin-cậy)); token chỉ mở tool của đúng phiên và đúng vai trò.
+- Luật cứng của interaction (I-03) áp lên mọi yêu cầu duyệt Fugue nhận được. Những gì vendor tự cho phép theo rule của nó thì Fugue chỉ quan sát; muốn chặn mọi tool call thì bật hồ sơ `strict` (chỉ Claude).
+- Kiểm tra tĩnh: package của Fugue không mở file credential của vendor (`.credentials.json`, `auth.json`, keychain item của vendor).
+
+## 13. Giới hạn mặc định
+
+| Giới hạn | Mặc định |
+| --- | --- |
+| Phiên vendor đồng thời trên host | Theo scheduler ([orchestration](/dev-kit/core-harness/orchestration) §7) |
+| Một dòng JSON từ vendor | 8 MiB |
+| Ring buffer stderr | 64 KiB |
+| Chờ interrupt, SIGINT, SIGTERM | 10 s, 5 s, 5 s |
+| Thời gian handshake | 30 s |
+
+## 14. UX
+
+- Danh sách phiên hiện vendor, account, vai trò, state; phiên `detached` có nút resume.
+- Mỗi yêu cầu duyệt hiện ở hộp duyệt chung với nội dung theo [interaction](/dev-kit/core-harness/interaction).
+- Nút "Mở trong terminal" chạy lệnh resume của vendor (`claude --resume`, `codex resume`, `agy --conversation`) trong terminal emulator user cấu hình, cho những việc chỉ TUI làm được.
+- Cảnh báo "chưa kiểm" khi version CLI nằm ngoài dải ghim.
+
+## 15. Evidence
+
+| ID | Nội dung |
+| --- | --- |
+| **VR-E01** | Conformance Claude: fixture stream-json ghi từ CLI thật (đã redact) phát lại qua normalizer cho ra transcript đúng golden; chạy trong CI không cần account |
+| **VR-E02** | Conformance Codex: tương tự, cộng so khớp schema `generate-json-schema` của version ghim |
+| **VR-E03** | Conformance agy: tương tự, cộng handshake ACP |
+| **VR-E04** | Duyệt quyền end-to-end với account thật cho cả ba vendor: allow, deny, sửa input (Claude), luật cứng env tag luôn hỏi |
+| **VR-E05** | Dừng và kill cây: lượt chạy `sleep` dài, dừng theo thứ tự §8; không còn process mồ côi (gồm ca Codex tự `setsid`); Linux có stop proof qua cgroup |
+| **VR-E06** | Host crash giữa lượt: phiên `detached`, lượt `unknown`, không tự chạy lại, cây cũ bị kill |
+| **VR-E07** | agy qua ACP: lệnh shell đi qua `session/request_permission` tới policy và chạy được khi được duyệt |
+| **VR-E08** | Event lạ thành `notice(unsupported_event)`, không bị bỏ; version ngoài dải hiện cảnh báo |
+| **VR-E09** | Env của process vendor không chứa secret của Fugue; kiểm tĩnh không có đường đọc credential của vendor |
+| **VR-E10** | Slash command: danh sách của Claude và agy hiện đúng, lệnh terminal bị ẩn; bảng Codex chạy đúng RPC trên version ghim; `/fugue:` không bao giờ tới vendor |
+| **VR-E11** | Vault khoá giữa lượt: lượt bị interrupt, phiên `waiting(vault_locked)`, không ghi payload trần |
+| **VR-E12** (B) | GLM qua Claude Code trỏ endpoint Z.ai với key từ vault |
+
+## 16. Phụ thuộc
+
+H-24 ([interaction](/dev-kit/core-harness/interaction)), H-42 ([host API](/dev-kit/core-harness/host-api)), H-03 ([storage-security](/dev-kit/core-harness/storage-security)), H-48 ([transcript](/dev-kit/core-harness/transcript)), H-49 ([orchestration](/dev-kit/core-harness/orchestration)).

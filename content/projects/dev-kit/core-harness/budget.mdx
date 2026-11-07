@@ -83,6 +83,8 @@ Quan sát gần nhất cũ hơn 15 phút thì CLI đánh dấu "chưa cập nh�
 
 ## 3. Chọn và chuyển account
 
+Mục này áp dụng cho tầng native. Phiên vendor (giai đoạn A từ v0.14) dùng lại `PickAccount` và các chiến lược dưới đây nhưng chỉ chuyển account **ở ranh giới task**, với tín hiệu quota của chính CLI ([orchestration §8](/dev-kit/core-harness/orchestration#8-quota-và-account)).
+
 - `PickAccount` ([model adapter §7](/dev-kit/core-harness/model-adapter#7-account-auth-và-chọn-model-h-09)) đọc owner **trước mỗi attempt**, chỉ chọn account `available` hoặc `unknown` của đúng provider và **đúng loại auth** của account đang dùng, trong danh sách `model.accounts` của workspace nếu có.
 - Chiến lược theo `model.account_strategy`: `order`, `best`, `consumeFirst`. `best` tính cả số attempt đang chạy để rải các session sang account còn nhiều quota. Account được giữ 5 phút để tận dụng prompt cache.
 - **Chuyển account** khi account đang dùng thành `reserved`, `exhausted`, `paused` hoặc `auth_failed`. Gặp lỗi hết hạn mức thì attempt đó được thử lại **ngay** bằng account khác, không tính vào backoff hay retry budget.

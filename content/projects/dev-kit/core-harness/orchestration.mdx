@@ -1,0 +1,345 @@
+---
+title: Orchestration
+description: H-49 — agent tự quyết làm một mình hay đề xuất lập đội; đề xuất đội cho user duyệt với vai trò và model; đội nhiều tầng như team thật để lead không bị đổ mọi thông tin; task và hợp đồng thành viên, luồng thông tin theo ngoại lệ, scheduler theo slot và quota, nhiều account, Fugue giữ git, tích hợp theo tầng, cổng kết quả, ngân sách và recovery.
+---
+
+# Orchestration
+
+Trạng thái: **đề xuất v0.2, ngày 2026-11-07, chờ chủ dự án duyệt**. v0.2 thêm lập đội theo đề xuất (§5), đội nhiều tầng và luồng thông tin theo ngoại lệ (§6), tích hợp theo tầng (§9). Mảng H-49 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-30 (team cho native) ở giai đoạn A. Chạy trên [vendor runtime](/dev-kit/core-harness/vendor-runtime) (H-47), hiển thị qua [transcript](/dev-kit/core-harness/transcript) (H-48) và [desktop app](/dev-kit/core-harness/desktop-app) (H-33).
+
+Tham khảo đã nghiên cứu: orchestration của [Orca](https://github.com/stablyai/orca) (`worker-start`, mailbox, đánh thức coordinator, "silence never proves exit"), `delegate_task` và credential pool của [Hermes](https://github.com/nousresearch/hermes-agent) (`output_schema`, giao kết quả at-least-once, bảng xoay account theo lỗi), `PickAccount` của Agent Hub ([budget và quota §3](/dev-kit/core-harness/budget)), spike swarm ngày 2026-11-07 (§14), và mẫu giao diện cây agent do chủ dự án cung cấp (orchestrator, trưởng nhóm, thành viên; badge "cần bạn" và "thất bại"; chi phí theo từng nút; task thất bại được thay bằng lần chạy mới).
+
+## 1. Phạm vi
+
+User làm việc với một phiên chính. Việc nhỏ thì phiên đó tự làm. Việc lớn thì nó **đề xuất lập đội**: các vai trò, model cho từng vai trò, việc của từng vai trò, thứ tự phụ thuộc; user duyệt hoặc sửa rồi Fugue dựng đội. Đội có tối đa ba tầng như một team thật: **lead** giao việc cho **trưởng nhóm**, trưởng nhóm giao cho **thành viên**. Mỗi tầng chỉ nhận tóm tắt từ tầng ngay dưới, nên lead không phải ôm mọi chi tiết.
+
+Mỗi agent là một phiên vendor (Claude, Codex, agy) trong worktree riêng. Fugue lên lịch theo tài nguyên và quota, giữ git, kiểm kết quả, định tuyến câu hỏi và yêu cầu duyệt, và chỉ tích hợp khi kết quả qua cổng.
+
+Ngoài phạm vi giai đoạn A: độ sâu lớn hơn 2, tin nhắn trực tiếp giữa hai thành viên ngang hàng, agent trên máy khác, tự chuyển vendor giữa chừng một task.
+
+## 2. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| OR-01 | Bốn vai trò phiên: **solo** (phiên thường), **lead** (gốc của một đội), **trưởng nhóm** (nhận một mảng, được giao việc tiếp), **thành viên** (nhận một task, không giao việc). Một **đội** là cây gồm lead, trưởng nhóm và thành viên, gắn với một workspace. Độ sâu tối đa 2 |
+| OR-02 | **Làm một mình là mặc định.** Phiên chỉ thành lead khi user duyệt một **đề xuất đội** (§5). Không agent nào khởi động agent khác ngoài kế hoạch đã duyệt, trừ chạy lại task thất bại trong giới hạn (§5.4) |
+| OR-03 | Giao việc qua **tool MCP của Fugue**, không chặn: tool trả ngay; người giao kết thúc lượt; Fugue **đánh thức** người giao bằng bản tóm tắt (§6). Không ai poll |
+| OR-04 | **Mỗi tầng chỉ thấy tầng ngay dưới.** Kết quả đi lên dưới dạng tóm tắt ngắn kèm tham chiếu; nội dung đầy đủ được kéo khi cần, không đẩy (§6.3) |
+| OR-05 | **Định tuyến theo người quyết.** Yêu cầu duyệt quyền tool đi thẳng tới user; câu hỏi về việc đi tới người giao trực tiếp; lỗi cơ học do Fugue tự xử (§6.2) |
+| OR-06 | Agent nhận **đặc tả task có cấu trúc** (§4), báo kết quả qua `fugue_task_done`, hỏi qua `fugue_task_ask`. Báo cáo là dữ liệu không tin cậy |
+| OR-07 | Model của từng task lấy từ **danh mục vai trò** (§5.2) và quota hiện có; lead đề nghị, user chốt trên đề xuất. **Không tự chuyển vendor** giữa chừng một task |
+| OR-08 | **Scheduler ba tầng slot**: theo account, toàn máy, và lệnh nặng (§7) |
+| OR-09 | **Cổng quota**: ngừng giao việc mới cho account khi bất kỳ cửa sổ nào vượt 85%; account hết hạn mức thì `paused` tới thời điểm reset vendor báo, không đoán (§8) |
+| OR-10 | **Nhiều account mỗi vendor** là opt-in theo vendor, tắt mặc định, kèm cảnh báo điều khoản. Chỉ chuyển account **ở ranh giới task**; không trộn gói sub với API key (M-09) |
+| OR-11 | **Fugue giữ mọi thao tác git** để tích hợp. Tích hợp **theo tầng**: thành viên vào nhánh của người giao, trưởng nhóm vào nhánh đội, nhánh đội vào nhánh đích chỉ khi user duyệt (§9) |
+| OR-12 | **Cổng kết quả** chạy trước mỗi lần tích hợp: phạm vi ghi, quét secret, kích thước, lệnh kiểm do Fugue tự chạy, review chéo tuỳ chọn (§10) |
+| OR-13 | User duyệt ở **hai điểm cố định**: kế hoạch đội và lần tích hợp cuối vào nhánh đích; cộng với yêu cầu duyệt quyền theo policy và câu hỏi gửi user. Hồ sơ đội có thể bắt duyệt từng task |
+| OR-14 | Mỗi task và mỗi đội có **ngân sách**. Im lặng chỉ dẫn tới escalation lên người giao, không tự kill (§11) |
+| OR-15 | Task và đội là bản ghi bền. Host khởi động lại thì task đang chạy thành `unknown`; Fugue kiểm tra worktree và báo người giao, **không tự chạy lại** (§12) |
+
+## 3. Vòng đời
+
+### 3.1 Task
+
+| State | Nghĩa |
+| --- | --- |
+| `queued` | Chờ slot, quota hoặc task phụ thuộc |
+| `starting` | Đang tạo worktree và phiên |
+| `running` | Agent đang làm |
+| `asking` | Agent hỏi người giao hoặc user, chờ trả lời |
+| `checking` | Agent đã báo xong; Fugue chạy cổng kết quả |
+| `review` | Qua cổng, chờ người giao (hoặc user nếu hồ sơ yêu cầu) duyệt |
+| `integrating` | Trong merge queue của nhánh đích ở tầng trên |
+| `done` | Đã tích hợp, hoặc kết quả là báo cáo không có diff |
+| `failed(code)` | Agent báo thất bại, cổng từ chối, hết ngân sách, hết quota mà không giao lại |
+| `stopped` | Người giao dừng, hoặc đã được thay bằng một lần chạy lại |
+| `cancelled` | User huỷ |
+| `unknown` | Host khởi động lại giữa chừng; cần quyết định |
+
+Task của trưởng nhóm chỉ sang `checking` khi mọi task con đã ở trạng thái cuối.
+
+Event của task ghi cùng store với phiên vendor (`internal/vendorstore`): `TaskCreated`, `TaskAssigned` (phiên, account), `TaskQuestionAsked`, `TaskQuestionAnswered`, `TaskReported`, `TaskCheckCompleted`, `TaskReviewed`, `TaskIntegrated`, `TaskEnded`.
+
+### 3.2 Đội
+
+| State | Nghĩa |
+| --- | --- |
+| `proposed` | Đề xuất đang chờ user |
+| `active` | Đã duyệt; task đang chạy |
+| `final_review` | Mọi task ở trạng thái cuối; nhánh đội chờ user duyệt tích hợp |
+| `done`, `cancelled`, `failed` | Kết thúc |
+
+Event: `TeamProposed`, `TeamDecided` (duyệt, duyệt có sửa, làm một mình, từ chối), `TeamAmended`, `TeamEnded`.
+
+## 4. Đặc tả task và hợp đồng agent
+
+| Field | Bắt buộc | Nội dung |
+| --- | --- | --- |
+| `role` | Có | Vai trò trong kế hoạch đã duyệt (§5.2) |
+| `goal` | Có | Việc cần làm, tự đủ nghĩa |
+| `context` | Không | Thông tin người giao đã biết, đường dẫn liên quan |
+| `write_scope` | Có | Glob các path được sửa; rỗng nghĩa là task chỉ đọc |
+| `deliverable` | Có | `diff`, `report` hoặc cả hai |
+| `depends_on` | Không | Task phải xong trước; Fugue tự khởi động khi đủ và đưa tóm tắt của chúng vào đầu vào (§6.4) |
+| `checks` | Không | Lệnh Fugue chạy để kiểm (§10); mỗi lệnh đi qua policy như một tool call |
+| `output_schema` | Không | JSON Schema cho phần kết quả có cấu trúc |
+| `profile` | Không | Ghi đè vendor, model, effort của vai trò ([vendor runtime §7](/dev-kit/core-harness/vendor-runtime#7-mặc-định-và-tuỳ-chọn-opt-in)); chỉ trong phạm vi user đã duyệt |
+| `budget` | Không | Ghi đè ngân sách mặc định (§11) |
+
+Agent nhận một đoạn mở đầu do Fugue sinh (task ID, vai trò, mục tiêu, phạm vi ghi, bản tóm tắt đội, cách báo kết quả) cùng tool MCP:
+
+- `fugue_task_done(summary, output?, status)`: `status` là `succeeded` hoặc `failed`; `summary` tối đa 1 KiB, phần dài để trong `output` hoặc file báo cáo; `output` được kiểm với `output_schema`. Sai schema thì **không bỏ kết quả**: task vẫn sang `checking`, kèm `schema_valid = false` và lỗi, để người giao quyết.
+- `fugue_task_ask(question, to?)`: `to` là `parent` (mặc định) hoặc `user`; task sang `asking`.
+- `fugue_team_brief()`: đọc bản tóm tắt đội và ghi chú đội (§6.5).
+- Agent kết thúc lượt mà không gọi `fugue_task_done` thì Fugue nhắc một lần; lần thứ hai thì task `failed(no_report)` kèm tóm tắt lượt cuối.
+
+## 5. Lập đội
+
+### 5.1 Tự phân loại việc
+
+Mọi phiên có hồ sơ cho phép lập đội đều thấy tool `fugue_team_propose`. Mô tả tool hướng dẫn model:
+
+- **Làm một mình** khi việc gọn trong một mảng, không có phần chạy song song được, hoặc ngắn.
+- **Đề xuất đội** khi có ít nhất hai phần độc lập chạy song song được, việc ước chừng dài hơn khoảng 30 phút nếu làm một mình, hoặc có phần hợp với model khác rẻ hơn hay giỏi hơn (thu thập dữ liệu, review, test).
+
+Đây là hướng dẫn, không phải luật; quyết định nằm ở user khi duyệt. User cũng có thể chủ động: `/fugue:team` chạy ở host và gửi cho phiên một lượt nguồn `fugue` yêu cầu đề xuất đội cho việc hiện tại, `/fugue:solo` tắt lập đội cho phiên đó. Fugue không bao giờ tự lập đội thay model.
+
+### 5.2 Danh mục vai trò
+
+Workspace có **danh mục vai trò**; mỗi vai trò gồm tên, mô tả, hồ sơ mặc định (vendor, model, effort, hồ sơ phiên), quyền (`read` hoặc `write`), có được làm trưởng nhóm không, và `checks` mặc định. Lần đầu chạy, Fugue tạo danh mục khởi đầu từ các CLI đã cài, ví dụ:
+
+| Vai trò | Quyền | Hồ sơ gợi ý | Ghi chú |
+| --- | --- | --- | --- |
+| `researcher` | read | Claude Sonnet | Trưởng nhóm được |
+| `scraper` | read | agy với model Flash | Việc nhiều, rẻ |
+| `coder` | write | Codex | Trưởng nhóm được |
+| `tester` | write (chỉ thư mục test) | Codex model mini | `checks` mặc định là test của repo |
+| `reviewer` | read | Vendor khác với người viết | Dùng cho review chéo |
+| `writer` | write (docs) | Claude Sonnet | |
+
+User sửa danh mục trong cài đặt. Đề xuất dùng tên vai trò trong danh mục hoặc vai trò mới; vai trò mới được đánh dấu rõ trên thẻ duyệt.
+
+### 5.3 Đề xuất và duyệt
+
+`fugue_team_propose(title, brief, roles[], tasks[], budget?)` trả proposal ID ngay; phiên kết thúc lượt. `roles` là danh sách vai trò cùng hồ sơ; `tasks` là cây task với `role`, `goal`, `write_scope`, `depends_on`, và task nào thuộc trưởng nhóm nào.
+
+Đề xuất hiện thành item `team_proposal` trong transcript ([transcript §3](/dev-kit/core-harness/transcript#3-loại-item)) và trong hộp duyệt. Fugue bổ sung vào thẻ:
+
+- Account sẽ dùng cho từng vai trò và quota còn lại của account đó.
+- **Ước tính** mức dùng mỗi vai trò: trung vị của 20 task gần nhất cùng vai trò và model, hiển thị là phần trăm cửa sổ quota (gói sub) hoặc USD (API key); chưa có dữ liệu thì ghi "chưa có dữ liệu", không đoán.
+- Cảnh báo: vai trò mới, model không có trên account, account gần ngưỡng OR-09, hai task có `write_scope` chồng nhau mà không có `depends_on`.
+
+User chọn:
+
+| Quyết định | Kết quả |
+| --- | --- |
+| **Duyệt** | Đội `active`; Fugue khởi động các task không có phụ thuộc |
+| **Duyệt có sửa** | User đổi model, account, bỏ hoặc thêm vai trò, sửa ngân sách; phiên nhận bản đã duyệt cùng danh sách thay đổi |
+| **Làm một mình** | Phiên tiếp tục solo, kèm lời nhắn của user nếu có |
+| **Từ chối** | Kèm lời nhắn; phiên có thể đề xuất lại |
+
+Kết quả đánh thức phiên như mọi thư (§6.1). Hồ sơ đội có tuỳ chọn **tự duyệt** (tắt mặc định) cho đề xuất chỉ dùng vai trò có sẵn trong danh mục, không quá N agent và không có vai trò ghi; thẻ vẫn hiện để user xem.
+
+### 5.4 Thay đổi khi đội đang chạy
+
+- **Chạy lại**: người giao được khởi động lại một task thất bại, cùng vai trò và cùng model, tối đa 2 lần mỗi task, không cần duyệt. Task cũ thành `stopped`, task mới liên kết là attempt kế tiếp.
+- **Bổ sung**: thêm vai trò mới, đổi vendor, hoặc vượt số agent đã duyệt cần `fugue_team_amend`; thẻ nhỏ vào hộp duyệt của user, lead nhận một dòng thông báo.
+- Trưởng nhóm chỉ giao việc trong phần vai trò và số lượng mà kế hoạch giao cho nhóm của mình.
+
+## 6. Luồng thông tin
+
+Mục tiêu: mỗi agent chỉ nhận thông tin nó phải quyết; mọi thứ còn lại nằm trên bảng đội cho user xem và được kéo về khi cần.
+
+### 6.1 Mailbox và đánh thức
+
+- Mỗi lead và trưởng nhóm có **mailbox**. Khi phiên đang rảnh, Fugue gửi một **lượt mới** nguồn `fugue` (`user_message` origin `fugue` trong [transcript](/dev-kit/core-harness/transcript)) chứa bản tóm tắt.
+- **Gom thông báo**: chờ tối đa 30 s hoặc tới khi cả nhóm task cùng phụ thuộc xong, rồi gửi một bản. Một bản tối đa 8 KiB; vượt thì phần cuối chỉ còn task ID và trạng thái.
+- Phiên đang chạy lượt thì thư chờ tới khi lượt xong. Câu hỏi đứng đầu bản tóm tắt.
+- Giao thư **at-least-once** qua crash; mỗi thư có ID, đã nhận thì không gửi lại.
+
+### 6.2 Định tuyến
+
+| Thông tin | Đi tới | Không đi tới |
+| --- | --- | --- |
+| Tiến độ chi tiết (tool call, delta, plan) | Transcript của chính agent và bảng đội | Người giao |
+| Yêu cầu duyệt quyền tool | Hộp duyệt của user, theo policy của [interaction](/dev-kit/core-harness/interaction) | Người giao |
+| Câu hỏi về việc (`to = parent`) | Người giao trực tiếp. Người giao trả lời, chuyển lên một tầng, hoặc chuyển cho user | Lead gốc, trừ khi được chuyển lên |
+| Câu hỏi gửi user (`to = user`) | Hộp duyệt của user, nhãn "cần bạn"; người giao nhận một dòng | |
+| Lỗi cơ học: sai phạm vi ghi lần đầu, ref lock, hết quota khi còn account khác | Fugue tự xử (trả về agent, thử lại, giao lại account), ghi vào bảng | Người giao, trừ khi cần quyết |
+| Kết quả và thất bại cuối | Người giao trực tiếp, tóm tắt kèm tham chiếu | Tầng trên nữa |
+| Im lặng quá ngân sách | Người giao trực tiếp | |
+| Tin nhắn user gửi thẳng cho một agent | Agent đó; người giao nhận một dòng | |
+
+Trưởng nhóm gửi kết quả của **cả nhóm** lên lead như một báo cáo: lead chỉ thấy một mục cho mỗi trưởng nhóm, không thấy từng thành viên.
+
+### 6.3 Kéo thay vì đẩy
+
+Kết quả đầy đủ (báo cáo, `output`, output của check, diff) nằm trong store và nhánh git; thư chỉ chứa tóm tắt tối đa 1 KiB mỗi task, kết quả check, số dòng diff và tham chiếu. Người giao đọc thêm khi cần:
+
+- `fugue_task_status(task_id)`: trạng thái, ngân sách, task con.
+- `fugue_task_result(task_id, part, offset?, limit?)`: đọc từng phần (`summary`, `output`, `report`, `checks`, `diff`), có phân trang.
+
+### 6.4 Phụ thuộc thay cho chuyển lời
+
+Lead mô tả thứ tự bằng `depends_on` một lần trong kế hoạch. Khi mọi task phụ thuộc xong, Fugue khởi động task sau và đưa vào đầu vào của nó tóm tắt cùng tham chiếu kết quả của các task trước, kèm quyền đọc các kết quả đó qua `fugue_task_result`. Lead không phải chép lại kết quả của người này cho người kia.
+
+### 6.5 Bản tóm tắt và ghi chú đội
+
+Mỗi đội có **bản tóm tắt** (`brief` trong đề xuất: mục tiêu chung, quy ước, ràng buộc) và **ghi chú đội** chỉ thêm, nơi lead và trưởng nhóm ghi quyết định chung (giao diện giữa hai mảng, tên API, quy ước). Mọi agent trong đội đọc qua `fugue_team_brief`. Thành viên không ghi; phát hiện của thành viên đi lên qua kết quả.
+
+### 6.6 Tool theo vai trò
+
+| Tool | Lead | Trưởng nhóm | Thành viên |
+| --- | --- | --- | --- |
+| `fugue_team_propose` | Khi còn solo | Không | Không |
+| `fugue_team_amend`, `fugue_team_note` (ghi ghi chú đội) | Có | Có | Không |
+| `fugue_task_start`, `fugue_task_retry`, `fugue_task_send`, `fugue_task_answer`, `fugue_task_cancel`, `fugue_task_accept`, `fugue_task_reject` | Task con trực tiếp | Task con trực tiếp, trong phần của nhóm | Không |
+| `fugue_task_status`, `fugue_task_result` | Task con trực tiếp | Task con trực tiếp | Task mà nó phụ thuộc |
+| `fugue_task_done`, `fugue_task_ask` | Không | Có | Có |
+| `fugue_team_brief` | Có | Có | Có |
+
+## 7. Scheduler
+
+| Tầng | Mặc định | Lý do |
+| --- | --- | --- |
+| Phiên đồng thời mỗi account | 6 | Spike: 10 phiên mỗi CLI không gặp 429 với task ngắn; chừa biên cho task dài |
+| Agent toàn máy | `min(8, (RAM − 4 GiB) / 400 MiB)` | Spike: khoảng 200–240 MiB mỗi phiên, cộng phần cho tool agent chạy |
+| Lệnh nặng (`checks` và lệnh agent tự bọc) | `max(1, số core / 4)` | CPU yếu là nút cổ chai thật; phiên CLI gần như chỉ chờ mạng |
+
+- Fugue chạy `checks` dưới semaphore lệnh nặng. Agent được dặn bọc build và test bằng `fugue exclusive -- <lệnh>`, dùng chung semaphore qua Host API. Fugue không ép được lệnh mà vendor tự chạy; trên Linux mỗi phiên trong đội có `CPUWeight` thấp hơn phiên lead để máy vẫn phản hồi.
+- Task chờ slot ở `queued`; ưu tiên task của trưởng nhóm, sau đó theo thứ tự tạo. Bảng đội hiện vị trí trong hàng đợi.
+- Mọi giá trị chỉnh được trong cấu hình workspace ([workspace](/dev-kit/core-harness/workspace)).
+
+## 8. Quota và account
+
+**Account** là một thư mục home của vendor. Account chính dùng home mặc định (`~/.claude`, `~/.codex`, home của agy), nên config và plugin của user áp dụng. Account phụ có home do Fugue tạo, **dùng chung** settings, plugin và skill (symlink tới home chính), chỉ tách credential. Đăng nhập bằng lệnh login của chính CLI trong home đó; Fugue không chạm vào credential ([vendor runtime](/dev-kit/core-harness/vendor-runtime) VR-03).
+
+Tín hiệu quota:
+
+| Vendor | Nguồn | Có thời điểm reset |
+| --- | --- | --- |
+| Claude | `rate_limit_event` (`five_hour`, `seven_day`) | Có |
+| Codex | `account/rateLimits/*` (cửa sổ 300 phút và 10.080 phút) | Có |
+| agy | Không có | Không |
+
+Mức dùng của một task là chênh lệch tín hiệu quota quanh task trên account đó, chia đều cho các task cùng chạy trên account trong khoảng đó; đây là ước tính và được hiện là ước tính.
+
+Chọn account cho task mới theo `PickAccount` ([budget §3](/dev-kit/core-harness/budget)): chiến lược `order` (mặc định), `best` hoặc `consumeFirst`; giữ account vừa dùng 5 phút để tận dụng cache; bỏ qua account vượt ngưỡng (OR-09) hoặc `paused`.
+
+Phân loại lỗi (theo credential pool của Hermes):
+
+| Tín hiệu | Hành động |
+| --- | --- |
+| Hết hạn mức của gói | Account `paused` tới `resetsAt`; task đang chạy `failed(quota)`; còn account khác thì Fugue giao lại (dưới), không thì người giao nhận thông báo |
+| 429 tạm thời | Vendor tự retry; Fugue không can thiệp |
+| Lỗi xác thực | Account `needs_login`; task `failed(auth)` |
+| Model không có trên gói của account | Account bị loại **cho model đó**, các model khác vẫn dùng |
+| Mọi account của vendor đều không dùng được | Task chờ `waiting(quota)`; không tự chuyển vendor |
+
+**Giao lại khi hết quota**: task mới (attempt mới) trên account khác cùng vendor và model, đầu vào gồm đặc tả cũ, diff hiện có trong worktree và tóm tắt tiến độ. Không chép history phiên vendor sang account khác. Đổi account làm mất prompt cache; bảng đội ghi rõ điều này.
+
+Cảnh báo điều khoản khi bật nhiều account: Anthropic cấm chia sẻ account và giả định "ordinary, individual usage"; có báo cáo OpenAI giới hạn số account trả phí trên một thiết bị. Chỉ dùng account do chính user sở hữu; mỗi lần chuyển được ghi log.
+
+## 9. Git và tích hợp theo tầng
+
+- Mỗi đội có nhánh `fugue/team/<team-id>` tạo từ commit gốc mà lead chọn (mặc định HEAD của lead lúc user duyệt). Mỗi task có worktree `<data dir>/worktrees/<repo-id>/<task-id>` trên nhánh `fugue/task/<task-id>`, tạo từ nhánh của người giao (nhánh đội cho task của lead).
+- Thao tác cấp repo (thêm và xoá worktree, tạo nhánh, rebase, merge, xoá nhánh) đi qua **mutex theo repo** của Fugue. Fugue chạy git với `-c gc.auto=0`; ref lock lỗi thì thử lại tối đa 3 lần với backoff (spike: `cannot lock ref` xuất hiện từ 8 worktree commit song song).
+- Agent được sửa file và tự commit nếu vendor cho phép; Fugue không chặn (VR-04). Khi agent báo xong, Fugue chụp **commit kết quả** gồm mọi thay đổi chưa commit, trên nhánh của task.
+
+Tích hợp:
+
+| Bước | Ai duyệt (mặc định) | Đích |
+| --- | --- | --- |
+| Thành viên xong | Trưởng nhóm, sau cổng kết quả | Nhánh của trưởng nhóm |
+| Trưởng nhóm xong | Lead, sau cổng kết quả | Nhánh đội |
+| Task trực tiếp của lead xong | Lead, sau cổng kết quả | Nhánh đội |
+| Đội xong | **User**, xem tóm tắt theo nhánh và toàn bộ diff | Nhánh đích của workspace |
+
+- **Merge queue** cho mỗi nhánh đích: lần lượt rebase nhánh task lên đích mới nhất, chạy lại `checks`, fast-forward.
+- Người giao có quyền ghi và đang có thay đổi riêng: Fugue chỉ tích hợp task con **ở ranh giới lượt** của người giao, sau khi chụp commit thay đổi của nó. Conflict thì người giao (chủ nhánh) tự giải trong worktree của mình; không giải được thì chuyển lên.
+- Hồ sơ đội có tuỳ chọn bắt user duyệt mọi bước có diff (cách của v0.1).
+- Worktree được giữ tới khi đội kết thúc cộng 24 giờ; dọn bằng `fugue task prune`.
+
+## 10. Cổng kết quả
+
+Chạy trước mỗi bước tích hợp ở §9, theo thứ tự, dừng ở bước đầu tiên thất bại:
+
+1. **Phạm vi ghi**: mọi file thay đổi khớp `write_scope`. Ngoài phạm vi thì trả task về agent kèm danh sách, một lần; lần sau thì `failed(scope)`.
+2. **Secret**: quét diff theo [an toàn nội dung](/dev-kit/core-harness/content-safety); có secret thì dừng, cần user quyết.
+3. **Kích thước**: diff vượt 5.000 dòng hoặc 200 file cần user duyệt rõ.
+4. **Check**: Fugue chạy `checks` trong worktree, dưới semaphore lệnh nặng, mỗi lệnh qua policy. Kết quả lưu làm item `tool_call` trong transcript của task.
+5. **Review chéo** (tuỳ chọn theo vai trò): một phiên vendor khác chỉ đọc review diff, ví dụ Codex review diff của Claude.
+6. **Duyệt** theo bảng ở §9.
+
+## 11. Ngân sách và watchdog
+
+| Ngân sách | Mặc định | Vượt thì |
+| --- | --- | --- |
+| Deadline của task | 60 phút | Interrupt agent, task `failed(deadline)`, worktree giữ lại |
+| Số lượt của agent | 50 | Như trên, `failed(turns)` |
+| Im lặng (không event nào) | 10 phút | Escalation tới người giao; không kill |
+| Task con trực tiếp đang chạy của một người giao | 4 | Task mới chờ `queued` |
+| Agent trong một đội (gồm cả lần chạy lại) | 12 | Cần `fugue_team_amend` |
+| Deadline của đội | 4 giờ | Ngừng khởi động task mới; user quyết |
+| Độ sâu | 2 | Thành viên không có tool giao việc |
+
+Deadline dùng timer bền của host. Im lặng hay timeout không bao giờ được coi là bằng chứng agent đã dừng.
+
+## 12. Failure và recovery
+
+| Tình huống | Hành vi |
+| --- | --- |
+| Host khởi động lại khi có task đang chạy | Phiên `detached`, task `unknown`; Fugue chụp trạng thái worktree, báo người giao. Người giao chọn tiếp tục (resume phiên hoặc task mới), giữ diff, hoặc huỷ |
+| Agent chết giữa lượt | Task `unknown` như trên |
+| Trưởng nhóm `unknown` khi thành viên còn chạy | Thành viên chạy tiếp; thư của chúng chờ trong mailbox của trưởng nhóm; lead nhận thông báo và có thể tiếp quản nhóm |
+| Lead đóng trong khi đội chạy | Đội chạy tiếp; thư chờ tới khi lead mở lại |
+| Repo bị đổi ngoài Fugue trong lúc merge | Rebase lại trong merge queue; conflict thì về chủ nhánh |
+| Ổ đĩa đầy khi tạo worktree | Task `failed(disk)`; scheduler ngừng tạo worktree tới khi đủ chỗ |
+
+## 13. Bảo mật
+
+- Tool MCP của Fugue cho mỗi phiên dùng token theo phiên và vai trò ([vendor runtime §12](/dev-kit/core-harness/vendor-runtime#12-bảo-mật)); tập tool theo §6.6 được kiểm ở host, không tin claim của phiên.
+- Báo cáo, câu hỏi, ghi chú đội và output của agent vào người giao dưới dạng dữ liệu có nhãn nguồn, không phải chỉ dẫn của user.
+- Đề xuất đội là dữ liệu do model viết: thẻ duyệt hiện đúng nội dung sẽ chạy (vai trò, model, account, `write_scope`, `checks`), không chỉ phần mô tả.
+- `checks` do model viết, nên mỗi lệnh đi qua policy của [interaction](/dev-kit/core-harness/interaction) như mọi tool call, gồm luật cứng env tag.
+
+## 14. Số liệu tham chiếu
+
+Spike trên MacBook M3 Pro (11 core, 18 GB), ngày 2026-11-07, máy đang có tải khác:
+
+| Phép đo | Kết quả |
+| --- | --- |
+| 30 phiên song song (10 mỗi CLI), task nhỏ | 30/30 xong trong khoảng 28 s, không 429 |
+| RAM | Khoảng 200–240 MiB mỗi phiên |
+| CPU của chính CLI | Dưới 1 core cho cả 30 phiên |
+| Quota mỗi task nhỏ | Claude Haiku khoảng 0,12% cửa sổ 5 giờ; Codex khoảng 0,4% |
+| Git | `cannot lock ref` từ 8 worktree commit song song; 16 worktree chậm gấp 7 lần |
+
+Máy Ubuntu hằng ngày của chủ dự án có CPU yếu hơn và RAM nhiều hơn; giá trị mặc định ở §7 được chỉnh lại sau OR-E01.
+
+## 15. Evidence
+
+| ID | Nội dung |
+| --- | --- |
+| **OR-E01** | Swarm drill trên Linux của chủ dự án: 8 agent, đo RAM, CPU, độ phản hồi của UI; chỉnh mặc định §7 theo kết quả |
+| **OR-E02** | Giao việc không chặn: `fugue_task_start` trả ngay; người giao được đánh thức đúng một bản tóm tắt cho một nhóm task |
+| **OR-E03** | Agent sai `output_schema`: kết quả giữ lại với `schema_valid = false` |
+| **OR-E04** | Phạm vi ghi: thay đổi ngoài `write_scope` bị phát hiện và trả về agent |
+| **OR-E05** | Merge queue: hai task sửa cùng file vào tuần tự; task thứ hai rebase, conflict về chủ nhánh |
+| **OR-E06** | Git: 16 worktree thao tác song song qua Fugue không có lỗi ref lock lọt ra ngoài |
+| **OR-E07** | Cổng quota với tín hiệu giả: account vượt 85% không nhận task mới; `paused` mở lại đúng `resetsAt` |
+| **OR-E08** | Hết quota giữa task: task `failed(quota)`, giao lại trên account khác với diff và tóm tắt |
+| **OR-E09** | Host crash với task đang chạy: task `unknown`, không tự chạy lại, người giao nhận báo cáo |
+| **OR-E10** | Tập tool theo §6.6: thành viên không gọi được tool giao việc; token của thành viên không mở được tool của lead; trưởng nhóm không giao vai trò ngoài phần của nhóm |
+| **OR-E11** | `checks` đi qua policy; lệnh nhắm target `prod` luôn hỏi user |
+| **OR-E12** (stable) | Chủ dự án chạy một đội thật (lead Claude, trưởng nhóm và thành viên Codex và agy) trên repo thật tới khi merge |
+| **OR-E13** | Đề xuất đội: trước khi user duyệt không task nào khởi động; model user sửa trên thẻ là model task chạy; phiên nhận đúng danh sách thay đổi; "Làm một mình" giữ phiên solo |
+| **OR-E14** | Định tuyến: yêu cầu duyệt quyền của thành viên tới hộp duyệt của user mà không có thư nào vào mailbox của lead; câu hỏi `to = parent` chỉ tới người giao trực tiếp |
+| **OR-E15** | Tải của lead: đội 1 lead, 3 trưởng nhóm, 6 thành viên chạy tới khi xong với vendor giả; lead không nhận event nào của thành viên, số lần đánh thức không quá số trưởng nhóm cộng số câu hỏi được chuyển lên, mỗi bản tóm tắt ≤ 8 KiB |
+| **OR-E16** | Chạy lại: người giao chạy lại task thất bại tối đa 2 lần không cần duyệt; lần thứ ba và vai trò mới cần amend |
+| **OR-E17** | Tích hợp theo tầng: thành viên vào nhánh trưởng nhóm, trưởng nhóm vào nhánh đội; nhánh đích chỉ đổi sau khi user duyệt |
+| **OR-E18** | `depends_on`: task sau chỉ khởi động khi task trước xong và nhận tóm tắt cùng quyền đọc kết quả của task trước |
+
+## 16. Phụ thuộc
+
+H-47 ([vendor runtime](/dev-kit/core-harness/vendor-runtime)), H-48 ([transcript](/dev-kit/core-harness/transcript)), H-33 ([desktop app](/dev-kit/core-harness/desktop-app)), H-24 ([interaction](/dev-kit/core-harness/interaction)), H-06 ([budget và quota](/dev-kit/core-harness/budget)), H-34 ([workspace](/dev-kit/core-harness/workspace)), H-26 ([an toàn nội dung](/dev-kit/core-harness/content-safety)).

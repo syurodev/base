@@ -24,6 +24,8 @@ Tham khảo: pi-ai (stream chuẩn hóa, auth, chuyển model, system message v�
 | M-09 | Với gói ChatGPT, **không bao giờ tự chuyển sang đường tính tiền khác** (API key). Tự chuyển giữa các tài khoản ChatGPT của chính user được phép (v0.13, [budget và quota §3.1](/dev-kit/core-harness/budget#31-gói-chatgpt)) |
 | M-10 | Không dùng lại token, client ID hay home của Codex CLI; không gọi endpoint `backend-api` của ChatGPT. Chỉ dùng luồng đăng ký chính thức của DevKit |
 | M-11 | **Fugue giai đoạn A đảo M-01** (A-02, 2026-11-03): adapter thật đầu tiên là OpenAI Responses với Sign in with ChatGPT, và đây là provider duy nhất của giai đoạn A. API key OpenAI, Anthropic và failover giữa account (M-04) sang giai đoạn B ([phát hành giai đoạn A](/dev-kit/core-harness/activation)) |
+| M-12 | **v0.14 đề xuất (2026-11-07)**: Fugue giai đoạn A không gọi model qua API; model chạy trong CLI chính chủ của vendor ([vendor runtime](/dev-kit/core-harness/vendor-runtime), A-01, A-02 v0.14). Tầng native của trang này sang B, với **OpenRouter** (API key) là provider đầu tiên; Sign in with ChatGPT (M-08) theo sau. M-11 chỉ còn là lịch sử |
+| M-13 | **Không dùng token gói sub ngoài CLI của hãng**, kể cả khi kỹ thuật cho phép: OAuth Claude trong app bên thứ ba chỉ trừ extra usage; Google khoá account dùng OAuth Antigravity hoặc Gemini CLI trong harness khác; gói GLM Coding Plan chỉ dùng trong tool được Z.ai hỗ trợ. Gói sub đi qua [vendor runtime](/dev-kit/core-harness/vendor-runtime) |
 
 ## 2. Contract
 

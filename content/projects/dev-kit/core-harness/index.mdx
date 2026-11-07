@@ -39,11 +39,15 @@ Tài liệu này đặc tả nền tảng để DevKit sở hữu vòng gọi mo
 | [Điều phối input](/dev-kit/core-harness/coordination) | Queue, steer, chen ngang, ngắt, peer message và input khi đang chờ |
 | [Continuation và điều kiện dừng](/dev-kit/core-harness/continuation) | Khi nào run chạy tiếp hay dừng, giới hạn step, phát hiện lặp, chế độ goal tự chạy nhiều vòng |
 | [Host API](/dev-kit/core-harness/host-api) | API duy nhất giữa lõi Go và mọi UI: cách chạy process, contract Connect/protobuf, event stream, principal, version, lộ trình bỏ Wails |
+| [Vendor runtime](/dev-kit/core-harness/vendor-runtime) | H-47: chạy Claude Code, Codex, Antigravity CLI bằng login của user qua surface có cấu trúc; adapter, capability, duyệt quyền, process, slash command |
+| [Transcript](/dev-kit/core-harness/transcript) | H-48: mô hình item chuẩn hoá dùng chung cho vendor và native, delta, read model |
+| [Orchestration](/dev-kit/core-harness/orchestration) | H-49: tự quyết làm một mình hay đề xuất đội, đội nhiều tầng, luồng thông tin theo ngoại lệ, task, mailbox, scheduler, quota và nhiều account, git, cổng kết quả, merge queue |
+| [Desktop app](/dev-kit/core-harness/desktop-app) | H-33: client Gio, màn hình, renderer markdown, font, hiệu năng, IME tiếng Việt |
 | [CLI và TUI](/dev-kit/core-harness/cli) | H-45: client `fugue` — host dùng chung theo client, TUI inline, phím, lệnh `/`, lệnh con có `--json`, exit code, failure UX |
 | [Phát hành giai đoạn A và failure UX](/dev-kit/core-harness/activation) | G-07 và Q-02 của Fugue: phạm vi giai đoạn A, failure UX trên CLI, nâng cấp và hạ phiên bản, evidence phát hành |
 | [Quyết định và kiểm chứng](/dev-kit/core-harness/decisions-and-validation) | Phương án thay thế, so sánh Pi/Harness², rollout gates, failure scenarios và các điểm còn mở |
 | [Bộ kiểm chứng](/dev-kit/core-harness/verification) | H-39: ID ổn định cho mọi mục evidence, loại harness, tầng chạy, registry trong repo, bản ghi live của owner, luồng phát hành |
-| [Phụ lục: bản đồ thiết kế](/dev-kit/core-harness/design-map) | Danh mục mọi mảng thiết kế (H-01–H-46), trạng thái, phụ thuộc và tiêu chí một trang thiết kế đầy đủ |
+| [Phụ lục: bản đồ thiết kế](/dev-kit/core-harness/design-map) | Danh mục mọi mảng thiết kế (H-01–H-49), trạng thái, phụ thuộc và tiêu chí một trang thiết kế đầy đủ |
 | [Lộ trình triển khai](/dev-kit/core-harness/implementation-roadmap) | Bảng việc theo phase, trạng thái và evidence; agent triển khai cập nhật trang này |
 
 ## Mục tiêu

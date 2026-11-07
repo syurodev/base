@@ -5,7 +5,7 @@ description: API duy nhất giữa lõi Go của DevKit và mọi UI — cách c
 
 # Host API
 
-Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-42 (gộp H-32 read model và H-35 host khác) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), ở phạm vi giai đoạn A. Kiểm kê logic ở frontend (H-43) và shell ngoài Wails (H-44) là mảng riêng.
+Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-42 (gộp H-32 read model và H-35 host khác) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), ở phạm vi giai đoạn A. Kiểm kê logic ở frontend (H-43) và shell ngoài Wails (H-44) là mảng riêng. **v0.14 đề xuất (2026-11-07)**: HA-03 đổi, thêm HA-06, module của vendor runtime ở §5.1 và principal `session` ở §7.
 
 Theo D-29, lõi Go của DevKit và harness là một bộ all-in-one; mọi UI là client của API này.
 
@@ -17,9 +17,10 @@ Tham khảo: RPC mode của pi (JSONL qua stdio: command có `id`, response, eve
 | --- | --- |
 | HA-01 | **Host là process đang giữ data-directory lock (`fugue.lock`)**; host luôn mở một socket local cho client |
 | HA-02 | Contract dùng **protobuf với Connect** (`connect-go`, `connect-es`/`protobuf-es`, `buf`), **schema trước**; `buf breaking` chạy trong CI |
-| HA-03 | Client của giai đoạn A: **chỉ desktop trên shell ngoài Wails (Electron)**. CLI, web, Telegram, UI native để sau |
+| HA-03 | **v0.14**: client của giai đoạn A là **desktop app Gio** ([desktop app](/dev-kit/core-harness/desktop-app), H-33) và **CLI/TUI** ([cli](/dev-kit/core-harness/cli), H-45). Electron bỏ. Web, Telegram để sau. Bản v0.12: chỉ desktop trên Electron |
 | HA-04 | Truy cập từ xa (Telegram, điện thoại) với role riêng: **giai đoạn B** |
 | HA-05 | UI không chứa logic nghiệp vụ; mọi quyết định nằm trong lõi (H-43 kiểm kê phần còn sót) |
+| HA-06 | **v0.14**: phiên vendor gọi tool của Fugue qua `fugue mcp-bridge`, nối host bằng **token theo phiên** (principal `session`, §7). Token chỉ mở tool của đúng phiên và đúng vai trò, không bao giờ mở vault, duyệt quyền hay thao tác của user |
 
 ## 2. Hiện trạng
 
@@ -55,6 +56,18 @@ Tham khảo: RPC mode của pi (JSONL qua stdio: command có `id`, response, eve
 - `origin` lấy từ **principal đã xác thực** của kết nối, không bao giờ từ field trong request.
 - Thao tác trên thứ có revision (queue, admission, cấu hình) gửi kèm revision mong đợi; revision cũ bị từ chối có kiểu.
 
+### 5.1 Module của vendor runtime (v0.14)
+
+| Module | RPC chính | Trang |
+| --- | --- | --- |
+| `vendor` | `ProbeVendors`, `StartSession`, `Send`, `Interrupt`, `Steer`, `CloseSession`, `ResumeSession`, `ListSessions` | [vendor runtime](/dev-kit/core-harness/vendor-runtime) |
+| `transcript` | `TranscriptPage`, `TranscriptItem`; topic `transcript:<session>`, `transcript-delta:<session>` | [transcript](/dev-kit/core-harness/transcript) |
+| `tasks` | `DecideTeam`, `AmendTeam`, `TeamTree`, `IntegrateTeam`, `MessageAgent`, `StartTask`, `RetryTask`, `SendToTask`, `AnswerTask`, `CancelTask`, `AcceptTask`, `RejectTask`, `TaskResult`, `ListTasks`; topic `team:<id>` | [orchestration](/dev-kit/core-harness/orchestration) |
+| `accounts` | `ListAccounts`, `StartLogin`, `PauseAccount`, `ResumeAccount`; topic `quota` | [orchestration §8](/dev-kit/core-harness/orchestration#8-quota-và-account) |
+| `scheduler` | `AcquireHeavy`, `ReleaseHeavy` (cho `fugue exclusive`) | [orchestration §7](/dev-kit/core-harness/orchestration#7-scheduler) |
+
+Duyệt quyền của phiên vendor dùng module interaction hiện có.
+
 ## 6. Event stream
 
 - `Subscribe(topic, since_sequence?)`: không có `since_sequence`, hoặc sequence đã quá cũ, thì host gửi **snapshot** rồi các event tiếp theo; có `since_sequence` hợp lệ thì gửi bù từ đó. Snapshot và luồng event nhất quán, không có khoảng hở ([event storage §9](/dev-kit/core-harness/event-storage-recovery#9-payload-security-compatibility-và-client-delivery)).
@@ -66,14 +79,15 @@ Tham khảo: RPC mode của pi (JSONL qua stdio: command có `id`, response, eve
 
 ## 7. Principal và tin cậy
 
-**Giai đoạn A** chỉ có một loại client:
+**Giai đoạn A** có client `local` và, từ v0.14, principal `session` cho phiên vendor:
 
 | Principal | Xác thực | Quyền |
 | --- | --- | --- |
 | `local` (`tui`, `cli`, `app`, `app-background`) | Socket local, kiểm tra **UID của process nối vào** (`SO_PEERCRED` trên Linux, `getpeereid` trên macOS; ACL của user trên Windows) trùng với user chạy host | Mọi thao tác, gồm **duyệt approval**, **mở vault**, trả lời câu hỏi, chen ngang |
+| `session` (v0.14) | Socket local như `local`, cộng **token theo phiên** do host cấp khi spawn phiên vendor, truyền cho `fugue mcp-bridge` qua env của đúng process | Chỉ tool MCP của Fugue cho phiên đó và vai trò đó (lead hoặc worker); không vault, không duyệt quyền, không đọc phiên khác |
 
 - Kiểm tra UID chứng minh "cùng user hệ điều hành", không chứng minh "đúng app DevKit". Một process khác của cùng user vốn đã đọc được data dir, nên đây là mô hình đe dọa chấp nhận được; tài liệu bảo mật ghi rõ điều này.
-- Trong shell Electron, chỉ **main process** giữ kết nối tới host. Renderer không mở được socket; nó dùng client đã sinh thông qua preload (`contextBridge` hoặc `MessagePort`), với `contextIsolation` và `sandbox` bật, `nodeIntegration` tắt, có CSP.
+- (v0.12, Electron đã bỏ ở v0.14) Trong shell Electron, chỉ **main process** giữ kết nối tới host. Renderer không mở được socket; nó dùng client đã sinh thông qua preload (`contextBridge` hoặc `MessagePort`), với `contextIsolation` và `sandbox` bật, `nodeIntegration` tắt, có CSP.
 - Giai đoạn A **không mở HTTP loopback**. Server mode hiện tại giữ nguyên hành vi fail closed cho tới khi bị gỡ.
 - **Giai đoạn B**: ghép đôi bằng token cho CLI, web, Telegram và điện thoại; role theo resource (xem, steer, trả lời, duyệt, mở vault) theo kiểu remote-access của deepseek-harness. Server lọc danh sách theo role để client không thấy thứ nó không được dùng.
 

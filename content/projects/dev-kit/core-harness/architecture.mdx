@@ -163,3 +163,5 @@ Placement cụ thể là open decision trước implementation, không tạo sca
 Một thư viện FSM, nếu được chọn sau này, không được lọt vào stdlib-only leaf. Đổi boundary phải có ADR và sửa architecture tests có giải thích trong cùng thay đổi; không nới allowlist chỉ để implementation qua test.
 
 Vendor runtimes đang chạy không được phản chiếu thành native runs giả với bảo đảm không đo được. Cần adapter capability/observation contract nói rõ host biết gì. Chuyển sang native runtime là một activation slice riêng, có đường rollback và compatibility cho session lịch sử.
+
+Với Fugue (v0.14 đề xuất, 2026-11-07), contract đó ở [vendor runtime](/dev-kit/core-harness/vendor-runtime) §6: phiên vendor là domain riêng (`internal/vendor`, `internal/vendorstore`), dùng chung host, storage, vault, policy và scheduler, không đi qua kernel của native run.
