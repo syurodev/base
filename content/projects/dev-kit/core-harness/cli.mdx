@@ -5,6 +5,8 @@ description: H-45 — client `fugue` của giai đoạn A: host dùng chung tự
 
 # CLI và TUI
 
+**v0.14 (2026-11-08): client CLI/TUI sang giai đoạn B.** Theo quyết định của chủ dự án, giai đoạn A chỉ có [desktop app Gio](/dev-kit/core-harness/desktop-app) (H-33). Binary `fugue` của giai đoạn A chỉ còn hai lệnh con hạ tầng: `fugue serve` (§2.1, chạy foreground, exit code ở §5.2) và `fugue mcp-bridge` ([vendor runtime §12](/dev-kit/core-harness/vendor-runtime#12-bảo-mật)). Quy tắc vòng đời host ở §2.2 (lease, 10 s ân hạn, tắt có trật tự) và version ở §2.3 vẫn áp dụng, với app là client tự khởi động host ([desktop app](/dev-kit/core-harness/desktop-app) DA-07). Phần còn lại của trang (TUI, lệnh con, đăng nhập ChatGPT) viết cho native v0.13 và cần một lượt sửa cho vendor runtime trước khi vào giai đoạn B.
+
 Trạng thái: v0.13, ngày 2026-11-04. **Thiết kế đã chốt** cho H-45 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Client nói chuyện với host qua [Host API](/dev-kit/core-harness/host-api); hiển thị failure theo [phát hành giai đoạn A §3](/dev-kit/core-harness/activation#3-failure-ux-bắt-buộc); trả lời interaction theo ràng buộc CLI-first ở [hỏi user và kế hoạch §5](/dev-kit/core-harness/ask-plan#5-ràng-buộc-cli-first).
 
 ## 1. Quyết định
