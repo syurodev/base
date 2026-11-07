@@ -5,7 +5,7 @@ description: H-47 — Fugue chạy CLI chính chủ của vendor (Claude Code, C
 
 # Vendor runtime
 
-Trạng thái: **đề xuất v0.1, ngày 2026-11-07, chờ chủ dự án duyệt**. Trang này thay quyết định A-01 cũ ("chỉ native runtime") theo [activation](/dev-kit/core-harness/activation) v0.14. Mảng H-47 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map).
+Trạng thái: **v0.2, ngày 2026-11-07**. v0.1 được chủ dự án duyệt (base-doc PR #8); v0.2 đổi duyệt quyền của tool vendor thành **chuyển tiếp** (VR-05), thêm VR-13 cho tool của Fugue và VR-E13. Trang này thay quyết định A-01 cũ ("chỉ native runtime") theo [activation](/dev-kit/core-harness/activation) v0.14. Mảng H-47 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map).
 
 Tham khảo đã nghiên cứu: Agent Hub của DevKit (`internal/acp`, `internal/agenthub`, trang `agent-hub`), [stablyai/orca](https://github.com/stablyai/orca) (ba lớp nối với CLI, hook, orchestration), [earendil-works/pi](https://github.com/earendil-works/pi) và [NousResearch/hermes-agent](https://github.com/nousresearch/hermes-agent) (harness native, cách auth gói sub), cùng các spike ngày 2026-11-07 trên máy chủ dự án (§12).
 
@@ -41,7 +41,7 @@ Agent Hub chạy vendor qua ACP và không ổn định. Mỗi nguyên nhân có
 | Claude không có ACP chính chủ; dùng `claude-agent-acp` của Zed, cách ly permission dựa vào `_meta.claudeCode.options` ngoài spec, đổi là mất lặng lẽ | VR-02: chỉ surface chính chủ; `_meta` và field ngoài schema không bao giờ là điều kiện an toàn |
 | Field chuẩn mỏng, dữ liệu thật nằm trong `_meta` riêng của vendor | VR-07: adapter khai báo capability và được kiểm bằng conformance theo version ghim |
 | Jail của DevKit đánh nhau với auth của gói sub (keychain, `USER`, `~/.claude`) | VR-04: giữ sandbox mặc định của vendor; Fugue không bọc jail quanh CLI |
-| Session tương tác chạy lâu, mirror transcript, permission hỏi qua lại | VR-05, H-48: một transcript chuẩn hoá do adapter sinh, duyệt quyền qua policy |
+| Session tương tác chạy lâu, mirror transcript, permission hỏi qua lại | VR-05, H-48: một transcript chuẩn hoá do adapter sinh; yêu cầu duyệt của vendor chuyển tiếp qua hộp duyệt chung |
 | `invokeAgent` chặn chờ | [orchestration](/dev-kit/core-harness/orchestration) OR-03: giao việc không chặn, mailbox |
 | Khối dữ liệu lạ bị bỏ qua | VR-08: event lạ thành item có kiểu, không bị bỏ |
 
@@ -53,7 +53,8 @@ Agent Hub chạy vendor qua ACP và không ổn định. Mỗi nguyên nhân có
 | VR-02 | Chỉ dùng **surface có cấu trúc chính chủ**: `claude -p` stream-json hai chiều, `codex app-server`, `agy acp`. Không bridge cộng đồng, không parse TUI. Field mở rộng (`_meta`, extension) chỉ để đọc thêm thông tin, không bao giờ là điều kiện cho một bảo đảm |
 | VR-03 | Fugue **không đọc, chép, lưu hay refresh credential gói sub** của vendor. Đăng nhập bằng lệnh login của chính CLI. Ngoại lệ duy nhất: API key mà user muốn dùng qua CLI (ví dụ key Z.ai cho Claude Code trỏ endpoint GLM) nằm trong vault và được bơm vào env của đúng process đó |
 | VR-04 | **Giữ mặc định của vendor**: sandbox, permission rule, config, plugin, skill, MCP của user. Thay đổi chỉ là tuỳ chọn opt-in theo hồ sơ (§7) |
-| VR-05 | Mọi yêu cầu duyệt mà surface phát ra đi tới **policy của Fugue** thay cho người bấm duyệt; dùng nguyên semantics của [interaction](/dev-kit/core-harness/interaction) (mode, grant scope, luật cứng env tag I-03, chờ khi không có client I-07). Mọi quyết định có receipt |
+| VR-05 | **v0.2**: yêu cầu duyệt mà vendor tự phát (theo rule và mode của chính vendor) được **chuyển tiếp nguyên văn** tới user qua interaction owner: hộp duyệt chung, chờ khi không có client (I-07), trả lời đúng một lần, từ chối kèm lời nhắn, kind `question` cho câu hỏi của vendor. Fugue **không thêm luật** lên tool của vendor: không mode, không luật shell, không env tag, không tự trả lời; các lựa chọn của vendor (kể cả "luôn cho phép") hiện nguyên để user chọn. Bảo vệ của tool vendor là permission và sandbox của chính vendor; muốn bớt hỏi thì chỉnh qua hồ sơ phiên (§7). Mỗi quyết định ghi thành event `ApprovalDecided`. Bản v0.1: mọi yêu cầu đi qua policy của Fugue |
+| VR-13 | **Tool của Fugue** giữ nguyên policy của [interaction](/dev-kit/core-harness/interaction) như native: tool MCP Fugue phục vụ qua `fugue mcp-bridge` và lệnh Fugue tự chạy (`checks` của [orchestration](/dev-kit/core-harness/orchestration)) đi qua `Decide` với approval mode của phiên, luật cứng env tag I-03, grant scope và luật shell. Mode của phiên vendor chỉ áp cho tool của Fugue, lưu ở `vendor_sessions` (`approval_mode`, `policy_revision`), mặc định Auto |
 | VR-06 | Phiên solo và lead chạy ở thư mục user chọn. Trưởng nhóm và thành viên chạy trong **worktree do Fugue tạo**; commit, branch, rebase và merge để tích hợp kết quả do Fugue làm ([orchestration](/dev-kit/core-harness/orchestration) OR-11) |
 | VR-07 | Mỗi adapter khai báo **capability contract** (§6). UI và policy chỉ dựa vào capability đã khai báo; capability được kiểm bằng conformance trên version ghim |
 | VR-08 | **Ghim version**: mỗi adapter có dải version đã kiểm. Version mới hơn vẫn chạy, kèm cảnh báo "chưa kiểm"; event không nhận ra thành item `notice(unsupported_event)` có tham chiếu payload gốc, không bao giờ bị bỏ lặng lẽ |
@@ -70,7 +71,7 @@ Agent Hub chạy vendor qua ACP và không ổn định. Mỗi nguyên nhân có
 
 - Lệnh: `claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --permission-prompt-tool mcp__fugue__approve --mcp-config <cấu hình bridge của Fugue>`, thêm `--resume <id>` khi resume, `--model`, `--effort` khi hồ sơ chọn.
 - Hội thoại nhiều lượt: mỗi tin nhắn user là một dòng JSON trên stdin; stdout là luồng event (`system/init`, `assistant`, `user` mang `tool_result`, `result`, `rate_limit_event`, `stream_event` khi bật partial).
-- Duyệt quyền: khi Claude Code **theo rule của chính nó** cần hỏi, nó gọi tool MCP `approve` của Fugue (`--permission-prompt-tool`). Fugue trả allow, deny hoặc input đã sửa. Rule và mode mặc định của user giữ nguyên (VR-04).
+- Duyệt quyền: khi Claude Code **theo rule của chính nó** cần hỏi, nó gọi tool MCP `approve` của Fugue (`--permission-prompt-tool`). Fugue chuyển yêu cầu tới user và trả lại allow hoặc deny (kèm lời nhắn) đúng như user chọn; sửa input trước khi cho phép để giai đoạn B. Rule và mode mặc định của user giữ nguyên (VR-04).
 - Dừng lượt: control message interrupt trên stdin (dạng mà Claude Agent SDK chính chủ dùng; xác nhận trong VR-E01); không phản hồi trong 10 s thì SIGINT.
 - Quota: `rate_limit_event` mang cửa sổ `five_hour`, `seven_day`, `utilization`, `resetsAt`.
 - Slash command: `init.slash_commands`; ẩn các lệnh trong `init.terminal_slash_commands` (lệnh chỉ chạy trong TUI).
@@ -80,7 +81,7 @@ Agent Hub chạy vendor qua ACP và không ổn định. Mỗi nguyên nhân có
 
 - Lệnh: `codex app-server` (JSON-RPC qua stdio). Schema sinh bằng `codex app-server generate-json-schema` cho mỗi version ghim và được lưu làm fixture.
 - Luồng: `thread/start` hoặc resume, `turn/start`, notification `item/*` (tin nhắn, reasoning, lệnh, file change), `turn/completed`.
-- Duyệt quyền: request `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`, `item/permissions/requestApproval` đi tới policy. Approval policy mặc định của Codex giữ nguyên; Fugue chỉ trả lời những gì Codex hỏi.
+- Duyệt quyền: request `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`, `item/permissions/requestApproval` được chuyển tới user; `item/tool/requestUserInput` thành câu hỏi. Approval policy mặc định của Codex giữ nguyên; Fugue chỉ chuyển những gì Codex hỏi.
 - Điều khiển: `turn/interrupt`, `turn/steer`.
 - Quota: `account/rateLimits/read` và notification `account/rateLimits/updated`.
 - Slash command: app-server không tự chạy slash command. Fugue công bố bảng lệnh và chạy mỗi lệnh qua RPC tương ứng (port `codex_commands.go` của DevKit, đo lại trên 0.167). Chỉ lệnh đã đo mới có trong bảng.
@@ -91,7 +92,7 @@ Agent Hub chạy vendor qua ACP và không ổn định. Mỗi nguyên nhân có
 - Lệnh: `agy acp` (ACP chính chủ của Google, protocol version 1).
 - Handshake đã kiểm: `initialize` trả `loadSession`, `resume`, `close`, `list`, `additionalDirectories`, prompt có ảnh và embedded context. `session/new` trả `models`, `modes`, `configOptions`.
 - Luồng: `session/prompt`, notification `session/update` (message chunk, tool call, plan, `available_commands_update`), `session/cancel`.
-- Duyệt quyền: `session/request_permission` đi tới policy. Spike cho thấy ở chế độ print, mode `accept-edits` và `auto` đều từ chối lệnh shell; với ACP, yêu cầu này về policy của Fugue, cần evidence VR-E07.
+- Duyệt quyền: `session/request_permission` được chuyển tới user cùng các lựa chọn agy đưa ra. Spike cho thấy ở chế độ print, mode `accept-edits` và `auto` đều từ chối lệnh shell; với ACP, yêu cầu này tới hộp duyệt của Fugue, cần evidence VR-E07.
 - `_meta.antigravity` chỉ đọc thêm thông tin (VR-02).
 - Quota: chưa có tín hiệu local; scheduler coi là "không biết" ([orchestration](/dev-kit/core-harness/orchestration) OR-09).
 
@@ -123,7 +124,7 @@ Event gốc đi qua **normalizer** của adapter thành item transcript ([transc
 | Capability | Claude | Codex | agy |
 | --- | --- | --- | --- |
 | Duyệt từng yêu cầu | Khi Claude cần hỏi (`--permission-prompt-tool`) | Lệnh, file change, permission | `session/request_permission` |
-| Chặn mọi tool call (hồ sơ `strict`) | Hook `PreToolUse` | Không | Không |
+| Chặn mọi tool call (hồ sơ `strict`, giai đoạn B) | Hook `PreToolUse` | Không | Không |
 | Interrupt | Control message, SIGINT | `turn/interrupt` | `session/cancel` |
 | Steer giữa lượt | Tin nhắn stream-json | `turn/steer` | Không (gửi lượt mới) |
 | Resume | `--resume <session_id>` | Resume thread | `session/load` |
@@ -140,7 +141,7 @@ Mặc định Fugue chạy CLI đúng như khi user tự mở: home mặc địn
 | --- | --- | --- | --- |
 | Cô lập config của user | `--setting-sources project --strict-mcp-config --disable-slash-commands` | Profile `-p` riêng, tắt plugin bằng `-c` | `--disable-slash-commands` |
 | Permission mode | `--permission-mode`, `--allowedTools` | `-c approval_policy`, sandbox level | Mode của ACP |
-| Chặn mọi tool call qua policy | Hook `PreToolUse` của Fugue | — | — |
+| Chặn mọi tool call qua policy (giai đoạn B) | Hook `PreToolUse` của Fugue | — | — |
 | Thư mục thêm | `--add-dir` | Writable root | `additionalDirectories` |
 | Model và effort | `--model`, `--effort` | Tham số `turn/start` | Model trong `session/new` hoặc config option của phiên |
 | Giới hạn | `--max-turns`, `--max-budget-usd` | Deadline của Fugue | Deadline của Fugue |
@@ -197,7 +198,8 @@ Event domain (append-only, sequence theo phiên, projection trong cùng transact
 
 - Output của vendor, transcript, báo cáo của agent trong đội là **dữ liệu không tin cậy**, không bao giờ là lệnh cho Fugue.
 - Fugue phục vụ tool MCP cho phiên qua lệnh `fugue mcp-bridge`, nối vào host bằng socket với **token theo phiên** (principal `session`, [host API §7](/dev-kit/core-harness/host-api#7-principal-và-tin-cậy)); token chỉ mở tool của đúng phiên và đúng vai trò.
-- Luật cứng của interaction (I-03) áp lên mọi yêu cầu duyệt Fugue nhận được. Những gì vendor tự cho phép theo rule của nó thì Fugue chỉ quan sát; muốn chặn mọi tool call thì bật hồ sơ `strict` (chỉ Claude).
+- Tool của vendor: Fugue chuyển tiếp yêu cầu duyệt và quan sát tool call (VR-05), không chặn. Đây là lựa chọn có chủ đích: Fugue tập trung vào điều phối, bảo vệ tool vendor thuộc về vendor.
+- Tool của Fugue và lệnh Fugue tự chạy: policy của interaction như native, gồm luật cứng env tag (I-03) ở mọi mode (VR-13).
 - Kiểm tra tĩnh: package của Fugue không mở file credential của vendor (`.credentials.json`, `auth.json`, keychain item của vendor).
 
 ## 13. Giới hạn mặc định
@@ -224,15 +226,16 @@ Event domain (append-only, sequence theo phiên, projection trong cùng transact
 | **VR-E01** | Conformance Claude: fixture stream-json ghi từ CLI thật (đã redact) phát lại qua normalizer cho ra transcript đúng golden; chạy trong CI không cần account |
 | **VR-E02** | Conformance Codex: tương tự, cộng so khớp schema `generate-json-schema` của version ghim |
 | **VR-E03** | Conformance agy: tương tự, cộng handshake ACP |
-| **VR-E04** | Duyệt quyền end-to-end với account thật cho cả ba vendor: allow, deny, sửa input (Claude), luật cứng env tag luôn hỏi |
+| **VR-E04** | Duyệt quyền end-to-end với account thật cho cả ba vendor: yêu cầu của vendor tới hộp duyệt nguyên văn; allow và deny kèm lời nhắn quay về vendor; Fugue không tự trả lời yêu cầu nào của tool vendor |
 | **VR-E05** | Dừng và kill cây: lượt chạy `sleep` dài, dừng theo thứ tự §8; không còn process mồ côi (gồm ca Codex tự `setsid`); Linux có stop proof qua cgroup |
 | **VR-E06** | Host crash giữa lượt: phiên `detached`, lượt `unknown`, không tự chạy lại, cây cũ bị kill |
-| **VR-E07** | agy qua ACP: lệnh shell đi qua `session/request_permission` tới policy và chạy được khi được duyệt |
+| **VR-E07** | agy qua ACP: lệnh shell đi qua `session/request_permission` tới hộp duyệt và chạy được khi user duyệt |
 | **VR-E08** | Event lạ thành `notice(unsupported_event)`, không bị bỏ; version ngoài dải hiện cảnh báo |
 | **VR-E09** | Env của process vendor không chứa secret của Fugue; kiểm tĩnh không có đường đọc credential của vendor |
 | **VR-E10** | Slash command: danh sách của Claude và agy hiện đúng, lệnh terminal bị ẩn; bảng Codex chạy đúng RPC trên version ghim; `/fugue:` không bao giờ tới vendor |
 | **VR-E11** | Vault khoá giữa lượt: lượt bị interrupt, phiên `waiting(vault_locked)`, không ghi payload trần |
 | **VR-E12** (B) | GLM qua Claude Code trỏ endpoint Z.ai với key từ vault |
+| **VR-E13** | Tool của Fugue gọi từ phiên vendor đi qua `Decide`: target có tag yêu cầu xác nhận luôn hỏi ở mọi mode và bỏ qua grant; đổi mode của phiên không làm Fugue trả lời thay cho yêu cầu của tool vendor |
 
 ## 16. Phụ thuộc
 

@@ -162,7 +162,7 @@ Mục tiêu: mỗi agent chỉ nhận thông tin nó phải quyết; mọi thứ
 | Thông tin | Đi tới | Không đi tới |
 | --- | --- | --- |
 | Tiến độ chi tiết (tool call, delta, plan) | Transcript của chính agent và bảng đội | Người giao |
-| Yêu cầu duyệt quyền tool | Hộp duyệt của user, theo policy của [interaction](/dev-kit/core-harness/interaction) | Người giao |
+| Yêu cầu duyệt quyền tool | Hộp duyệt của user: yêu cầu của tool vendor được chuyển tiếp nguyên văn ([vendor runtime](/dev-kit/core-harness/vendor-runtime) VR-05); tool của Fugue theo policy của [interaction](/dev-kit/core-harness/interaction) (VR-13) | Người giao |
 | Câu hỏi về việc (`to = parent`) | Người giao trực tiếp. Người giao trả lời, chuyển lên một tầng, hoặc chuyển cho user | Lead gốc, trừ khi được chuyển lên |
 | Câu hỏi gửi user (`to = user`) | Hộp duyệt của user, nhãn "cần bạn"; người giao nhận một dòng | |
 | Lỗi cơ học: sai phạm vi ghi lần đầu, ref lock, hết quota khi còn account khác | Fugue tự xử (trả về agent, thử lại, giao lại account), ghi vào bảng | Người giao, trừ khi cần quyết |
