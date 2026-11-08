@@ -5,13 +5,23 @@ description: H-48 — mô hình transcript chuẩn hoá dùng chung cho phiên v
 
 # Transcript
 
-Trạng thái: **đề xuất v0.1, ngày 2026-11-07, chờ chủ dự án duyệt**. Mảng H-48 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Nguồn event: [vendor runtime](/dev-kit/core-harness/vendor-runtime) (giai đoạn A) và native run (giai đoạn B). Client đọc: [desktop app](/dev-kit/core-harness/desktop-app) và [CLI](/dev-kit/core-harness/cli).
+Trạng thái: **v0.2, ngày 2026-11-08, thiết kế đã chốt khi chủ dự án merge PR của bản này**. Bản đề xuất v0.1 vào cùng base-doc PR #8. v0.2 sửa các chỗ hở trước khi làm F9.4:
+- metadata chỉ còn giá trị theo allowlist (INV-09), nên tiêu đề, đường dẫn và tên do vendor đặt chuyển vào payload;
+- nội dung vượt giới hạn payload được lưu phần đầu và phần cuối (TR-09);
+- host redact trước khi gửi, kể cả delta (TR-10);
+- định nghĩa snapshot của topic transcript;
+- giới hạn hiển thị viết lại cho rõ;
+- delta gộp theo phiên và mang bản hiển thị;
+- giới hạn người quyết định `lead` và `policy`;
+- thêm TR-E07 và TR-E08.
+
+Mảng H-48 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Nguồn event: [vendor runtime](/dev-kit/core-harness/vendor-runtime) (giai đoạn A) và native run (giai đoạn B). Client đọc: [desktop app](/dev-kit/core-harness/desktop-app) và [CLI](/dev-kit/core-harness/cli).
 
 ## 1. Phạm vi
 
 Transcript là **read model** mà mọi UI đọc để hiện một phiên: tin nhắn, suy nghĩ, tool call, thay đổi file, yêu cầu duyệt, task được giao, usage. Mọi vendor và tầng native đều được chuẩn hoá về cùng một tập item, nên UI không biết gì về wire format của từng vendor.
 
-Ngoài phạm vi: tìm kiếm toàn văn (B), export (B), rewind và fork (H-15).
+Ngoài phạm vi: tìm kiếm toàn văn (B), export (B), rewind và fork (H-15), xem giá trị thật của secret đã redact (H-45, B).
 
 ## 2. Quyết định
 
@@ -20,32 +30,44 @@ Ngoài phạm vi: tìm kiếm toàn văn (B), export (B), rewind và fork (H-15)
 | TR-01 | **Một mô hình item** cho phiên vendor và native run. UI chỉ đọc item; không bao giờ đọc payload gốc của vendor |
 | TR-02 | Item có ID ổn định, được **ghi một lần rồi cập nhật theo ID** (đổi trạng thái, chốt nội dung). Mọi cập nhật là event bền có sequence |
 | TR-03 | Nội dung đang stream đi qua topic **delta tạm** ([host API §6](/dev-kit/core-harness/host-api#6-event-stream)); nội dung cuối cùng ghi bền khi item được chốt. Mất delta thì client đọc lại item |
-| TR-04 | Nội dung item (text, args, output, diff, suy nghĩ) là **payload được bảo vệ** dưới khóa của session; metadata theo INV-09 |
+| TR-04 | Nội dung item là **payload được bảo vệ** dưới khóa của session. Nội dung gồm text, args, output, diff, suy nghĩ, và mọi chuỗi lấy từ nội dung của vendor hay user: tiêu đề, đường dẫn, tên và mô tả do vendor đặt, tham số. Metadata chỉ gồm enum, số đếm, ID và thời điểm theo allowlist ở §3 (INV-09) |
 | TR-05 | Event gốc của vendor được giữ làm payload được bảo vệ, tham chiếu từ item, chỉ dùng để audit và chẩn đoán |
 | TR-06 | Event không nhận ra thành item `notice` loại `unsupported_event`, không bao giờ bị bỏ |
 | TR-07 | Text là **markdown** (CommonMark cộng bảng, gạch ngang, task list của GFM). Không render HTML thô; link hiện kèm host; ảnh từ URL không tự tải |
-| TR-08 | Mọi nội dung trong transcript là **dữ liệu không tin cậy** ([an toàn nội dung](/dev-kit/core-harness/content-safety)); redact secret khi hiển thị theo CS |
+| TR-08 | Mọi nội dung trong transcript là **dữ liệu không tin cậy** ([an toàn nội dung](/dev-kit/core-harness/content-safety)) |
+| TR-09 | Nội dung hoặc event gốc vượt giới hạn một payload ([storage-security §4](/dev-kit/core-harness/storage-security#4-protected-payload-và-khóa)) được lưu **phần đầu và phần cuối** vừa giới hạn. Metadata ghi cờ đã cắt và kích thước gốc. Không bao giờ bỏ cả item (§7) |
+| TR-10 | **Host redact secret** trước khi gửi bất kỳ nội dung nào cho client: trang, item, snapshot và delta (§8). Payload lưu không đổi. Ở giai đoạn A, client không nhận được giá trị thật của secret đã redact |
 
 ## 3. Loại item
 
-| Kind | Field chính (metadata) | Nội dung (payload) |
+| Kind | Metadata (allowlist) | Nội dung (payload) |
 | --- | --- | --- |
 | `user_message` | origin (`user`, `lead`, `fugue`) | Text, file đính kèm |
-| `assistant_message` | model | Text markdown |
+| `assistant_message` | model ID | Text markdown |
 | `reasoning` | trạng thái (`plain`, `summary`, `redacted`) | Text suy nghĩ khi vendor cho xem |
-| `tool_call` | tool, tiêu đề ngắn, trạng thái (`pending`, `running`, `succeeded`, `failed`, `denied`, `unknown`), exit code, thời lượng | Input, output |
-| `file_change` | đường dẫn, loại (`add`, `modify`, `delete`, `rename`), số dòng thêm và bớt | Diff |
+| `tool_call` | tên tool, trạng thái (`pending`, `running`, `succeeded`, `failed`, `denied`, `unknown`), exit code, thời lượng | Tiêu đề ngắn, input, output |
+| `file_change` | loại (`add`, `modify`, `delete`, `rename`), số dòng thêm và bớt | Đường dẫn (hai đường dẫn nếu `rename`), diff |
 | `approval` | loại yêu cầu, quyết định, người quyết định (`user`, `policy`, `lead`), receipt | Nội dung yêu cầu |
 | `plan` | số bước, bước đang làm | Danh sách bước |
-| `subagent` | tên, trạng thái | Mô tả và kết quả do vendor báo |
-| `command` | tên slash command, nguồn (`vendor`, `fugue`) | Tham số |
+| `subagent` | trạng thái | Tên, mô tả và kết quả do vendor báo |
+| `command` | nguồn (`vendor`, `fugue`) | Tên slash command, tham số |
 | `team_proposal` | proposal ID, số agent, quyết định (`pending`, `approved`, `approved_edited`, `solo`, `rejected`) | Kế hoạch đội: vai trò, model, task, phụ thuộc ([orchestration §5.3](/dev-kit/core-harness/orchestration#53-đề-xuất-và-duyệt)) |
-| `task_link` | task ID, agent, trạng thái ([orchestration](/dev-kit/core-harness/orchestration)) | Tóm tắt kết quả |
+| `task_link` | task ID, agent ID, trạng thái ([orchestration](/dev-kit/core-harness/orchestration)) | Tóm tắt kết quả |
 | `usage` | token vào, ra, cache; chi phí nếu vendor báo | — |
-| `quota` | account, cửa sổ, mức đã dùng, thời điểm reset | — |
+| `quota` | account ID, cửa sổ, mức đã dùng, thời điểm reset | — |
 | `notice` | mức (`info`, `warning`, `error`), mã | Text |
 
-Mỗi item có: `item_id`, `session_id`, `turn_id`, `kind`, `seq` khi tạo, `revision` tăng mỗi lần cập nhật, `created_at`, `updated_at`, và tham chiếu tới event gốc (TR-05).
+Mỗi item có: `item_id`, `session_id`, `turn_id`, `kind`, `seq` (sequence lúc tạo), `revision` tăng mỗi lần cập nhật, `created_at`, `updated_at`, tham chiếu tới event gốc (TR-05), và hai cờ của TR-09 (`content_truncated`, `raw_truncated`) kèm kích thước gốc.
+
+Luật của metadata:
+- Không có chuỗi nào lấy từ nội dung: không tiêu đề, đường dẫn, argv, tên hay mô tả do vendor đặt (INV-09; cùng luật với `file-tools` và `shell-job`).
+- Tên tool và model là định danh, được phép.
+- `account` là ID mờ; nhãn hiển thị như email nằm trong `internal/accounts` ([budget](/dev-kit/core-harness/budget)).
+
+Người quyết định của `approval`:
+- Yêu cầu duyệt quyền của tool vendor luôn do `user` quyết ([vendor runtime](/dev-kit/core-harness/vendor-runtime) VR-05; [orchestration](/dev-kit/core-harness/orchestration) OR-E14).
+- `policy` chỉ quyết cho tool của Fugue và lệnh Fugue chạy (VR-13).
+- `lead` chỉ trả lời yêu cầu loại `question` mà thành viên gửi lên người giao trực tiếp.
 
 ## 4. Ánh xạ từ vendor
 
@@ -72,35 +94,52 @@ Bảng chi tiết theo version ghim nằm trong fixture conformance ([vendor run
 
 ## 5. Stream và cập nhật
 
-- Adapter phát delta (đoạn text, đoạn output) vào topic tạm `transcript-delta:<session>`; delta được gộp tối đa 30 lần mỗi giây.
-- Khi item chốt (khối text kết thúc, tool có kết quả), actor của phiên ghi event bền `TranscriptItemRecorded` hoặc `TranscriptItemUpdated` với nội dung đầy đủ.
-- Client giữ nội dung delta của item đang mở; nhận bản bền thì thay bằng bản bền. Mất kết nối thì đọc lại từ sequence ([host API §6](/dev-kit/core-harness/host-api#6-event-stream)).
+- Adapter phát nội dung đang stream; actor của phiên gộp và phát delta vào topic tạm `transcript-delta:<session>`.
+  - Mỗi phiên phát tối đa 30 lần mỗi giây.
+  - Mỗi lần phát mang **bản hiển thị** (§7, đã redact theo §8) đầy đủ tới lúc đó của từng item đang mở, theo khoá là item. Delta không bao giờ là phần tăng.
+  - Hub nhờ vậy được gộp hoặc bỏ delta trung gian mà không làm mất trạng thái cuối. Kích thước mỗi delta cũng bị chặn bởi giới hạn hiển thị.
+- Khi item chốt (khối text kết thúc, tool có kết quả), actor của phiên ghi event bền `TranscriptItemRecorded` hoặc `TranscriptItemUpdated` với nội dung đầy đủ. Event bền đi qua topic `transcript:<session>`, không đi qua topic delta, và không bao giờ bị bỏ.
+- Client giữ bản delta của item đang mở; nhận bản bền thì thay bằng bản bền. Mất kết nối thì đọc lại từ sequence ([host API §6](/dev-kit/core-harness/host-api#6-event-stream)).
+- Vault khoá thì không phát delta. Lượt đang chạy bị interrupt theo [vendor runtime §11](/dev-kit/core-harness/vendor-runtime).
 
 ## 6. Read model trên Host API
 
 | RPC hoặc topic | Nội dung |
 | --- | --- |
-| `TranscriptPage(session, before_seq?, limit)` | Trang item theo thứ tự, mặc định 200 item, mới nhất trước |
-| `TranscriptItem(item_id)` | Một item đầy đủ, gồm payload lớn (output, diff) |
+| `TranscriptPage(session, before_seq?, limit)` | Trang item theo `seq` lúc tạo, mặc định 200 item, mới nhất trước. Cập nhật không đổi vị trí của item. Mỗi item là bản hiển thị (§7) ở revision mới nhất |
+| `TranscriptItem(item_id)` | Một item ở revision mới nhất với nội dung đầy đủ đã lưu (output, diff), đã redact |
 | Topic `transcript:<session>` | Event bền: tạo và cập nhật item |
-| Topic `transcript-delta:<session>` | Delta tạm |
+| Topic `transcript-delta:<session>` | Delta tạm (§5) |
 
-Payload chỉ trả về khi vault mở, cho client tin cậy.
+Snapshot của topic `transcript:<session>` ([host API §6](/dev-kit/core-harness/host-api#6-event-stream)):
+- Gồm sequence hiện tại, trạng thái của phiên và lượt, và bản hiển thị của các item đang mở.
+- Không gồm lịch sử. Client đọc lịch sử bằng `TranscriptPage`, nên snapshot nhỏ bất kể phiên dài bao nhiêu.
+
+Nội dung chỉ trả về khi vault mở, cho client tin cậy. Khi vault khoá, trang và item chỉ có metadata kèm cờ cho biết nội dung đang khoá.
 
 ## 7. Giới hạn
 
 | Giới hạn | Mặc định | Vượt thì |
 | --- | --- | --- |
-| Text của một item | 512 KiB | Lưu đủ trong payload; item hiện 64 KiB đầu kèm nút xem đầy đủ |
-| Output của tool | 64 KiB hiển thị | Đầu 32 KiB và cuối 32 KiB, phần đầy đủ trong payload |
-| Diff | 2.000 dòng hiển thị | Gập theo file; đầy đủ trong payload |
-| Item mỗi phiên | Không giới hạn | Phân trang; UI chỉ dựng phần đang thấy |
+| Text hiển thị của một item | 64 KiB | Bản hiển thị là 64 KiB đầu kèm nút xem đầy đủ (`TranscriptItem`) |
+| Output hiển thị của tool | 64 KiB | Bản hiển thị là 32 KiB đầu và 32 KiB cuối |
+| Diff hiển thị | 2.000 dòng | Gập theo file; đầy đủ qua `TranscriptItem` |
+| Nội dung lưu của một item, và event gốc | Giới hạn một payload ([storage-security §4](/dev-kit/core-harness/storage-security#4-protected-payload-và-khóa)) | Lưu phần đầu và phần cuối vừa giới hạn, bật `content_truncated` hoặc `raw_truncated`, ghi kích thước gốc (TR-09). UI hiện kích thước gốc |
+| Tổng payload một phiên | Giới hạn session ([storage-security §4](/dev-kit/core-harness/storage-security#4-protected-payload-và-khóa)) | Lượt đang chạy kết thúc `failed(storage)`, phiên không nhận lượt mới; UI đề nghị xoá phiên hoặc mở phiên mới |
+| Số item mỗi phiên | Không giới hạn | Phân trang; UI chỉ dựng phần đang thấy |
+
+Bản hiển thị cắt theo ranh giới ký tự UTF-8 và được dựng sau khi đã redact trên nội dung đầy đủ (§8).
 
 ## 8. Hiển thị
 
 - Markdown theo TR-07; tab đổi thành khoảng trắng trước khi vẽ (spike Gio: tab hiện thành ô vuông).
 - `reasoning` gập mặc định; `tool_call` gập mặc định trừ khi thất bại; `file_change` hiện số dòng, mở ra là diff.
-- Secret được redact khi hiển thị theo [an toàn nội dung](/dev-kit/core-harness/content-safety); payload gốc không đổi.
+- **Redact ở host (TR-10).**
+  - Host chạy bộ phát hiện của [an toàn nội dung](/dev-kit/core-harness/content-safety) (giá trị đã biết, mẫu token, phép gán theo tên khoá) trên nội dung đầy đủ.
+  - Sau đó mới dựng bản hiển thị, cho `TranscriptPage`, `TranscriptItem`, snapshot và delta.
+  - Redact trên nội dung đầy đủ trước khi cắt, nên secret nằm ở chỗ cắt hoặc vắt qua hai lần delta vẫn bị che.
+  - Phát hiện theo giá trị đã biết cần vault mở, và nội dung cũng chỉ được trả khi vault mở.
+  - Payload gốc không đổi.
 
 ## 9. Evidence
 
@@ -108,10 +147,12 @@ Payload chỉ trả về khi vault mở, cho client tin cậy.
 | --- | --- |
 | **TR-E01** | Golden cho từng vendor: fixture event gốc ra đúng chuỗi item, cùng revision |
 | **TR-E02** | Event lạ thành `notice(unsupported_event)` có tham chiếu payload gốc |
-| **TR-E03** | Mất delta giữa chừng: client nối lại, item cuối cùng đúng bằng bản bền |
-| **TR-E04** | Payload của item được mã hoá; metadata không chứa nội dung (INV-09) |
+| **TR-E03** | Mất delta giữa chừng: client nối lại, nhận snapshot gồm item đang mở, item cuối cùng đúng bằng bản bền |
+| **TR-E04** | Payload của item được mã hoá; metadata không chứa nội dung (INV-09): secret đặt trong tiêu đề, đường dẫn và tên của fixture không xuất hiện ở cột metadata nào |
 | **TR-E05** | 10.000 item: `TranscriptPage` trả trang ổn định, không trùng, không hở |
-| **TR-E06** | Item vượt giới hạn §7 hiện bản rút gọn, bản đầy đủ đọc được qua `TranscriptItem` |
+| **TR-E06** | Item vượt giới hạn hiển thị ở §7 hiện bản rút gọn, bản đầy đủ đọc được qua `TranscriptItem` |
+| **TR-E07** | Nội dung và event gốc vượt giới hạn một payload được lưu phần đầu và phần cuối, có cờ đã cắt và kích thước gốc; item không bị bỏ |
+| **TR-E08** | Secret trong nội dung bị che ở trang, item, snapshot và delta, kể cả khi nằm ở chỗ cắt hoặc vắt qua hai delta; payload đã lưu vẫn là bản gốc |
 
 ## 10. Phụ thuộc
 

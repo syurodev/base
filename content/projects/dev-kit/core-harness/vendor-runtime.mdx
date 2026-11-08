@@ -180,7 +180,7 @@ Phiên có state machine thuần trong `internal/vendor` (không clock, không I
 
 Lượt kết thúc bằng `completed`, `interrupted`, `failed(code)` hoặc `unknown` (process chết giữa lượt, không có event kết thúc). Spike: không CLI nào phát event kết thúc khi bị kill.
 
-Event domain (append-only, sequence theo phiên, projection trong cùng transaction như [event storage](/dev-kit/core-harness/event-storage-recovery)): `VendorSessionStarted`, `VendorTurnStarted`, `TranscriptItemRecorded`, `ApprovalRequested`, `ApprovalDecided`, `VendorTurnEnded`, `UsageObserved`, `QuotaObserved`, `VendorProcessExited`, `VendorSessionClosed`. Nội dung (tin nhắn, args, output, diff) là **payload được bảo vệ** dưới khóa của session ([storage-security](/dev-kit/core-harness/storage-security)); metadata theo INV-09. Bảng thuộc `internal/vendorstore`, cùng file database, migration riêng.
+Event domain (append-only, sequence theo phiên, projection trong cùng transaction như [event storage](/dev-kit/core-harness/event-storage-recovery)): `VendorSessionStarted`, `VendorTurnStarted`, `TranscriptItemRecorded`, `TranscriptItemUpdated`, `ApprovalRequested`, `ApprovalDecided`, `VendorTurnEnded`, `UsageObserved`, `QuotaObserved`, `VendorProcessExited`, `VendorSessionClosed`. Nội dung (tin nhắn, args, output, diff) là **payload được bảo vệ** dưới khóa của session ([storage-security](/dev-kit/core-harness/storage-security)); metadata theo INV-09. Bảng thuộc `internal/vendorstore`, cùng file database, migration riêng.
 
 ## 11. Failure và recovery
 
