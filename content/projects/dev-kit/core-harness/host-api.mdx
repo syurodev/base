@@ -5,7 +5,7 @@ description: API duy nhất giữa lõi Go của DevKit và mọi UI — cách c
 
 # Host API
 
-Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-42 (gộp H-32 read model và H-35 host khác) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), ở phạm vi giai đoạn A. Kiểm kê logic ở frontend (H-43) và shell ngoài Wails (H-44) là mảng riêng. **v0.14 đề xuất (2026-11-07)**: HA-03 đổi, thêm HA-06, module của vendor runtime ở §5.1 và principal `session` ở §7.
+Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-42 (gộp H-32 read model và H-35 host khác) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), ở phạm vi giai đoạn A. Kiểm kê logic ở frontend (H-43) và shell ngoài Wails (H-44) là mảng riêng. **v0.14 đề xuất (2026-11-07)**: HA-03 đổi, thêm HA-06, module của vendor runtime ở §5.1 và principal `session` ở §7. **v0.15 đề xuất (2026-11-11)**: client kind `guard` ở §7 và đọc diff theo lượt (`TurnDiffFile`) cho [git guard](/dev-kit/core-harness/git-guard).
 
 Theo D-29, lõi Go của DevKit và harness là một bộ all-in-one; mọi UI là client của API này.
 
@@ -84,6 +84,7 @@ Duyệt quyền của phiên vendor dùng module interaction hiện có.
 | Principal | Xác thực | Quyền |
 | --- | --- | --- |
 | `local` (`tui`, `cli`, `app`, `app-background`) | Socket local, kiểm tra **UID của process nối vào** (`SO_PEERCRED` trên Linux, `getpeereid` trên macOS; ACL của user trên Windows) trùng với user chạy host | Mọi thao tác, gồm **duyệt approval**, **mở vault**, trả lời câu hỏi, chen ngang |
+| `local`, client kind `guard` (v0.15) | Như `local` | Hook bảo vệ push của [git guard](/dev-kit/core-harness/git-guard) (H-50): chỉ dùng service tạo và chờ yêu cầu xác nhận push của chính nó. Giới hạn theo client kind không phải ranh giới bảo mật, vì cùng UID |
 | `session` (v0.14) | Socket local như `local`, cộng **token theo phiên** do host cấp khi spawn phiên vendor, truyền cho `fugue mcp-bridge` qua env của đúng process | Chỉ tool MCP của Fugue cho phiên đó và vai trò đó (lead hoặc worker); không vault, không duyệt quyền, không đọc phiên khác |
 
 - Kiểm tra UID chứng minh "cùng user hệ điều hành", không chứng minh "đúng app DevKit". Một process khác của cùng user vốn đã đọc được data dir, nên đây là mô hình đe dọa chấp nhận được; tài liệu bảo mật ghi rõ điều này.

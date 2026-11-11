@@ -24,6 +24,7 @@
     "vendor-runtime",
     "transcript",
     "orchestration",
+    "git-guard",
     "host-api",
     "cli",
     "desktop-app",

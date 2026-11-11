@@ -7,17 +7,20 @@ description: H-26 và H-27 — phân loại tin cậy, redact secret bằng plac
 
 Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-26 (nội dung không tin cậy) và H-27 (redact secret) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Trang này cụ thể hóa câu "redact secret trước khi rút gọn và lưu" của [tool system §10](/dev-kit/core-harness/tool-system#10-result-và-error) và áp dụng cho mọi tool, gồm [tool file](/dev-kit/core-harness/file-tools) và [shell và job](/dev-kit/core-harness/shell-job).
 
+**v0.14 (2026-11-11), chờ duyệt.** Mẫu token thành **bộ rule** có từ khoá lọc trước và entropy chỉ để thu hẹp (CS-02, CS-08); thêm fingerprint và cách quét nội dung git (§3.8) cho [diff theo lượt và bảo vệ push](/dev-kit/core-harness/git-guard) (H-50). Redact của §3.1–3.7 giữ nguyên hành vi, chỉ dùng bộ rule rộng hơn.
+
 ## 1. Quyết định
 
 | ID | Quyết định |
 | --- | --- |
 | CS-01 | Secret trong nội dung gửi cho model được thay bằng **placeholder đảo ngược** `⟦secret:N:kind⟧`; giá trị thật không tới provider |
-| CS-02 | Nhận diện từ ba nguồn: giá trị đã biết, mẫu token đã biết, gán giá trị theo tên khóa. Không dùng entropy |
+| CS-02 | Nhận diện từ ba nguồn: giá trị đã biết, **bộ rule** mẫu token (v0.14), gán giá trị theo tên khóa. Entropy **không bao giờ là nguồn riêng**; từ v0.14 nó chỉ là điều kiện thu hẹp của một rule (CS-08) |
 | CS-03 | Placeholder chỉ được thay ngược khi `edit` hoặc `write` ghi vào **file origin** của nó; mọi chỗ khác bị từ chối |
 | CS-04 | Nội dung không tin cậy nằm trong **envelope có nonce** ghi nguồn; phần do harness viết nằm ngoài |
 | CS-05 | R0 có đoạn bắt buộc nói nội dung trong envelope là dữ liệu, không phải chỉ dẫn |
 | CS-06 | Bảo vệ chính là **cấu trúc**: nội dung không tự cấp quyền được. Không có bộ dò mẫu prompt injection |
 | CS-07 | Thứ tự xử lý cố định: redact → lọc và định dạng → envelope → lưu. Result dựng một lần, không dựng lại |
+| CS-08 | **v0.14**: một bộ nhận diện dùng chung cho redact, cổng kết quả của [orchestration](/dev-kit/core-harness/orchestration) và [git guard](/dev-kit/core-harness/git-guard). Bộ rule đóng gói trong binary, có `rules_revision`, chỉ đổi theo bản phát hành; nội dung của repo hay workspace không tắt được rule. Mỗi kết quả có **fingerprint** không chứa giá trị (§3.8) |
 
 ## 2. Phân loại tin cậy
 
@@ -41,7 +44,7 @@ Package `internal/secrets`: bộ nhận diện, bảng placeholder của session
 | Nguồn | Cách làm | `kind` |
 | --- | --- | --- |
 | Giá trị đã biết | So khớp chính xác (Aho–Corasick) các giá trị host đang giữ: biến env bị denylist lọc ([sandbox runtime J-04](/dev-kit/core-harness/sandbox-runtime#7-env-snapshot)), token của account provider, record vault đã mở trong session. Chỉ giá trị dài ≥ 8 ký tự | `env`, `credential`, `vault` |
-| Mẫu token | Regex cố định: AWS access key `AKIA`/`ASIA` + 16 ký tự; GitHub `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`; Slack `xox[abprs]-`; OpenAI `sk-`; Anthropic `sk-ant-`; Google API key `AIza`; Stripe `sk_live_`, `rk_live_`; JWT ba đoạn base64url bắt đầu bằng `eyJ`; thân khối PEM `PRIVATE KEY` | Tên mẫu, ví dụ `github-token`, `private-key` |
+| Mẫu token (bộ rule từ v0.14) | Mỗi rule có từ khoá lọc trước và một regex (§3.8). Bộ tối thiểu: AWS access key `AKIA`/`ASIA` + 16 ký tự; GitHub `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`; Slack `xox[abprs]-`; OpenAI `sk-`; Anthropic `sk-ant-`; Google API key `AIza`; Stripe `sk_live_`, `rk_live_`; JWT ba đoạn base64url bắt đầu bằng `eyJ`; thân khối PEM `PRIVATE KEY`. v0.14 mở rộng sang token của cloud, dịch vụ git, chat, thanh toán, registry package và URL kết nối database có mật khẩu; mỗi rule có fixture dương và âm | Tên rule, ví dụ `github-token`, `private-key` |
 | Gán theo tên khóa | Dòng dạng `NAME=value`, `NAME: value`, `"NAME": "value"`, `NAME = "value"`, `export NAME=value`, với `NAME` (chuẩn hóa camelCase sang UPPER_SNAKE) khớp denylist tên của J-04: chứa `TOKEN`, `SECRET`, `PASSWORD`, `PASSWD`, `CREDENTIAL`, `PRIVATE`; kết thúc bằng `_KEY`; bắt đầu bằng `AWS_` | `assigned` |
 
 Luật bỏ qua của nguồn gán theo tên khóa: value rỗng hoặc ngắn hơn 4 ký tự; value có dấu ngoặc, khoảng trắng hoặc toán tử (là biểu thức, ví dụ `os.Getenv("X")`); tham chiếu `${…}`, `$VAR`, `{{…}}`, `<…>`; chuỗi một ký tự lặp lại (`xxxx`, `****`); giá trị mẫu (`changeme`, `example`, `placeholder`, `dummy`); `true`, `false`, `null`; số ngắn hơn 8 chữ số.
@@ -96,6 +99,34 @@ Output gốc của shell giữ trong memory và phiên bản đã thấy của t
 - Secret có format lạ, đã mã hóa (base64, hex) hoặc bị cắt đôi qua nhiều dòng không bị bắt.
 - Có thể che nhầm giá trị giả; workspace thêm ngoại lệ (§3.2).
 - Secret do user tự dán vào input đi tới provider.
+
+### 3.8 Bộ rule, fingerprint và quét nội dung git (v0.14)
+
+**Rule.** Mỗi rule gồm:
+
+| Field | Ý nghĩa |
+| --- | --- |
+| `id` | Tên ổn định, dùng làm `kind` và trong fingerprint |
+| `keywords` | Chuỗi con, không phân biệt hoa thường; dòng không chứa từ khoá nào thì regex của rule không chạy. Giữ chi phí quét tuyến tính theo kích thước nội dung |
+| `regex` | Đúng một nhóm bắt là **giá trị** |
+| `min_entropy` | Tuỳ chọn: entropy Shannon tối thiểu (bit mỗi ký tự) của giá trị. Chỉ loại bớt kết quả, không bao giờ thêm kết quả |
+| `paths` | Tuỳ chọn: glob giới hạn rule theo đường dẫn |
+| `stopwords` | Giá trị chứa một trong các từ này thì bỏ qua (giá trị mẫu, placeholder) |
+
+- Luật bỏ qua của §3.2 áp cho mọi rule.
+- Khi quét nội dung git, nguồn gán theo tên khóa có thêm `min_entropy` 3.0 để bớt báo nhầm trên code và file mẫu; redact (§3.5) giữ hành vi cũ.
+- Giá trị đã biết chỉ được dùng khi vault mở. Vault khoá thì kết quả quét ghi rõ "chưa kiểm giá trị đã biết".
+
+**Fingerprint.** `fp = id + ":" + base64url(HMAC-SHA256(k, value))[:22]`:
+- `k` là khoá ngẫu nhiên 32 byte trong data dir (file quyền `0600`), tạo khi dùng lần đầu, không nằm trong vault để kiểm được cả khi vault khoá.
+- Fingerprint không phụ thuộc commit hay đường dẫn, nên vẫn đúng sau rebase, cherry-pick hay đổi tên file.
+- Không suy ngược được giá trị nếu không có `k`; kho ngoại lệ chỉ lưu fingerprint.
+
+**Quét nội dung git.** Đầu vào là các dòng **thêm vào** của một diff (diff theo lượt, hoặc diff của một commit với cha thứ nhất), kèm đường dẫn và số dòng:
+- Mỗi kết quả gồm rule, đường dẫn, số dòng, fingerprint, và tối đa 4 ký tự đầu và 2 ký tự cuối của giá trị. Giá trị dưới 12 ký tự chỉ hiện rule.
+- Khối PEM chỉ cần dòng `-----BEGIN … PRIVATE KEY-----` thêm vào là thành kết quả.
+- File nhị phân (git đánh dấu `Binary files differ`) bị bỏ và được đếm trong kết quả.
+- Không đọc file cấu hình, ngoại lệ hay `.gitattributes` của repo để đổi kết quả.
 
 ## 4. Envelope (H-26)
 
@@ -173,6 +204,9 @@ Prompt injection có thể làm model *muốn* làm điều sai. Các bất bi�
 - **CS-E05** Đọc cửa sổ của output shell và job không cắt đôi secret.
 - **CS-E06** Giá trị thật không xuất hiện trong content đã lưu, metadata, log, audit hay export (quét toàn bộ DB và log của test bằng giá trị đã cài).
 - **CS-E07** Crypto-shred: sau khi xóa session, bảng không mở được.
+- **CS-E14** (v0.14) Mỗi rule có fixture dương và âm; `min_entropy` chỉ loại bớt kết quả (fixture: giá trị khớp regex nhưng entropy thấp bị bỏ; bỏ `min_entropy` không làm mất kết quả nào khác).
+- **CS-E15** (v0.14) Dòng không chứa từ khoá của rule không chạy regex của rule đó; thời gian quét tuyến tính theo kích thước nội dung (benchmark 50 MB).
+- **CS-E16** (v0.14) Fingerprint giống nhau cho cùng giá trị ở commit, đường dẫn và dòng khác nhau; khác nhau khi `k` khác; kết quả quét không chứa giá trị thật ngoài phần che.
 
 **Envelope**
 
@@ -187,4 +221,4 @@ Prompt injection có thể làm model *muốn* làm điều sai. Các bất bi�
 
 - Cần trước: [storage-security](/dev-kit/core-harness/storage-security) (protected payload, session key, vault observation), [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (denylist J-04), [context engine](/dev-kit/core-harness/context-engine) (R0, compaction, W).
 - Mảng dùng trang này: [tool file](/dev-kit/core-harness/file-tools) (H-17), [shell và job](/dev-kit/core-harness/shell-job) (H-18), H-20, H-21 và H-23 (web và MCP, giai đoạn B).
-- Mảng liên quan: [workspace](/dev-kit/core-harness/workspace) (H-34: ngoại lệ redact theo tên khóa và path), H-45 (xem giá trị thật trong client tin cậy).
+- Mảng liên quan: [workspace](/dev-kit/core-harness/workspace) (H-34: ngoại lệ redact theo tên khóa và path), H-45 (xem giá trị thật trong client tin cậy), [git guard](/dev-kit/core-harness/git-guard) (H-50: quét diff theo lượt và commit sắp push).

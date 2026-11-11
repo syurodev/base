@@ -5,7 +5,7 @@ description: H-47 — Fugue chạy CLI chính chủ của vendor (Claude Code, C
 
 # Vendor runtime
 
-Trạng thái: **v0.2, ngày 2026-11-07**. v0.1 được chủ dự án duyệt (base-doc PR #8); v0.2 đổi duyệt quyền của tool vendor thành **chuyển tiếp** (VR-05), thêm VR-13 cho tool của Fugue và VR-E13. Trang này thay quyết định A-01 cũ ("chỉ native runtime") theo [activation](/dev-kit/core-harness/activation) v0.14. Mảng H-47 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map).
+Trạng thái: **v0.2, ngày 2026-11-07**. v0.1 được chủ dự án duyệt (base-doc PR #8); v0.2 đổi duyệt quyền của tool vendor thành **chuyển tiếp** (VR-05), thêm VR-13 cho tool của Fugue và VR-E13. **v0.3 (2026-11-11), chờ duyệt**: thêm VR-14 (diff theo lượt bằng shadow git, chi tiết ở [git guard](/dev-kit/core-harness/git-guard)) và biến `FUGUE_SESSION_ID` trong env (§8). Trang này thay quyết định A-01 cũ ("chỉ native runtime") theo [activation](/dev-kit/core-harness/activation) v0.14. Mảng H-47 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map).
 
 Tham khảo đã nghiên cứu: Agent Hub của DevKit (`internal/acp`, `internal/agenthub`, trang `agent-hub`), [stablyai/orca](https://github.com/stablyai/orca) (ba lớp nối với CLI, hook, orchestration), [earendil-works/pi](https://github.com/earendil-works/pi) và [NousResearch/hermes-agent](https://github.com/nousresearch/hermes-agent) (harness native, cách auth gói sub), cùng các spike ngày 2026-11-07 trên máy chủ dự án (§12).
 
@@ -62,6 +62,7 @@ Agent Hub chạy vendor qua ACP và không ổn định. Mỗi nguyên nhân có
 | VR-10 | Lượt đang chạy mà kết quả không rõ thì **không bao giờ tự chạy lại**. Resume phiên vendor chỉ khi user hoặc lead yêu cầu, bằng lệnh resume của chính vendor |
 | VR-11 | **Slash command**: lệnh do vendor công bố được chuyển nguyên; Codex dùng bảng ánh xạ sang RPC (port từ DevKit, đo lại); lệnh của Fugue nằm trong namespace `fugue:` và chạy ở host (§9) |
 | VR-12 | ZCode và CLI khác chỉ thêm khi có surface có cấu trúc chính chủ và qua đủ evidence của trang này |
+| VR-14 | **v0.3**: mỗi lượt có **turn snapshot** đầu và cuối lượt bằng shadow git của Fugue, cho ra item `turn_diff` là thay đổi thật của thư mục làm việc, kể cả thay đổi mà vendor không báo. Snapshot không bao giờ chặn lượt; lỗi hoặc quá hạn thì `turn_diff` là `unavailable`. Cuối lượt, phần thêm vào được quét secret và chỉ cảnh báo ([git guard](/dev-kit/core-harness/git-guard) GG-01 đến GG-04) |
 
 ## 5. Surface của từng vendor
 
@@ -153,6 +154,8 @@ Chi phí của mặc định: phiên kéo theo plugin của user làm tăng toke
 ## 8. Process và tài nguyên
 
 - **Env**: allowlist gồm `PATH`, `HOME`, `USER`, `LOGNAME`, `LANG`, `TERM=dumb`, biến home của vendor (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) khi dùng account phụ, và biến hồ sơ cho phép. Không bao giờ có secret của Fugue; key từ vault (VR-03) chỉ vào đúng process cần.
+- **v0.3**: thêm `FUGUE_SESSION_ID` (ID của phiên, không phải secret) để hook bảo vệ push ghi được push đến từ phiên nào ([git guard §4.3](/dev-kit/core-harness/git-guard#43-luồng)). Biến này chỉ là thông tin hiển thị, không cấp quyền gì.
+- **Turn snapshot** (VR-14) chụp trước khi gửi input của lượt và khi lượt kết thúc, mỗi lần tối đa 10 s.
 - **Cây process**: mỗi phiên ở process group riêng. Trên Linux, phiên chạy trong scope systemd của user (`systemd-run --user --scope`, cgroup v2) với `MemoryMax` và `CPUWeight` do scheduler cấp; cgroup rỗng là **stop proof**. Trên macOS, host ghi lại mọi pid con thấy được (đọc bảng process qua `sysctl kern.proc` theo chu kỳ, không cần cgo) và kill cả danh sách; không có stop proof, kết quả dừng là `unknown`.
 - **Thứ tự dừng**: interrupt của giao thức → 10 s → SIGINT → 5 s → SIGTERM → 5 s → SIGKILL cả cây. Spike: SIGTERM vào Codex để lại một process con mồ côi đã tự `setsid`; SIGINT thì Codex dọn sạch.
 - **Stdout** đọc liên tục; một dòng JSON vượt 8 MiB làm phiên lỗi có kiểu (`frame_too_large`). **Stderr** giữ ring buffer 64 KiB, redact trước khi ghi log.
@@ -236,7 +239,8 @@ Event domain (append-only, sequence theo phiên, projection trong cùng transact
 | **VR-E11** | Vault khoá giữa lượt: lượt bị interrupt, phiên `waiting(vault_locked)`, không ghi payload trần |
 | **VR-E12** (B) | GLM qua Claude Code trỏ endpoint Z.ai với key từ vault |
 | **VR-E13** | Tool của Fugue gọi từ phiên vendor đi qua `Decide`: target có tag yêu cầu xác nhận luôn hỏi ở mọi mode và bỏ qua grant; đổi mode của phiên không làm Fugue trả lời thay cho yêu cầu của tool vendor |
+| **VR-E14** | Diff theo lượt: GG-E01 đến GG-E05 của [git guard](/dev-kit/core-harness/git-guard#7-evidence) |
 
 ## 16. Phụ thuộc
 
-H-24 ([interaction](/dev-kit/core-harness/interaction)), H-42 ([host API](/dev-kit/core-harness/host-api)), H-03 ([storage-security](/dev-kit/core-harness/storage-security)), H-48 ([transcript](/dev-kit/core-harness/transcript)), H-49 ([orchestration](/dev-kit/core-harness/orchestration)).
+H-24 ([interaction](/dev-kit/core-harness/interaction)), H-42 ([host API](/dev-kit/core-harness/host-api)), H-03 ([storage-security](/dev-kit/core-harness/storage-security)), H-48 ([transcript](/dev-kit/core-harness/transcript)), H-49 ([orchestration](/dev-kit/core-harness/orchestration)), H-50 ([git guard](/dev-kit/core-harness/git-guard)).
