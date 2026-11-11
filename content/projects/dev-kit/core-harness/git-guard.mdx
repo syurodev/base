@@ -1,0 +1,144 @@
+---
+title: Diff theo lượt và bảo vệ push
+description: H-50 — mỗi lượt của phiên vendor có diff thật của thư mục làm việc nhờ shadow git; quét secret trong phần thêm vào cuối lượt; pre-push hook bật theo từng repo hỏi user trước khi push nội dung nghi là secret, không cấm push.
+---
+
+# Diff theo lượt và bảo vệ push
+
+Trạng thái: **v0.1, ngày 2026-11-11, chờ duyệt**. Mảng H-50 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Trang này dùng lại snapshot bằng shadow git của [tool system §9](/dev-kit/core-harness/tool-system#9-snapshot) cho [phiên vendor](/dev-kit/core-harness/vendor-runtime), và bộ nhận diện của [an toàn nội dung](/dev-kit/core-harness/content-safety) cho lịch sử git.
+
+## 1. Phạm vi
+
+| Trong phạm vi | Ngoài phạm vi |
+| --- | --- |
+| Diff thật của thư mục làm việc cho mỗi lượt của phiên vendor, kể cả thay đổi do lệnh shell, formatter hay script tạo ra | Restore về đầu lượt (giai đoạn B, cùng snapshot của native, F6.2) |
+| Quét secret trong phần thêm vào của lượt, chỉ cảnh báo | Chặn ghi file chứa secret |
+| Pre-push hook bật theo từng repo: quét các commit sắp push, có kết quả thì hỏi user trong app | Cấm push; quét push từ máy khác hoặc trên CI |
+| Ngoại lệ theo từng repo, lưu trong data dir của Fugue | Đọc file cấu hình hay ngoại lệ nằm trong repo |
+
+Đây là **lưới chống lỡ tay**, không phải ranh giới bảo mật. Agent có ý xấu vẫn lách được (`git push --no-verify`, gọi thẳng `/usr/bin/git`, gửi dữ liệu bằng `curl`). Chống đưa dữ liệu ra ngoài là việc của egress allowlist ([sandbox runtime §13](/dev-kit/core-harness/sandbox-runtime), giai đoạn B).
+
+## 2. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| GG-01 | Mỗi lượt của phiên vendor có **turn snapshot** lúc bắt đầu và lúc kết thúc, chụp bằng shadow git của tool system §9 (repo riêng trong data dir, `--git-dir` và `--work-tree`). Repo của user không bị đụng; thư mục không có `.git` vẫn dùng được |
+| GG-02 | Diff theo lượt là **một item `turn_diff`** trong transcript ([transcript](/dev-kit/core-harness/transcript) v0.3). Payload chỉ giữ danh sách file và số dòng; nội dung diff dựng lại từ shadow git khi client đọc, qua redact như mọi nội dung khác |
+| GG-03 | Snapshot **không bao giờ chặn lượt**: quá hạn hoặc lỗi thì `turn_diff` mang trạng thái `unavailable`, lượt vẫn chạy |
+| GG-04 | Cuối lượt, phần **thêm vào** của diff được quét bằng bộ nhận diện của content-safety (CS-08). Có kết quả thì thêm `notice(warning, possible_secret)`; không hỏi, không chặn |
+| GG-05 | Bảo vệ push là **pre-push hook do user bật cho từng repo** từ app. Fugue không bao giờ ghi đè hook có sẵn hay `core.hooksPath` của user |
+| GG-06 | Hook quét **từng commit** trong dải sắp push, không quét diff gộp: secret thêm rồi xoá trong cùng loạt commit vẫn nằm trong lịch sử được push |
+| GG-07 | Có kết quả thì hỏi user qua interaction owner; user chọn **vẫn push** hoặc **huỷ**. Không có cách trả lời nào ngoài user; host không chạy thì hook in kết quả đã che và dừng push, kèm cách push có chủ đích |
+| GG-08 | Không tin nội dung của repo: Fugue dùng bộ rule của chính nó, không đọc file cấu hình hay ngoại lệ trong repo, không chạy diff driver hay textconv của repo khi quét |
+| GG-09 | Ngoại lệ "bỏ qua trong repo này" lưu trong data dir, khoá theo repo và **fingerprint** (CS-08), không chứa giá trị thật |
+| GG-10 | Binary `fugue` không còn ở đường dẫn hook ghi: hook in cảnh báo rồi **cho push**. Hook sống lâu hơn bản cài của Fugue, và mục tiêu là xác nhận chứ không cấm |
+
+## 3. Diff theo lượt
+
+### 3.1 Chụp
+
+- Snapshot đầu lượt chụp **trước khi** input của user được gửi cho vendor; snapshot cuối lượt chụp khi lượt kết thúc với mọi kết quả (`completed`, `interrupted`, `failed`), hoặc khi host phát hiện lượt `unknown`.
+- Thư mục được chụp là thư mục làm việc của phiên: thư mục user chọn cho phiên solo và lead, worktree do Fugue tạo cho trưởng nhóm và thành viên ([vendor runtime](/dev-kit/core-harness/vendor-runtime) VR-06).
+- Shadow git tách theo (workspace, root) như tool system §9; phiên solo ngoài mọi root của workspace dùng một shadow repo theo đường dẫn thật (sau khi resolve symlink) của thư mục.
+- Danh sách loại trừ, giới hạn file 10 MB, hạn mức 200 snapshot mỗi phiên và thời gian giữ 30 ngày lấy theo tool system §9 và [workspace §5.2](/dev-kit/core-harness/workspace#52-khóa). `.gitignore` của project được tôn trọng.
+- Mỗi lần chụp có hạn 10 s; snapshot thao tác trên index riêng của shadow repo nên lần sau chỉ hash file đã đổi.
+- Journal ghi ID ngẫu nhiên ánh xạ tới tree; hash tree không vào metadata.
+
+### 3.2 Item `turn_diff`
+
+| Metadata (allowlist) | Payload |
+| --- | --- |
+| Trạng thái (`complete`, `partial`, `unavailable`, `expired`), số file thêm, sửa, xoá, đổi tên, số dòng thêm và bớt, cờ `overlapped` | Danh sách đường dẫn kèm loại thay đổi và số dòng của từng file |
+
+- `partial`: có file bị bỏ vì loại trừ hoặc vượt 10 MB; UI ghi rõ số file bị bỏ.
+- `expired`: snapshot đã bị tỉa; danh sách file còn, nội dung diff không dựng lại được.
+- `overlapped`: trong cửa sổ của lượt, một phiên khác của Fugue cũng chạy trên cùng thư mục, nên diff có thể gồm thay đổi của phiên đó. Fugue không đoán thay đổi nào thuộc phiên nào.
+- Nội dung diff đọc qua Host API theo `(session_id, turn_id, path)`, dựng từ hai tree của shadow git, qua redact của host trước khi gửi (transcript TR-10). Diff không được lưu thành payload, nên không tăng kích thước store.
+- Diff do vendor tự báo (`file_change`) vẫn giữ nguyên; `turn_diff` là sự thật của thư mục, `file_change` là điều vendor nói nó đã làm.
+
+### 3.3 Quét cuối lượt
+
+- Bộ nhận diện chạy trên các dòng **thêm vào** của diff, theo CS-08. Giới hạn 20 MB nội dung thêm mỗi lượt; vượt thì quét phần đầu và ghi `scan_incomplete` vào notice.
+- Mỗi kết quả trong payload của notice gồm: rule, đường dẫn, số dòng, fingerprint, tối đa 4 ký tự đầu và 2 ký tự cuối của giá trị. Giá trị thật không vào payload, metadata hay log.
+- Kết quả không đổi state của phiên và không hỏi user.
+
+## 4. Bảo vệ push
+
+### 4.1 Bật và tắt
+
+- Bật trong app, ở mục cài đặt của root hoặc của phiên (desktop app §5): Fugue tìm thư mục hook bằng `git rev-parse --git-path hooks` (đúng cả với worktree).
+- Không có `pre-push` và không có `core.hooksPath`: Fugue ghi file `pre-push` có dòng đánh dấu của Fugue và đường dẫn tuyệt đối của binary `fugue`.
+- Đã có `pre-push` không phải của Fugue, hoặc repo đặt `core.hooksPath` (bộ quản lý hook): Fugue **không ghi**. App hiện một dòng để user tự thêm vào hook của mình: `fugue guard pre-push "$@"`.
+- Tắt: chỉ xoá file có dòng đánh dấu của Fugue. Danh sách repo đã bật nằm trong store của Fugue để app hiện trạng thái và cập nhật đường dẫn binary khi Fugue được cài lại.
+
+### 4.2 Dải cần quét
+
+Git đưa vào stdin của hook mỗi dòng `<local ref> <local sha> <remote ref> <remote sha>`:
+
+| Trường hợp | Dải commit |
+| --- | --- |
+| Cập nhật ref đã có | `remote_sha..local_sha` (đúng cả với force push) |
+| Ref mới trên remote (`remote_sha` toàn số 0) | `local_sha --not --remotes=<remote>` |
+| Xoá ref (`local_sha` toàn số 0) | Bỏ qua |
+| Tag | Như ref, theo commit mà tag trỏ tới |
+
+- Mỗi commit được quét trên **các dòng thêm vào** của diff với commit cha (commit merge: so với cha thứ nhất), gọi git với `--no-ext-diff --no-textconv` và `-c diff.external=` để không chạy lệnh nào do repo cấu hình.
+- Giới hạn: 1.000 commit hoặc 50 MB nội dung thêm vào mỗi lần push. Vượt thì phần còn lại không được quét và thẻ xác nhận ghi rõ "chưa quét hết"; push vẫn cần user xác nhận.
+
+### 4.3 Luồng
+
+1. Không có kết quả và đã quét hết: hook thoát 0 ngay, user không thấy gì.
+2. Có kết quả, hoặc chưa quét hết: `fugue guard pre-push` nối vào socket của host (client kind `guard`, [host API §7](/dev-kit/core-harness/host-api#7-principal-và-tin-cậy)) và tạo yêu cầu xác nhận push (§4.4), rồi chờ.
+3. User chọn **vẫn push**: hook thoát 0. User có thể đánh dấu một số kết quả là "bỏ qua trong repo này" (GG-09).
+4. User chọn **huỷ**, hoặc hết 10 phút: hook thoát 1, yêu cầu chuyển `cancelled`.
+5. Host không chạy, hoặc host cấu hình headless: hook **không** khởi động host; nó in kết quả đã che ra stderr, kèm hướng dẫn `git push --no-verify` cho người muốn push có chủ đích, rồi thoát 1.
+
+Push do phiên vendor chạy vẫn đi qua yêu cầu duyệt của chính vendor như thường ([vendor runtime](/dev-kit/core-harness/vendor-runtime) VR-05). Hook chỉ thêm một lần hỏi khi có kết quả. Phiên vendor có biến `FUGUE_SESSION_ID` trong env (VR §8), nên thẻ xác nhận ghi được push đến từ phiên nào.
+
+### 4.4 Yêu cầu xác nhận
+
+- Interaction kind `confirm` ([interaction](/dev-kit/core-harness/interaction) v0.15), operation key `(guard, push_id)`; chỉ đề nghị `allowed_once` (vẫn push) và `denied` (huỷ). Không có grant, không có receipt: câu trả lời được trả về cho hook đang chờ.
+- Câu trả lời có thể kèm danh sách fingerprint mà user chọn bỏ qua trong repo.
+- Nội dung của thẻ: remote (tên và URL đã bỏ phần userinfo), các ref, số commit đã quét, cờ "chưa quét hết", và từng kết quả như §3.3 cộng commit ngắn. Nội dung là payload được bảo vệ; metadata chỉ có số kết quả và cờ.
+
+### 4.5 Ngoại lệ
+
+- Khoá của repo: đường dẫn thật của `git rev-parse --git-common-dir`.
+- Mỗi ngoại lệ: fingerprint, rule, thời điểm thêm. Xoá được trong app.
+- Ngoại lệ chỉ áp cho bảo vệ push và cảnh báo cuối lượt; không làm thay đổi redact của content-safety.
+
+## 5. Bảo mật
+
+- Kết quả quét là nội dung nhạy cảm: không vào log, audit, metadata hay output của `--json`. Stderr của hook chỉ in phần che như §3.3.
+- Hook là script nhỏ chỉ `exec` binary `fugue` theo đường dẫn tuyệt đối; nó không đọc biến môi trường nào để quyết định bỏ qua.
+- File trong repo (cấu hình hook, danh sách ngoại lệ, `.gitattributes` khai báo diff driver) không đổi được kết quả quét (GG-08).
+- Client kind `guard` chỉ được tạo và chờ yêu cầu xác nhận push của chính nó. Như mọi client `local`, nó không chứng minh được danh tính ngoài UID (Q-41 của roadmap Fugue).
+
+## 6. Giới hạn mặc định
+
+| Giới hạn | Mặc định |
+| --- | --- |
+| Thời gian một lần chụp turn snapshot | 10 s |
+| Nội dung thêm vào được quét cuối lượt | 20 MB |
+| Commit được quét mỗi lần push | 1.000 |
+| Nội dung thêm vào được quét mỗi lần push | 50 MB |
+| Hook chờ user trả lời | 10 phút |
+
+## 7. Evidence
+
+| ID | Nội dung |
+| --- | --- |
+| **GG-E01** | Thay đổi do lệnh shell (`sed -i`, formatter) trong lượt có trong `turn_diff`, kể cả khi vendor không báo `file_change` |
+| **GG-E02** | Sau nhiều lượt, `.git` của user không đổi (index, ref, object, config); thư mục không có `.git` vẫn có `turn_diff` |
+| **GG-E03** | Snapshot quá hạn hoặc lỗi: `turn_diff` là `unavailable`, lượt vẫn chạy và kết thúc bình thường; spike đo thời gian chụp trên repo khoảng 100 nghìn file |
+| **GG-E04** | Hai phiên chạy cùng lúc trên một thư mục: `turn_diff` của cả hai có `overlapped` |
+| **GG-E05** | Secret cài sẵn trong phần thêm vào tạo `notice(possible_secret)`; giá trị thật không có trong DB, log hay metadata (cách quét của CS-E06) |
+| **GG-E06** | Dải của hook: cập nhật ref, ref mới, force push, xoá ref, tag; secret thêm rồi xoá trong cùng loạt commit vẫn bị bắt |
+| **GG-E07** | Repo có file ngoại lệ, cấu hình rule và diff driver hay textconv ghi file đánh dấu: kết quả quét không đổi và file đánh dấu không được tạo |
+| **GG-E08** | Luồng xác nhận end-to-end: vẫn push thì push xong; huỷ, hết hạn, host không chạy thì push dừng với stderr đã che; binary bị gỡ thì cảnh báo và push xong |
+| **GG-E09** | Bật bảo vệ không ghi đè hook có sẵn hay `core.hooksPath`; tắt chỉ xoá hook của Fugue |
+| **GG-E10** | Ngoại lệ theo fingerprint vẫn đúng sau rebase; kho ngoại lệ không chứa giá trị thật |
+
+## 8. Phụ thuộc
+
+H-47 ([vendor runtime](/dev-kit/core-harness/vendor-runtime)), H-48 ([transcript](/dev-kit/core-harness/transcript)), H-27 ([an toàn nội dung](/dev-kit/core-harness/content-safety)), H-24 ([interaction](/dev-kit/core-harness/interaction)), H-42 ([host API](/dev-kit/core-harness/host-api)), H-33 ([desktop app](/dev-kit/core-harness/desktop-app)); snapshot của [tool system §9](/dev-kit/core-harness/tool-system#9-snapshot).

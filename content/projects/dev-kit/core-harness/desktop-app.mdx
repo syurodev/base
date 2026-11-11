@@ -5,7 +5,7 @@ description: H-33 — client desktop của Fugue viết bằng Gio; binary riên
 
 # Desktop app
 
-Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B.
+Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B.
 
 ## 1. Phạm vi
 
@@ -47,14 +47,14 @@ Ngoài phạm vi giai đoạn A: Windows, đóng gói có ký, auto-update, nhi�
 | Màn hình | Nội dung |
 | --- | --- |
 | Thanh bên | Workspace; phiên nhóm theo đội; mỗi phiên có vendor, account, state, số yêu cầu chờ duyệt |
-| Transcript | Item theo [transcript §3](/dev-kit/core-harness/transcript#3-loại-item); `tool_call` và `reasoning` gập; diff mở tại chỗ |
+| Transcript | Item theo [transcript §3](/dev-kit/core-harness/transcript#3-loại-item); `tool_call` và `reasoning` gập; diff mở tại chỗ. v0.4: cuối mỗi lượt có thẻ `turn_diff` gập (số file, dòng thêm và bớt, cờ `partial` hoặc `overlapped`), mở ra là danh sách file và diff từng file; `notice(possible_secret)` hiện rule, file, dòng và phần che |
 | Composer | Nhập nhiều dòng, IME; menu slash gồm nhóm của vendor và nhóm `fugue:` ([vendor runtime §9](/dev-kit/core-harness/vendor-runtime#9-slash-command)); chọn model và hồ sơ; nút dừng lượt |
 | Hộp duyệt | Mọi yêu cầu duyệt, câu hỏi "cần bạn", đề xuất và bổ sung đội đang chờ của mọi phiên; allow, deny kèm lời nhắn, grant theo phạm vi ([interaction](/dev-kit/core-harness/interaction)) |
 | Bảng đội | Cây agent của đội (§5.2) |
 | Chi tiết agent | Đặc tả task, transcript của agent, diff, kết quả check, review chéo; nhắn trực tiếp, dừng, chạy lại; duyệt tích hợp cuối của đội |
 | Account và quota | Account theo vendor, trạng thái (`ok`, `paused`, `needs_login`), mức dùng từng cửa sổ, thời điểm reset; thêm account bằng luồng login của CLI |
 | Vault | Mở khoá bằng master password khi host khởi động; khoá thủ công |
-| Cài đặt | Hồ sơ phiên và task, giới hạn scheduler, lệnh terminal ngoài |
+| Cài đặt | Hồ sơ phiên và task, giới hạn scheduler, lệnh terminal ngoài. v0.4: bật và tắt bảo vệ push theo repo, hiện dòng cần thêm khi repo đã có hook riêng, danh sách ngoại lệ theo repo ([git guard §4](/dev-kit/core-harness/git-guard#4-bảo-vệ-push)) |
 
 ### 5.1 Thẻ đề xuất đội
 

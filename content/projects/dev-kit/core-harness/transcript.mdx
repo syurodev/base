@@ -15,6 +15,8 @@ Trạng thái: **v0.2, ngày 2026-11-08, thiết kế đã chốt khi chủ dự
 - giới hạn người quyết định `lead` và `policy`;
 - thêm TR-E07 và TR-E08.
 
+**v0.3 (2026-11-11), chờ duyệt**: thêm kind `turn_diff` (§3) cho diff theo lượt của [git guard](/dev-kit/core-harness/git-guard) (H-50) và mã notice `possible_secret`.
+
 Mảng H-48 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Nguồn event: [vendor runtime](/dev-kit/core-harness/vendor-runtime) (giai đoạn A) và native run (giai đoạn B). Client đọc: [desktop app](/dev-kit/core-harness/desktop-app) và [CLI](/dev-kit/core-harness/cli).
 
 ## 1. Phạm vi
@@ -47,6 +49,7 @@ Ngoài phạm vi: tìm kiếm toàn văn (B), export (B), rewind và fork (H-15)
 | `reasoning` | trạng thái (`plain`, `summary`, `redacted`) | Text suy nghĩ khi vendor cho xem |
 | `tool_call` | tên tool, trạng thái (`pending`, `running`, `succeeded`, `failed`, `denied`, `unknown`), exit code, thời lượng | Tiêu đề ngắn, input, output |
 | `file_change` | loại (`add`, `modify`, `delete`, `rename`), số dòng thêm và bớt | Đường dẫn (hai đường dẫn nếu `rename`), diff |
+| `turn_diff` (v0.3) | trạng thái (`complete`, `partial`, `unavailable`, `expired`), số file theo loại, số dòng thêm và bớt, cờ `overlapped` | Danh sách đường dẫn kèm loại và số dòng; nội dung diff đọc riêng theo file ([git guard §3.2](/dev-kit/core-harness/git-guard#32-item-turn_diff)) |
 | `approval` | loại yêu cầu, quyết định, người quyết định (`user`, `policy`, `lead`), receipt | Nội dung yêu cầu |
 | `plan` | số bước, bước đang làm | Danh sách bước |
 | `subagent` | trạng thái | Tên, mô tả và kết quả do vendor báo |
@@ -55,7 +58,7 @@ Ngoài phạm vi: tìm kiếm toàn văn (B), export (B), rewind và fork (H-15)
 | `task_link` | task ID, agent ID, trạng thái ([orchestration](/dev-kit/core-harness/orchestration)) | Tóm tắt kết quả |
 | `usage` | token vào, ra, cache; chi phí nếu vendor báo | — |
 | `quota` | account ID, cửa sổ, mức đã dùng, thời điểm reset | — |
-| `notice` | mức (`info`, `warning`, `error`), mã | Text |
+| `notice` | mức (`info`, `warning`, `error`), mã (v0.3 thêm `possible_secret`) | Text; với `possible_secret` là danh sách kết quả đã che ([git guard §3.3](/dev-kit/core-harness/git-guard#33-quét-cuối-lượt)) |
 
 Mỗi item có: `item_id`, `session_id`, `turn_id`, `kind`, `seq` (sequence lúc tạo), `revision` tăng mỗi lần cập nhật, `created_at`, `updated_at`, tham chiếu tới event gốc (TR-05), và hai cờ của TR-09 (`content_truncated`, `raw_truncated`) kèm kích thước gốc.
 

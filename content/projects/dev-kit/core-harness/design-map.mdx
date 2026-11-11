@@ -120,6 +120,7 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | H-47 | **Vendor runtime**: chạy CLI chính chủ (Claude Code, Codex, Antigravity) bằng login của user qua surface có cấu trúc; adapter và capability, mặc định của vendor và tuỳ chọn opt-in, duyệt quyền qua policy, process, resume, slash command | Chờ duyệt | [Vendor runtime](/dev-kit/core-harness/vendor-runtime) | A | H-03, H-24, H-42, H-48 |
 | H-48 | **Transcript chuẩn hoá** dùng chung cho vendor và native: loại item, cập nhật và delta, payload gốc, read model | Đã chốt (v0.2) | [Transcript](/dev-kit/core-harness/transcript) | A | H-03, H-26, H-27, H-42 |
 | H-49 | **Orchestration**: tự quyết làm một mình hay đề xuất đội, đội nhiều tầng, định tuyến theo người quyết, task, mailbox, scheduler, cổng quota, nhiều account, Fugue giữ git, cổng kết quả, merge queue | Chờ duyệt | [Orchestration](/dev-kit/core-harness/orchestration) | A | H-06, H-24, H-34, H-47, H-48 |
+| H-50 | **Diff theo lượt và bảo vệ push**: turn snapshot bằng shadow git cho phiên vendor, quét secret phần thêm vào cuối lượt, pre-push hook bật theo repo hỏi user trước khi push nội dung nghi là secret | Chờ duyệt | [Git guard](/dev-kit/core-harness/git-guard) | A | H-24, H-27, H-33, H-42, H-47, H-48 |
 
 ## H. Vòng đời, chất lượng, vận hành
 
