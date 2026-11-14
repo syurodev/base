@@ -28,6 +28,7 @@
     "host-api",
     "cli",
     "desktop-app",
+    "ui-kit",
     "activation",
     "decisions-and-validation",
     "verification",
