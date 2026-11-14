@@ -1,0 +1,453 @@
+---
+title: UI kit
+description: H-51 — bộ component dùng chung của app Gio; token kích thước, chữ và trạng thái; đặc tả từng component (cấu tạo, biến thể, trạng thái, bàn phím, chuyển động); hành vi chung; gallery, test và spike kiểm chứng.
+---
+
+# UI kit
+
+Trạng thái: **v0.1, ngày 2026-11-15, đề xuất, chờ duyệt**. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8).
+
+Bố cục khung app (rail, sidebar nhiều project, khung chia đôi, panel đồng hành) và hợp đồng module (tham chiếu `fugue://`, card view, item `module_action`) thuộc các trang khác, viết sau spike. Trang này chỉ định nghĩa phần nền mà khung và module lắp ráp từ đó.
+
+## 1. Vì sao cần kit
+
+- Ở DevKit, mỗi module tự vẽ control và tự quyết hành vi, nên cùng một việc trông và chạy khác nhau giữa các module. Quy tắc "dùng primitive chung" có trên giấy nhưng không có gì kiểm tra.
+- Gio chỉ có `widget` (state) và `material` (một bộ vẽ kiểu Material) cùng ít tài liệu. Fugue cần một bộ component theo token của mình, có đủ trạng thái, bàn phím và chuyển động, dùng lại được cho mọi module sau này (database, API client, git, terminal…).
+- Kit là chỗ duy nhất vẽ control. Khung app và module chỉ lắp ráp.
+
+## 2. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| UK-01 | Package `ui/internal/kit` là nơi duy nhất vẽ control. Khung app, màn hình và module chỉ lắp ráp từ kit, `mdview` và `transcriptview`. Arch test chặn import `gioui.org/widget/material` ngoài `theme`, `kit` và `mdview` |
+| UK-02 | **Tách props và state**: mỗi component là một struct giá trị (props, dựng lại mỗi frame) cộng một struct state do bên gọi giữ lâu dài. Component không giữ state toàn cục. Trong danh sách, state giữ theo ID ổn định của đối tượng, không theo vị trí |
+| UK-03 | **Chỉ dùng token**: màu từ `theme` (Chrome, Palette, Status); kích thước, khoảng cách, bo góc, kiểu chữ từ các nhóm token mới ở §3. Kit và bên gọi không viết số `dp`, `sp` hay màu trực tiếp. Scan test hiện có cho màu (`TestUiInternalDefinesNoColorsOutsideTheme`) mở rộng cho kích thước |
+| UK-04 | **Chuyển động chỉ qua `motion`** với bốn token Snappy, Smooth, Bouncy, Exit (F10.6). Cài đặt "giảm chuyển động" thay spring bằng đổi tức thì; trạng thái vẫn đầy đủ |
+| UK-05 | **Bàn phím là hạng nhất**: mọi control tương tác nhận focus bằng Tab, kích hoạt bằng phím, có vòng focus khi focus đến từ bàn phím (không hiện khi bấm chuột). Phím tắt đăng ký qua khung app, hiện cạnh hành động và trong palette |
+| UK-06 | **Báo sự kiện, không giữ callback**: component báo việc đã xảy ra trong frame (`Clicked`, `Changed`, `Submitted`, `Selected`) để bên gọi đọc ngay trong lượt layout. Không lưu closure vào state |
+| UK-07 | **Một lớp nổi do khung app sở hữu**: tooltip, menu, popover, toast, dialog vẽ trên một lớp overlay chung, không vẽ lồng trong component gọi. Tối đa hai tầng nổi cùng lúc (ví dụ menu mở từ popover); tầng thứ ba phải là dialog |
+| UK-08 | **Một lõi nhập chữ**: TextField, TextArea, Combobox và composer dùng chung một lõi soạn thảo, để gõ tiếng Việt (DA-06), chọn, copy, undo hành xử giống nhau ở mọi nơi |
+| UK-09 | **Mỗi component có trong gallery** với mọi biến thể × trạng thái, ở sáng và tối, và có test headless (§8). Component chưa có trong gallery thì chưa được dùng ở màn hình |
+| UK-10 | Kit không biết về Host API, vendor hay module. Nó chỉ nhận dữ liệu để vẽ và báo sự kiện |
+
+Chuyển đổi: code hiện có (`appwin`, `transcriptview` dùng `material` và số `dp` trực tiếp) chuyển sang kit trong item kit v1; arch test UK-E01 và scan test UK-E02 bật trong cùng item đó, không bật trước.
+
+## 3. Token mới
+
+Màu đã có ở `theme` (F10.2c). Các nhóm dưới đây thêm vào `theme` cùng nơi, có tên, và là giá trị mặc định để review; spike (§9) có thể chỉnh.
+
+### 3.1 Khoảng cách
+
+| Token | dp | Dùng cho |
+| --- | --- | --- |
+| `space.xxs` | 2 | Giữa icon và badge số |
+| `space.xs` | 4 | Giữa icon và nhãn trong control |
+| `space.sm` | 8 | Padding ngang control nhỏ, khoảng giữa các control trong một nhóm |
+| `space.md` | 12 | Padding card, khoảng giữa các nhóm |
+| `space.lg` | 16 | Lề khung, padding dialog |
+| `space.xl` | 24 | Khoảng giữa các phần lớn |
+| `space.xxl` | 32 | Empty state, khoảng trống trang |
+
+### 3.2 Bo góc
+
+| Token | dp | Dùng cho |
+| --- | --- | --- |
+| `radius.sm` | 4 | Tag, checkbox, vùng chọn trong text |
+| `radius.md` | 6 | Button, input, list row, tab |
+| `radius.lg` | 10 | Card, panel, khối code |
+| `radius.xl` | 14 | Menu, popover, toast, dialog, composer |
+
+Góc lồng nhau giảm theo inset: bo góc bên trong bằng bo góc bên ngoài trừ khoảng padding, tối thiểu `radius.sm`.
+
+### 3.3 Kiểu chữ
+
+Inter cho chữ, JetBrains Mono cho code (DA-04). Chỉ hai độ đậm: 400 và 500.
+
+| Token | Cỡ / dòng (sp) | Đậm | Dùng cho |
+| --- | --- | --- | --- |
+| `type.caption` | 11 / 14 | 400 | Thời gian, metadata ít quan trọng |
+| `type.small` | 12 / 16 | 400 | Mô tả, helper text, tag |
+| `type.body` | 13 / 18 | 400 | Chữ UI mặc định: control, list, sidebar |
+| `type.label` | 13 / 18 | 500 | Nhãn hành động, tên đối tượng đang chọn |
+| `type.prose` | 14 / 22 | 400 | Nội dung đọc dài: transcript, markdown |
+| `type.title` | 14 / 20 | 500 | Tiêu đề khung, panel, dialog |
+| `type.heading` | 16 / 22 | 500 | Tiêu đề màn hình |
+| `type.display` | 20 / 28 | 500 | Empty state lớn |
+| `type.code` | 12 / 18 | 400 mono | Code, lệnh, path, host, fingerprint |
+
+Phân cấp bằng độ đậm và màu (Fg, FgMuted, FgSubtle) trước khi tăng cỡ chữ.
+
+### 3.4 Kích thước
+
+| Token | dp | Dùng cho |
+| --- | --- | --- |
+| `size.control.sm` | 24 | Button, input trong toolbar dày |
+| `size.control.md` | 28 | Mặc định |
+| `size.control.lg` | 32 | Nút chính của dialog, composer |
+| `size.row` | 28 | List row, tree row, menu item |
+| `size.icon.sm` / `md` / `lg` | 14 / 16 / 20 | Icon trong control nhỏ / thường / feedback |
+| `size.hit.min` | 24 | Vùng bấm tối thiểu, kể cả icon 14 dp |
+| `stroke.hairline` | 1 | Viền, divider |
+| `stroke.focus` | 2 | Vòng focus, cách mép 1 dp |
+
+Mật độ mặc định là compact cho desktop.
+
+### 3.5 Màu trạng thái tương tác
+
+Thêm vào Chrome, kèm test tương phản như các token hiện có:
+
+| Token | Ý nghĩa |
+| --- | --- |
+| `HoverWash` | Lớp phủ khi hover lên row, ghost button, tab |
+| `PressedWash` | Lớp phủ khi đang nhấn |
+| `SelectedWash` | Nền của mục đang chọn; vẫn thấy rõ khi row khác đang hover |
+| `FgDisabled` | Chữ và icon bị tắt |
+| `Scrim` | Nền mờ phía sau dialog |
+
+Selected, hover, running và success là bốn ý nghĩa khác nhau và không dùng chung màu.
+
+### 3.6 Lớp nổi
+
+Mặc định không đổ bóng: bề mặt nổi dùng `SurfaceRaised` cộng viền hairline. Spike đo chi phí của một bóng mềm trên Gio; nếu rẻ, thêm một token `elevation.float` duy nhất cho menu, popover, toast, dialog.
+
+### 3.7 Gán chuyển động
+
+| Tình huống | Token |
+| --- | --- |
+| Hover, nhấn, đổi trạng thái control | Snappy |
+| Menu, popover, tooltip xuất hiện | Snappy; biến mất bằng Exit |
+| Nội dung dịch chỗ, mở và gập section | Smooth |
+| Núm switch | Bouncy (chỗ duy nhất dùng Bouncy) |
+| Kéo đổi kích thước, kéo thả | Bám con trỏ, không spring; thả ra thì đứng yên |
+| Dữ liệu, con trỏ chữ, focus, selection | Không nảy, không animate |
+
+## 4. Hành vi chung
+
+### 4.1 Trạng thái
+
+Mọi control tương tác có các trạng thái sau, theo đúng thứ tự ưu tiên khi chồng nhau:
+
+| Trạng thái | Cách hiện |
+| --- | --- |
+| Tắt (`disabled`) | `FgDisabled`, không hover, không focus; lý do tắt phải tìm được ở helper text hoặc status gần đó, không chỉ trong tooltip |
+| Đang chạy (`busy`) | Spinner thay icon, giữ nguyên bề rộng, chặn kích hoạt lặp |
+| Lỗi (`error`) | Viền Status.Danger cộng thông điệp dưới control |
+| Đang nhấn | `PressedWash` |
+| Focus từ bàn phím | Vòng focus `FocusBorder`, `stroke.focus` |
+| Hover | `HoverWash` |
+| Đang chọn | `SelectedWash`, độc lập với hover |
+| Nghỉ | Theo biến thể |
+
+Ưu tiên tránh tắt control: để control bật và báo lý do khi bấm, trừ khi bấm có thể gây hại.
+
+### 4.2 Chỗ hiện phản hồi
+
+Theo thứ tự field → vùng nội dung → khung → app; chỉ nâng phạm vi khi phạm vi nhỏ hơn không đủ. Bảng quyết định chi tiết kế thừa từ DevKit UI/UX rules §2; tóm tắt:
+
+| Tình huống | Hiện ở |
+| --- | --- |
+| Nhập sai | Lỗi dưới field; giữ nội dung đã nhập |
+| Gửi form thất bại | Lỗi trong form; dialog vẫn mở |
+| Một vùng không tải được | Trạng thái lỗi trong vùng cộng nút thử lại |
+| Điều kiện kéo dài (mất kết nối, vault khoá) | Banner đầu vùng bị ảnh hưởng, chỉ tự gỡ khi dữ liệu thật xác nhận |
+| Thuộc tính lâu dài của đối tượng (env tag, trạng thái) | Tag |
+| Việc nền ở chỗ khác xong hoặc lỗi | Toast có một hành động mở đúng chỗ; lỗi vẫn còn ở nơi sở hữu |
+| Cần quyết định trước khi tiếp tục | Dialog xác nhận |
+| Yêu cầu duyệt của agent | Thẻ quyết định inline ở phiên đó và hộp duyệt, **không bao giờ là toast tự tắt**; hết hạn hay đóng không phải là cho phép |
+
+Một sự kiện có một chỗ hiện chính; không đồng thời toast, banner và dialog cho cùng một lỗi.
+
+### 4.3 Trạng thái bắt buộc của một vùng dữ liệu
+
+Mỗi list hoặc view có thiết kế riêng cho: tải lần đầu (khung giả theo bố cục thật, chỉ hiện sau khoảng 150 ms), có dữ liệu, rỗng (một câu mô tả và một hành động), không có kết quả theo bộ lọc (giữ bộ lọc, có nút xoá lọc), đang làm mới (giữ dữ liệu cũ, chỉ báo nhỏ), lỗi (phần nào không tải được, thử lại), khoá hoặc cần đăng nhập (đúng hành động mở khoá hay đăng nhập).
+
+### 4.4 Chữ dài và nội dung kỹ thuật
+
+- Path và host được cắt giữa, giữ phần đầu và tên cuối; giá trị đầy đủ xem được bằng tooltip và copy được.
+- Fingerprint, token đã che, mã lỗi không bao giờ bị cắt mất phần cần kiểm tra.
+- Copy luôn lấy giá trị gốc, không lấy chuỗi đã cắt.
+- Không có secret trong tooltip, toast, menu hay chữ của control.
+
+### 4.5 Văn phong
+
+Ví dụ chữ trên trang này viết bằng tiếng Việt chỉ để minh hoạ; ngôn ngữ của giao diện không quyết định ở đây. Viết hoa đầu câu, nhãn nút là động từ ("Chạy query", "Xoá connection"), không "OK" hay "Xác nhận" chung chung. Thông điệp theo công thức **đối tượng + chuyện đã xảy ra + bước tiếp theo**. Không nói đã huỷ, đã khôi phục, có thể hoàn tác khi backend chưa có ngữ nghĩa đó.
+
+## 5. Danh mục component
+
+| Nhóm | Component | Đợt |
+| --- | --- | --- |
+| Cơ bản | Icon, Button, IconButton, Tag, Spinner, Progress, Divider, Tooltip | Kit v1 (Button: spike) |
+| Nhập liệu | TextField, TextArea, Checkbox, Switch, SegmentedControl, Select, Combobox | Kit v1 (TextField: spike) |
+| Lớp nổi | Menu, Popover, Dialog, Toast | Kit v1 (Menu: spike) |
+| Chứa và danh sách | Card, ListRow, TreeView, Tabs, SectionHeader, Banner, EmptyState, VirtualList | Kit v1 |
+| Bố cục | SplitPane, Panel, ScrollArea | Kit v1 (SplitPane: spike) |
+| Nền cho module | DataGrid, CodeEditor | Sau giai đoạn A, cùng module đầu tiên cần chúng |
+
+## 6. Đặc tả component
+
+Mỗi mục dùng cùng mẫu. "Bàn phím" chỉ ghi khi control nhận focus.
+
+### 6.1 Icon
+
+| Mục | Nội dung |
+| --- | --- |
+| Cấu tạo | Một glyph nét (outline), một độ dày nét cho cả bộ |
+| Kích cỡ | `size.icon.sm` / `md` / `lg` |
+| Màu | Mặc định `IconMuted`; lấy màu chữ của control chứa nó; màu Status chỉ khi icon mang nghĩa trạng thái và luôn kèm chữ |
+| Không được | Icon là nguồn thông tin duy nhất; trộn bộ icon khác nét |
+
+Bộ icon chưa chốt: xem §10.
+
+### 6.2 Button
+
+| Mục | Nội dung |
+| --- | --- |
+| Cấu tạo | Icon (tùy chọn), nhãn `type.label`; padding ngang `space.sm`, `space.xs` giữa icon và nhãn |
+| Biến thể | `primary` (tối đa một nút trong một khung hoặc dialog), `secondary` (mặc định), `ghost` (thao tác phụ trong toolbar, row), `danger` (mất dữ liệu, không phải nút nổi nhất của màn làm việc thường xuyên) |
+| Kích cỡ | `sm`, `md` (mặc định), `lg` theo `size.control` |
+| Trạng thái | §4.1 đủ; `busy` giữ bề rộng, nhãn không đổi hoặc đổi sang dạng tiếp diễn đúng thao tác ("Đang chạy…") mà không làm toolbar nhảy |
+| Bàn phím | Enter và Space kích hoạt; Space kích hoạt khi nhả phím |
+| Chuyển động | Nền đổi theo Snappy; không scale khi nhấn |
+| Sự kiện | `Clicked` |
+| Không được | Đặt màu riêng; dùng `primary` cho nhiều nút cạnh nhau; dùng nút như switch bật tắt |
+
+### 6.3 IconButton
+
+| Mục | Nội dung |
+| --- | --- |
+| Cấu tạo | Một icon; vùng bấm ít nhất `size.hit.min` dù icon nhỏ hơn |
+| Biến thể | `ghost` (mặc định), `secondary`; trạng thái bật (`toggled`) cho nút như ghim, theo dõi |
+| Bắt buộc | Tên truy cập; tooltip khi ý nghĩa chưa hiển nhiên, kèm phím tắt nếu có |
+| Bàn phím | Như Button |
+
+### 6.4 Tag
+
+| Mục | Nội dung |
+| --- | --- |
+| Cấu tạo | Chữ `type.small`, icon tùy chọn, `radius.sm` |
+| Biến thể | `neutral`; `status` (info, success, warning, danger); `hue` (một trong 8 hue cho phân loại); `env` (env tag của tài nguyên: `prod` luôn danger, `stg` warning, `dev` neutral, tag lạ warning) |
+| Hành vi | Không tự là nút. Nếu bấm được thì phải có hover, focus và nhãn hành động như IconButton |
+| Không được | Nhấp nháy; chỉ dùng màu không có chữ; dùng hue cho trạng thái |
+
+### 6.5 Spinner và Progress
+
+| Mục | Nội dung |
+| --- | --- |
+| Spinner | Không xác định thời lượng; chỉ hiện sau khoảng 150 ms để không nháy với việc nhanh |
+| Progress | Chỉ dùng khi backend báo tổng thật; không giả phần trăm |
+| Chuyển động | Spinner quay đều, không spring; giảm chuyển động thì thành chấm đứng yên kèm chữ |
+| Hiệu năng | Chỉ xin frame khi đang hiện (F10.6 Driver) |
+
+### 6.6 Divider
+
+Đường `stroke.hairline` màu `Border`, ngang hoặc dọc. Không dùng divider để thay khoảng cách giữa các nhóm.
+
+### 6.7 Tooltip
+
+| Mục | Nội dung |
+| --- | --- |
+| Cấu tạo | Chữ `type.small`, phím tắt (nếu có) bằng `type.code`, nền `SurfaceRaised`, `radius.md` |
+| Kích hoạt | Hover sau khoảng 500 ms, hoặc focus bàn phím ngay; đi từ control này sang control kế bên khi tooltip đang mở thì hiện ngay |
+| Vị trí | Trên control, lật xuống khi không đủ chỗ; không che con trỏ |
+| Không được | Chứa thông tin bắt buộc, lỗi cần đọc, hay secret; nhận click |
+
+### 6.8 TextField
+
+| Mục | Nội dung |
+| --- | --- |
+| Cấu tạo | Nhãn cố định phía trên (không dùng placeholder làm nhãn), ô nhập `size.control.md`, icon đầu hoặc nút cuối tùy chọn (xoá, hiện mật khẩu), helper text hoặc lỗi phía dưới |
+| Biến thể | `text`, `search` (icon kính lúp, nút xoá), `secret` (che mặc định, nút hiện rõ ràng, không bao giờ điền sẵn secret), `number` (đơn vị và khoảng hợp lệ; ô rỗng không tự thành 0) |
+| Trạng thái | §4.1; lỗi chỉ hiện sau khi rời ô hoặc khi gửi, rồi cập nhật khi sửa; không báo lỗi ở ô trống chưa chạm |
+| Bàn phím | Gõ chữ có IME (Telex qua IBus, bộ gõ macOS), chọn bằng Shift+mũi tên, copy, cắt, dán, undo, redo; Enter báo `Submitted`; Escape xoá ô `search` |
+| Sự kiện | `Changed`, `Submitted`, `FocusLost` |
+| Không được | Mất nội dung đã gõ khi gửi lỗi; tự chuyển focus |
+
+### 6.9 TextArea
+
+TextField nhiều dòng trên cùng lõi (UK-08). Enter xuống dòng; gửi bằng phím do bên gọi định nghĩa (composer: Enter gửi, Shift+Enter xuống dòng, theo F10.4b). Cao theo nội dung đến một mức tối đa rồi cuộn trong ô.
+
+### 6.10 Checkbox
+
+Ô `radius.sm` 16 dp cộng nhãn; bấm cả nhãn cũng đổi. Ba trạng thái: chọn, không chọn, một phần (cho nhóm). Space đổi trạng thái. Dùng khi áp dụng lúc gửi form hoặc chọn nhiều mục.
+
+### 6.11 Switch
+
+Bật tắt có hiệu lực ngay. Núm dùng Bouncy. Nhãn nói phạm vi tác động. Nếu việc lưu chậm hoặc lỗi thì có trạng thái chờ và lỗi, không giả là đã bật. Không dùng cho lệnh một lần (chạy, kết nối, xoá).
+
+### 6.12 SegmentedControl
+
+Hai đến bốn lựa chọn loại trừ nhau, cần thấy cùng lúc. Mũi tên trái phải đổi lựa chọn trong nhóm, Tab ra khỏi nhóm. Mục đang chọn trượt bằng Smooth.
+
+### 6.13 Select
+
+| Mục | Nội dung |
+| --- | --- |
+| Cấu tạo | Ô giống TextField chỉ đọc, giá trị hiện tại, mũi tên; mở một Menu (6.15) |
+| Trạng thái | Có trạng thái chưa chọn rõ ràng khi chưa có mặc định |
+| Bàn phím | Enter, Space hoặc mũi tên xuống mở; gõ chữ nhảy tới mục; Escape đóng và trả focus |
+| Khi nào | Danh sách ngắn (đến khoảng 10 mục); dài hơn dùng Combobox |
+
+### 6.14 Combobox
+
+TextField `search` cộng danh sách gợi ý trên lớp nổi. Có trạng thái đang tải, rỗng, không có kết quả riêng. Mũi tên lên xuống di chuyển, Enter chọn, Escape đóng danh sách rồi lần hai mới xoá chữ. Dùng cho chọn model, profile, workspace, connection, và làm nền cho menu `@` và `/` của composer.
+
+### 6.15 Menu
+
+| Mục | Nội dung |
+| --- | --- |
+| Cấu tạo | Bề mặt `SurfaceRaised`, `radius.xl`; mục cao `size.row`: icon, nhãn, phím tắt bên phải, mũi tên khi có menu con; nhóm cách nhau bằng Divider |
+| Loại | Dropdown (mở từ nút), context menu (chuột phải hoặc phím menu tại đối tượng) |
+| Thứ tự mục | Mở hoặc kết nối → tạo, sửa, nhân bản → copy, xuất → xoá (danger, cuối cùng) |
+| Vị trí | Neo vào nút hoặc con trỏ; lật khi chạm mép cửa sổ; menu con mở ngang |
+| Bàn phím | Mũi tên di chuyển (vòng), Enter chọn, mũi tên phải mở menu con, trái đóng, gõ chữ nhảy tới mục, Escape đóng và trả focus về nơi mở |
+| Chuột | Đi chéo từ mục cha sang menu con không làm menu con đóng |
+| Chuyển động | Mở Snappy (mờ và dịch nhẹ từ phía neo), đóng Exit; mở đóng liên tục thì quay đầu từ vị trí hiện tại (F10.6) |
+| Không được | Chứa form lớn; tự đóng khi dữ liệu nền cập nhật |
+
+### 6.16 Popover
+
+Lớp nổi có neo, chứa nội dung tương tác nhỏ (bộ lọc, chọn cột, xem trước link như `mdview`). Đóng bằng Escape, bấm ra ngoài hoặc nút đóng; đóng không làm mất việc lớn. Popover ghim được thì không tự đổi đối tượng theo selection.
+
+### 6.17 Dialog
+
+| Mục | Nội dung |
+| --- | --- |
+| Loại | `form` (tạo hoặc sửa một đối tượng), `confirm` (quyết định trước hành động mất dữ liệu, đóng tài nguyên đang chạy, hay bảo mật) |
+| Cấu tạo | Scrim; khung `radius.xl`, `type.title`, mô tả; thân cuộn được; chân có Huỷ và một nút chính |
+| Confirm | Tiêu đề nêu đối tượng ("Xoá connection dev-pg?"); thân nói tác động và khả năng phục hồi thật; nút chính là động từ cụ thể, `danger` khi mất dữ liệu; focus mặc định ở lựa chọn an toàn |
+| Bàn phím | Bẫy focus trong dialog; Escape đóng khi đóng an toàn; Enter gửi form (không áp cho TextArea, và không tự chấp nhận hành động nguy hiểm); đóng xong trả focus về control đã mở |
+| Đang gửi | Chặn gửi lặp; nếu đóng không huỷ được request thì không giả là đã huỷ |
+| Không được | Dialog chồng dialog; mở dialog cho thành công thông thường |
+
+### 6.18 Toast
+
+| Mục | Nội dung |
+| --- | --- |
+| Cấu tạo | Icon trạng thái, tiêu đề (kết quả cụ thể), mô tả tối đa hai dòng, tối đa một hành động, nút đóng |
+| Vị trí | Góc dưới phải của cửa sổ, trên lớp nổi; tối đa ba toast; sự kiện giống nhau gộp theo đối tượng |
+| Thời gian | 4 s; có hành động hoặc cảnh báo thì 6 s; dừng đếm khi hover hay focus |
+| Không được | Lấy focus; tự mở trang đích; chứa secret, lệnh hay nội dung riêng; dùng cho yêu cầu duyệt của agent (§4.2) |
+
+### 6.19 Card
+
+Bề mặt `SurfaceBase`, viền hairline, `radius.lg`, padding `space.md`. Dùng khi nội dung là một khối có nghĩa (thẻ tool call, thẻ module trong transcript). Không lồng card trong card nhiều tầng; danh sách dày dùng ListRow, không dùng card.
+
+### 6.20 ListRow
+
+| Mục | Nội dung |
+| --- | --- |
+| Cấu tạo | Cao `size.row`; icon đầu, nhãn chính, chữ phụ (`FgMuted`), phần cuối (tag, số, thời gian); hành động của row |
+| Trạng thái | Hover, đang chọn, focus, kéo; trạng thái của đối tượng (đang chạy, cần bạn) hiện bằng tag hoặc chấm có chữ, không bằng nền row |
+| Hành động | Hiện khi hover hoặc focus bàn phím; hành động quan trọng còn có trong context menu, không chỉ tồn tại khi hover |
+| Bàn phím | Mũi tên lên xuống giữa các row, Enter mở, phím menu mở context menu |
+| Kéo thả | Row kéo được khi bên gọi cho phép (ví dụ kéo phiên sang khung bên kia) |
+
+### 6.21 TreeView
+
+ListRow có thụt lề theo cấp và mũi tên mở gập. Tách ba việc: bấm row là chọn, bấm mũi tên là mở gập, Enter hoặc bấm đúp là mở đối tượng. Mũi tên phải mở nhánh hoặc vào con đầu, trái gập hoặc về cha. Ảo hoá như VirtualList; chỉ tải nhánh khi mở.
+
+### 6.22 Tabs
+
+| Mục | Nội dung |
+| --- | --- |
+| Loại | `document` (nội dung đang mở trong một khung: console, bảng, request; đóng được, ghim được, kéo đổi thứ tự) và `mode` (chế độ bên trong một đối tượng, cố định) |
+| Hành vi | Mở đối tượng đã có tab thì focus tab đó; đóng tab đang xem chuyển sang tab gần nhất; đóng tab nền không đổi focus; tab có thay đổi chưa lưu có chấm báo |
+| Bàn phím | Ctrl+Tab và Ctrl+Shift+Tab giữa tab document; mũi tên trong nhóm tab mode |
+| Tràn | Tab cuộn ngang và có menu liệt kê tab ẩn |
+
+### 6.23 SectionHeader
+
+Nhãn nhóm `type.small` màu `FgSubtle`, tùy chọn nút cuối (thêm, gập nhóm). Dùng trong sidebar ("Projects", "Recents") và trong panel.
+
+### 6.24 Banner
+
+Nằm đầu vùng bị ảnh hưởng, trong luồng bố cục, không đè nội dung. Loại info, warning, danger. Một nguyên nhân một banner, có hành động xử lý cụ thể (nối lại, mở khoá). Đóng banner chỉ ẩn lời nhắc, không có nghĩa vấn đề đã hết; điều kiện vẫn hiện bằng tag hay trạng thái.
+
+### 6.25 EmptyState
+
+Icon hoặc hình nhỏ, tiêu đề là lời mời ("Bắt đầu một phiên"), một câu mô tả, một hành động chính. Biến thể "không có kết quả" giữ bộ lọc và có nút xoá lọc.
+
+### 6.26 VirtualList
+
+Danh sách ảo hoá chung, tổng quát từ `transcriptview` (F10.4a): chỉ layout phần đang thấy cộng một cửa sổ đệm, cache chiều cao theo khoá đối tượng và revision, giữ neo khi chèn phía trên, bám đáy khi bên gọi yêu cầu. State mở gập và chiều cao đã đo giữ theo ID đối tượng, không theo revision.
+
+### 6.27 SplitPane
+
+| Mục | Nội dung |
+| --- | --- |
+| Cấu tạo | Hai vùng và một tay kéo; tay kéo nhìn thấy là một đường hairline, vùng bắt chuột rộng 8 dp |
+| Hành vi | Kéo bám con trỏ, con trỏ đổi thành mũi tên đổi cỡ; mỗi vùng có bề rộng tối thiểu; bấm đúp tay kéo trả về tỉ lệ mặc định; vị trí lưu ở host theo bố cục của khung app |
+| Bàn phím | Tay kéo nhận focus; mũi tên trái phải dịch 16 dp, kèm Shift dịch 64 dp |
+| Chuyển động | Không spring khi kéo; mở hoặc đóng một vùng bằng lệnh thì Smooth |
+
+### 6.28 Panel
+
+Vùng phụ có tiêu đề, nút ghim, nút đóng; dùng cho panel đồng hành của khung app. Panel theo selection hay theo agent phải nói rõ nó đang theo gì; panel ghim thì giữ đối tượng. Đóng panel chỉ đóng vùng xem, không dừng việc đang chạy.
+
+### 6.29 ScrollArea
+
+Cuộn dọc hoặc ngang cho nội dung không ảo hoá. Thanh cuộn mảnh, hiện khi cuộn hoặc hover. Không lồng hai vùng cuộn cùng chiều. Vùng đang stream không kéo người đọc về cuối nếu họ đã cuộn lên.
+
+### 6.30 DataGrid và CodeEditor (sau giai đoạn A)
+
+Ghi lại yêu cầu để không ai dùng tạm control sai chỗ:
+
+- **DataGrid**: ảo hoá cả hàng lẫn cột, cột ghim, đổi bề rộng cột, chọn ô và vùng, copy theo giá trị gốc, sửa ô khi module cho phép, sắp xếp có chỉ báo, đơn vị trong tiêu đề cột.
+- **CodeEditor**: tô màu theo các role syntax của `theme`, số dòng, tìm và thay, nhiều con trỏ là tùy chọn, gõ tiếng Việt qua lõi UK-08, gợi ý do module cung cấp.
+
+Hai component này được thiết kế chi tiết cùng module đầu tiên cần chúng (database hoặc API client). Trước đó không dùng TextArea thay CodeEditor cho query hay body.
+
+## 7. Phím tắt chung
+
+| Phím | Hành động |
+| --- | --- |
+| Tab / Shift+Tab | Focus kế / trước |
+| Escape | Đóng lớp nổi trên cùng, rồi bỏ chọn |
+| Ctrl/Cmd+K | Command palette (khung app) |
+| Ctrl/Cmd+D | Đổi sáng/tối (đang có ở F10.2) |
+| Phím menu hoặc Shift+F10 | Context menu của đối tượng đang focus |
+
+"Ctrl/Cmd" là Ctrl trên Linux và Cmd trên macOS; khung app quy đổi một lần, component không tự đoán hệ điều hành. Phím của từng màn đăng ký qua khung app; kit chỉ xử lý phím bên trong component.
+
+## 8. Gallery, tài liệu sống và test
+
+- **Gallery**: binary chỉ dùng khi phát triển (mở rộng từ `motiongallery`, F10.7), mỗi component một trang với mọi biến thể × trạng thái, sáng và tối, có chế độ giảm chuyển động và chế độ chỉ bàn phím.
+- **Doc comment** của mỗi component trỏ về mục tương ứng ở §6 và có ví dụ lắp ráp ngắn.
+- **Test headless** cho mỗi component: kích thước theo token, tương phản chữ trên nền ở mọi trạng thái, đường đi bàn phím, trả focus, vùng bấm tối thiểu.
+
+## 9. Spike kiểm chứng
+
+Trước khi làm kit v1, một spike bỏ đi sau khi xong dựng bốn component khó nhất để kiểm tra trang này có làm được trên Gio v0.10 hay không:
+
+| Component | Câu hỏi spike phải trả lời |
+| --- | --- |
+| Button | Tách props và state; hover; focus chỉ hiện khi đến từ bàn phím; Enter và Space |
+| TextField | Lõi soạn thảo chung trên `widget.Editor`; IME tiếng Việt; chọn, copy, undo; helper và lỗi |
+| Menu | Lớp nổi chung (UK-07) và thứ tự vẽ; neo và lật; menu con với đường đi chéo; bàn phím; trả focus; quay đầu chuyển động |
+| SplitPane | Kéo bám con trỏ, đổi con trỏ, focus và phím mũi tên cho tay kéo, bề rộng tối thiểu |
+
+Spike cũng đo chi phí bóng mềm (§3.6) và thử một bộ icon (§10). Kết quả cập nhật §3 và §6 của trang này, và là bản nháp đầu của hướng dẫn Gio (lớp 2) trong repo Fugue.
+
+## 10. Cần quyết định
+
+| Câu hỏi | Đề xuất |
+| --- | --- |
+| Bộ icon | **Lucide** (license ISC, DevKit đang dùng nên quen mắt, nét outline đồng nhất): chỉ đóng gói các icon dùng tới, chuyển từ SVG sang dạng Gio vẽ được lúc build. Cần một dòng ở `docs/dependencies.md` |
+| Cỡ chữ UI | 13 cho UI, 14 cho nội dung đọc (§3.3), theo DevKit; đo lại trên màn Ubuntu của chủ dự án trong spike |
+| Bóng của lớp nổi | Không bóng, trừ khi spike cho thấy rẻ (§3.6) |
+
+## 11. Evidence
+
+| ID | Nội dung |
+| --- | --- |
+| **UK-E01** | Arch test: ngoài `theme`, `kit`, `mdview` không package nào import `gioui.org/widget/material` |
+| **UK-E02** | Scan test: không có màu, `dp` hay `sp` viết trực tiếp ngoài `theme` (mở rộng `TestUiInternalDefinesNoColorsOutsideTheme`) |
+| **UK-E03** | Mỗi component ở §5 đợt kit v1 có trang gallery đủ biến thể × trạng thái ở sáng và tối |
+| **UK-E04** | Test tương phản: chữ và icon đạt 4,5:1 trên nền của mọi trạng thái (nghỉ, hover, nhấn, chọn), trừ `FgDisabled` |
+| **UK-E05** | Test bàn phím: mọi control tương tác tới được bằng Tab; Menu, Select, Combobox, Dialog đóng bằng Escape và trả focus về nơi mở |
+| **UK-E06** | Gõ Telex trong TextField, TextArea và Combobox đạt như DA-E02 |
+| **UK-E07** | Giảm chuyển động: không component nào xin frame liên tục khi bật chế độ này, trừ Spinner đang hiện |
+
+## 12. Phụ thuộc
+
+H-33 ([desktop app](/dev-kit/core-harness/desktop-app): DA-04 font, DA-06 gõ tiếng Việt, DA-08 phím tắt và sáng tối). Token màu của F10.2c và motion của F10.6 trong repo Fugue. Kế thừa có chọn lọc quy tắc UI/UX v1 của DevKit (bảng chỗ hiện phản hồi, trạng thái bắt buộc, văn phong, thứ tự mục menu).
