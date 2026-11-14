@@ -5,7 +5,7 @@ description: H-51 — bộ component dùng chung của app Gio; token kích thư
 
 # UI kit
 
-Trạng thái: **v0.1, ngày 2026-11-15, đề xuất, chờ duyệt**. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8).
+Trạng thái: **v0.1, ngày 2026-11-15, đề xuất, chờ duyệt**. Số đo ở §3 đã đối chiếu với các hệ thống thiết kế và chuẩn ở §13. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8).
 
 Bố cục khung app (rail, sidebar nhiều project, khung chia đôi, panel đồng hành) và hợp đồng module (tham chiếu `fugue://`, card view, item `module_action`) thuộc các trang khác, viết sau spike. Trang này chỉ định nghĩa phần nền mà khung và module lắp ráp từ đó.
 
@@ -34,63 +34,86 @@ Chuyển đổi: code hiện có (`appwin`, `transcriptview` dùng `material` v�
 
 ## 3. Token mới
 
-Màu đã có ở `theme` (F10.2c). Các nhóm dưới đây thêm vào `theme` cùng nơi, có tên, và là giá trị mặc định để review; spike (§9) có thể chỉnh.
+Màu đã có ở `theme` (F10.2c). Các nhóm dưới đây thêm vào `theme` cùng chỗ. Mỗi giá trị có cột "Cơ sở" để review; nguồn ở §13. Nguyên tắc chọn: Fugue là công cụ cho dev, nên mật độ theo nhóm IDE (VS Code, IntelliJ, Zed, GitHub) chứ không theo app tiêu dùng; nhưng không thấp hơn ngưỡng tiếp cận WCAG và không thấp hơn cỡ chữ mặc định của macOS.
+
+### 3.0 Đơn vị trên Gio
+
+- Gio đo bằng `dp` (kích thước) và `sp` (chữ). Trên macOS, 1 dp là 1 point (nhân hệ số Retina). Trên Wayland, 1 dp là 1 pixel logic nhân hệ số scale của màn hình và `text-scaling-factor` của GNOME; trên X11 theo `Xft.dpi`. Vì vậy 1 dp xấp xỉ 1 CSS px và 1 point của macOS, và số liệu của các hệ thống dưới đây so sánh trực tiếp được. Đây cũng là lý do F10.1 thấy màn 1080p ở scale 1,25 chỉ cao 864 dp.
+- Gio mặc định chiều cao dòng bằng 1,2 lần cỡ chữ. Kit đặt chiều cao dòng tuyệt đối theo bảng §3.3 (đặt `LineHeight` và `LineHeightScale = 1`), không dùng mặc định.
+- **Cỡ giao diện do người dùng chỉnh**: cài đặt "Cỡ giao diện" 90, 100, 110, 125% (mặc định 100%) nhân cả `dp` và `sp`, giữ nguyên tỉ lệ như zoom của VS Code. Thêm một cài đặt riêng "Cỡ chữ nội dung" chỉ cho `type.prose` và `type.code` (như `buffer_font_size` của Zed), vì người đọc transcript và code lâu thường muốn chữ nội dung to hơn chữ giao diện.
 
 ### 3.1 Khoảng cách
 
-| Token | dp | Dùng cho |
-| --- | --- | --- |
-| `space.xxs` | 2 | Giữa icon và badge số |
-| `space.xs` | 4 | Giữa icon và nhãn trong control |
-| `space.sm` | 8 | Padding ngang control nhỏ, khoảng giữa các control trong một nhóm |
-| `space.md` | 12 | Padding card, khoảng giữa các nhóm |
-| `space.lg` | 16 | Lề khung, padding dialog |
-| `space.xl` | 24 | Khoảng giữa các phần lớn |
-| `space.xxl` | 32 | Empty state, khoảng trống trang |
+Lưới 4 dp, thêm 2 và 6 cho bên trong control dày.
+
+| Token | dp | Dùng cho | Cơ sở |
+| --- | --- | --- | --- |
+| `space.xxs` | 2 | Giữa icon và badge số | Primer có 2 |
+| `space.xs` | 4 | Giữa icon và nhãn trong control `sm` | Primer, Fluent: lưới 4 |
+| `space.sm` | 6 | Giữa icon và nhãn trong control `md`; padding dọc của row | Primer có 6; libadwaita: 4 đến 6 giữa icon và chữ |
+| `space.md` | 8 | Padding ngang control nhỏ; giữa các control trong một nhóm | Primer `xsmall` normal 8 |
+| `space.lg` | 12 | Padding ngang control `md`, `lg`; padding card; giữa các nhóm | Primer control padding normal 12 |
+| `space.xl` | 16 | Lề khung, padding dialog và panel | Primer spacious 16 |
+| `space.xxl` | 24 | Giữa các phần lớn | Lưới 4 |
+| `space.xxxl` | 32 | Empty state, khoảng trống trang | Lưới 4 |
+
+Khoảng trong một nhóm luôn nhỏ hơn khoảng giữa các nhóm (quy tắc nhóm của IntelliJ UI guidelines).
 
 ### 3.2 Bo góc
 
-| Token | dp | Dùng cho |
-| --- | --- | --- |
-| `radius.sm` | 4 | Tag, checkbox, vùng chọn trong text |
-| `radius.md` | 6 | Button, input, list row, tab |
-| `radius.lg` | 10 | Card, panel, khối code |
-| `radius.xl` | 14 | Menu, popover, toast, dialog, composer |
+| Token | dp | Dùng cho | Cơ sở |
+| --- | --- | --- | --- |
+| `radius.sm` | 4 | Tag, checkbox, chip code inline, vùng chọn trong chữ | Fluent `medium` 4 cho control nhỏ; Primer `small` 3 |
+| `radius.md` | 6 | Button, input, list row, tab, menu item | Primer `default` 6 cho control |
+| `radius.lg` | 8 | Card, khối code, panel trong nội dung | Fluent `large` 8 |
+| `radius.xl` | 12 | Menu, popover, toast, dialog, composer | Primer `large` 12; Fluent `x-large` 12 cho popover |
+| `radius.full` | một nửa chiều cao | Switch, avatar, chấm trạng thái | Primer `full`, Fluent `circle` |
 
-Góc lồng nhau giảm theo inset: bo góc bên trong bằng bo góc bên ngoài trừ khoảng padding, tối thiểu `radius.sm`.
+Góc lồng nhau: bo góc bên trong bằng bo góc bên ngoài trừ khoảng padding giữa hai lớp, tối thiểu `radius.sm`. Ví dụ menu `radius.xl` 12 với padding 4 thì item bên trong là 8. Phần tử chạm mép cửa sổ hoặc mép khung (sidebar, rail, thanh tab) không bo góc ở cạnh chạm mép (Fluent).
 
 ### 3.3 Kiểu chữ
 
-Inter cho chữ, JetBrains Mono cho code (DA-04). Chỉ hai độ đậm: 400 và 500.
+Inter cho chữ, JetBrains Mono cho code (DA-04). Độ đậm của UI chỉ 400 và 500; 600 chỉ dùng cho chữ đậm trong markdown (đã đóng gói).
 
-| Token | Cỡ / dòng (sp) | Đậm | Dùng cho |
-| --- | --- | --- | --- |
-| `type.caption` | 11 / 14 | 400 | Thời gian, metadata ít quan trọng |
-| `type.small` | 12 / 16 | 400 | Mô tả, helper text, tag |
-| `type.body` | 13 / 18 | 400 | Chữ UI mặc định: control, list, sidebar |
-| `type.label` | 13 / 18 | 500 | Nhãn hành động, tên đối tượng đang chọn |
-| `type.prose` | 14 / 22 | 400 | Nội dung đọc dài: transcript, markdown |
-| `type.title` | 14 / 20 | 500 | Tiêu đề khung, panel, dialog |
-| `type.heading` | 16 / 22 | 500 | Tiêu đề màn hình |
-| `type.display` | 20 / 28 | 500 | Empty state lớn |
-| `type.code` | 12 / 18 | 400 mono | Code, lệnh, path, host, fingerprint |
+| Token | Cỡ / dòng (sp) | Đậm | Dùng cho | Cơ sở |
+| --- | --- | --- | --- | --- |
+| `type.caption` | 11 / 16 | 400 | Thời gian, metadata ít quan trọng | macOS Subheadline 11/14; dòng nới cho dấu tiếng Việt (dưới) |
+| `type.small` | 12 / 16 | 400 | Mô tả, helper text, tag, phím tắt | macOS Callout 12/15; Primer body small 12 |
+| `type.body` | 13 / 18 | 400 | Chữ UI mặc định: control, list, sidebar, menu | macOS Body 13 là cỡ mặc định của nền tảng; IntelliJ UI dùng Inter 13 |
+| `type.label` | 13 / 18 | 500 | Nhãn nút, tên đối tượng đang chọn, tiêu đề cột | Như `body`, phân cấp bằng độ đậm |
+| `type.prose` | 14 / 22 | 400 | Nội dung đọc dài: transcript, markdown | Primer body medium 14 × 1,5; WCAG 1.4.8: dòng ít nhất 1,5 |
+| `type.title` | 14 / 20 | 500 | Tiêu đề khung, panel, dialog | Primer body medium; macOS Title 3 15/20 |
+| `type.heading` | 16 / 24 | 500 | Tiêu đề màn hình | Primer title small 16 × 1,5 |
+| `type.display` | 20 / 28 | 500 | Empty state lớn; cỡ lớn nhất của UI | Primer title medium 20 |
+| `type.code` | 13 / 20 | 400 mono | Khối code, console, output, editor | Primer code block 13 × 1,5; VS Code tỉ lệ dòng 1,5 trên macOS |
+| `type.codeInline` | 13 / theo dòng chứa nó | 400 mono | Code inline trong `prose` 14 | Primer inline code 0,93 em ≈ 13 trên nền 14 |
+| `type.codeSmall` | 12 / 16 | 400 mono | ID, hash, path, host, số trong row và cột | Khớp chiều cao dòng của `small` |
 
-Phân cấp bằng độ đậm và màu (Fg, FgMuted, FgSubtle) trước khi tăng cỡ chữ.
+Lý do và ràng buộc:
+
+- **13 cho UI, 14 cho nội dung.** 13 là cỡ mặc định của macOS (tối thiểu 10) và là cỡ UI của IntelliJ và VS Code. Ubuntu dùng font hệ thống 11 pt (khoảng 14,7 px) nên app Fugue trông nhỏ hơn app GNOME một chút; đó là mật độ của IDE, và cài đặt "Cỡ giao diện" ở §3.0 bù cho người cần to hơn. Đo lại trên màn Ubuntu của chủ dự án trong spike.
+- **Tiếng Việt cần dòng cao hơn macOS.** Chữ hoa có hai dấu chồng (Ễ, Ặ, Ỡ) cao hơn phần ascender thường của Latin. Mọi token giữ tỉ lệ dòng ít nhất khoảng 1,35 (vì vậy `caption` là 11/16, không phải 11/14 như macOS). Spike kiểm bằng chuỗi "Ễ Ặ Ỡ Ậ ỷ ộ" ở mọi cỡ: không bị cắt, không chạm dòng trên.
+- **Không quá 20 sp trong UI.** Gio chưa có letter-spacing, nên không áp được tracking động của Inter (ở 13–14 px chỉ −0,04 đến −0,09 px, bỏ qua được; ở 20 px là −0,33 px và chữ trông hơi thưa). Cỡ lớn hơn 20 trông thưa rõ, nên không dùng.
+- **Gio chưa bật được tính năng OpenType** của Inter: số đều nhau (`tnum`) và bộ ký tự phân biệt `l I 1` (`ss02`). Vì vậy số cần thẳng cột (thời gian, đếm, kích thước, cột số trong bảng), ID, hash và path dùng `type.codeSmall`; JetBrains Mono vốn có số đều nhau và phân biệt rõ các ký tự dễ nhầm.
+- **Bề rộng dòng nội dung** tối đa khoảng 80 ký tự với `prose` (WCAG 1.4.8), tức khoảng 720 dp ở 14 sp; khung transcript rộng hơn thì căn giữa cột chữ. Khối code và bảng được rộng hơn và cuộn ngang.
 
 ### 3.4 Kích thước
 
-| Token | dp | Dùng cho |
-| --- | --- | --- |
-| `size.control.sm` | 24 | Button, input trong toolbar dày |
-| `size.control.md` | 28 | Mặc định |
-| `size.control.lg` | 32 | Nút chính của dialog, composer |
-| `size.row` | 28 | List row, tree row, menu item |
-| `size.icon.sm` / `md` / `lg` | 14 / 16 / 20 | Icon trong control nhỏ / thường / feedback |
-| `size.hit.min` | 24 | Vùng bấm tối thiểu, kể cả icon 14 dp |
-| `stroke.hairline` | 1 | Viền, divider |
-| `stroke.focus` | 2 | Vòng focus, cách mép 1 dp |
+| Token | dp | Dùng cho | Cơ sở |
+| --- | --- | --- | --- |
+| `size.control.sm` | 24 | Button, input trong toolbar dày, trong row | Primer `xsmall` 24; bằng ngưỡng WCAG 2.5.8 |
+| `size.control.md` | 28 | Mặc định | Primer `small` 28; mật độ IDE |
+| `size.control.lg` | 32 | Nút chính của dialog, ô của composer | Primer `medium` 32 (mặc định web của GitHub) |
+| `size.row` | 28 | List row của sidebar, menu item | Rộng hơn row cây vì đây là điều hướng bằng chuột thường xuyên |
+| `size.row.dense` | 24 | Tree, bảng, data grid, list kỹ thuật | IntelliJ New UI: row 24 (compact 22); VS Code dùng 22 cho tab compact |
+| `size.tab` | 32 | Tab document trong khung | Giữa VS Code 35 (thường) và 22 (compact) |
+| `size.icon.xs` / `sm` / `md` / `lg` | 12 / 14 / 16 / 20 | Mũi tên trong row / icon trong control `sm` / icon thường / icon của rail và feedback | VS Code: icon 16 trong UI, 24 ở activity bar thường, 16 ở bản compact |
+| `stroke.icon` | 1,5 ở 16 và 20; 1,25 ở 12 và 14 | Độ dày nét icon | Bộ icon nét kẻ ở lưới 24 với nét 2 sẽ quá đậm khi thu về 16 |
+| `size.hit.min` | 24 | Vùng bấm tối thiểu, kể cả icon 12 hoặc 14 | WCAG 2.5.8 (AA): 24 × 24 |
+| `stroke.hairline` | 1 | Viền, divider | Primer `thin` 1 |
+| `stroke.focus` | 2, cách mép 1 | Vòng focus | WCAG 2.4.13: tương đương viền 2 px, tương phản 3:1 giữa có và không focus |
 
-Mật độ mặc định là compact cho desktop.
+Số đo của khung app (rail, sidebar, panel) định nghĩa ở trang bố cục khung; tham chiếu để đối chiếu: activity bar của VS Code rộng 48 (icon 24), bản compact rộng 36 (icon 16).
 
 ### 3.5 Màu trạng thái tương tác
 
@@ -202,7 +225,7 @@ Bộ icon chưa chốt: xem §10.
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Icon (tùy chọn), nhãn `type.label`; padding ngang `space.sm`, `space.xs` giữa icon và nhãn |
+| Cấu tạo | Icon (tùy chọn), nhãn `type.label`; `sm`: padding ngang `space.md`, `space.xs` giữa icon và nhãn; `md` và `lg`: padding ngang `space.lg`, `space.sm` giữa icon và nhãn |
 | Biến thể | `primary` (tối đa một nút trong một khung hoặc dialog), `secondary` (mặc định), `ghost` (thao tác phụ trong toolbar, row), `danger` (mất dữ liệu, không phải nút nổi nhất của màn làm việc thường xuyên) |
 | Kích cỡ | `sm`, `md` (mặc định), `lg` theo `size.control` |
 | Trạng thái | §4.1 đủ; `busy` giữ bề rộng, nhãn không đổi hoặc đổi sang dạng tiếp diễn đúng thao tác ("Đang chạy…") mà không làm toolbar nhảy |
@@ -246,7 +269,7 @@ Bộ icon chưa chốt: xem §10.
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Chữ `type.small`, phím tắt (nếu có) bằng `type.code`, nền `SurfaceRaised`, `radius.md` |
+| Cấu tạo | Chữ `type.small`, phím tắt (nếu có) bằng `type.codeSmall`, nền `SurfaceRaised`, `radius.md` |
 | Kích hoạt | Hover sau khoảng 500 ms, hoặc focus bàn phím ngay; đi từ control này sang control kế bên khi tooltip đang mở thì hiện ngay |
 | Vị trí | Trên control, lật xuống khi không đủ chỗ; không che con trỏ |
 | Không được | Chứa thông tin bắt buộc, lỗi cần đọc, hay secret; nhận click |
@@ -330,7 +353,7 @@ Lớp nổi có neo, chứa nội dung tương tác nhỏ (bộ lọc, chọn c�
 
 ### 6.19 Card
 
-Bề mặt `SurfaceBase`, viền hairline, `radius.lg`, padding `space.md`. Dùng khi nội dung là một khối có nghĩa (thẻ tool call, thẻ module trong transcript). Không lồng card trong card nhiều tầng; danh sách dày dùng ListRow, không dùng card.
+Bề mặt `SurfaceBase`, viền hairline, `radius.lg`, padding `space.lg`. Dùng khi nội dung là một khối có nghĩa (thẻ tool call, thẻ module trong transcript). Không lồng card trong card nhiều tầng; danh sách dày dùng ListRow, không dùng card.
 
 ### 6.20 ListRow
 
@@ -344,7 +367,7 @@ Bề mặt `SurfaceBase`, viền hairline, `radius.lg`, padding `space.md`. Dùn
 
 ### 6.21 TreeView
 
-ListRow có thụt lề theo cấp và mũi tên mở gập. Tách ba việc: bấm row là chọn, bấm mũi tên là mở gập, Enter hoặc bấm đúp là mở đối tượng. Mũi tên phải mở nhánh hoặc vào con đầu, trái gập hoặc về cha. Ảo hoá như VirtualList; chỉ tải nhánh khi mở.
+ListRow cao `size.row.dense`, thụt lề 12 dp mỗi cấp, mũi tên mở gập `size.icon.xs`. Tách ba việc: bấm row là chọn, bấm mũi tên là mở gập, Enter hoặc bấm đúp là mở đối tượng. Mũi tên phải mở nhánh hoặc vào con đầu, trái gập hoặc về cha. Ảo hoá như VirtualList; chỉ tải nhánh khi mở.
 
 ### 6.22 Tabs
 
@@ -426,14 +449,14 @@ Trước khi làm kit v1, một spike bỏ đi sau khi xong dựng bốn compone
 | Menu | Lớp nổi chung (UK-07) và thứ tự vẽ; neo và lật; menu con với đường đi chéo; bàn phím; trả focus; quay đầu chuyển động |
 | SplitPane | Kéo bám con trỏ, đổi con trỏ, focus và phím mũi tên cho tay kéo, bề rộng tối thiểu |
 
-Spike cũng đo chi phí bóng mềm (§3.6) và thử một bộ icon (§10). Kết quả cập nhật §3 và §6 của trang này, và là bản nháp đầu của hướng dẫn Gio (lớp 2) trong repo Fugue.
+Spike cũng đo chi phí bóng mềm (§3.6), thử một bộ icon (§10), chụp gallery trên màn Ubuntu của chủ dự án ở scale 1 và 1,25 để chốt cỡ chữ 13 và 14, và kiểm dấu tiếng Việt chồng ở mọi token chữ. Kết quả cập nhật §3 và §6 của trang này, và là bản nháp đầu của hướng dẫn Gio (lớp 2) trong repo Fugue.
 
 ## 10. Cần quyết định
 
 | Câu hỏi | Đề xuất |
 | --- | --- |
 | Bộ icon | **Lucide** (license ISC, DevKit đang dùng nên quen mắt, nét outline đồng nhất): chỉ đóng gói các icon dùng tới, chuyển từ SVG sang dạng Gio vẽ được lúc build. Cần một dòng ở `docs/dependencies.md` |
-| Cỡ chữ UI | 13 cho UI, 14 cho nội dung đọc (§3.3), theo DevKit; đo lại trên màn Ubuntu của chủ dự án trong spike |
+| Cỡ chữ UI | 13 cho UI, 14 cho nội dung đọc (§3.3), theo macOS, IntelliJ và GitHub; cài đặt cỡ giao diện và cỡ chữ nội dung bù cho người cần to hơn (§3.0). Đo lại trên màn Ubuntu của chủ dự án trong spike |
 | Bóng của lớp nổi | Không bóng, trừ khi spike cho thấy rẻ (§3.6) |
 
 ## 11. Evidence
@@ -447,7 +470,25 @@ Spike cũng đo chi phí bóng mềm (§3.6) và thử một bộ icon (§10). K
 | **UK-E05** | Test bàn phím: mọi control tương tác tới được bằng Tab; Menu, Select, Combobox, Dialog đóng bằng Escape và trả focus về nơi mở |
 | **UK-E06** | Gõ Telex trong TextField, TextArea và Combobox đạt như DA-E02 |
 | **UK-E07** | Giảm chuyển động: không component nào xin frame liên tục khi bật chế độ này, trừ Spinner đang hiện |
+| **UK-E08** | Mọi token chữ ở §3.3 vẽ chuỗi "Ễ Ặ Ỡ Ậ ỷ ộ" không bị cắt và không chạm dòng trên (test headless đo vùng mực so với chiều cao dòng) |
+| **UK-E09** | Gallery ở cỡ giao diện 90% và 125%: không control nào tràn chữ hay cắt nhãn, vùng bấm vẫn ít nhất `size.hit.min` |
 
 ## 12. Phụ thuộc
 
 H-33 ([desktop app](/dev-kit/core-harness/desktop-app): DA-04 font, DA-06 gõ tiếng Việt, DA-08 phím tắt và sáng tối). Token màu của F10.2c và motion của F10.6 trong repo Fugue. Kế thừa có chọn lọc quy tắc UI/UX v1 của DevKit (bảng chỗ hiện phản hồi, trạng thái bắt buộc, văn phong, thứ tự mục menu).
+
+## 13. Nguồn
+
+Đối chiếu ngày 2026-11-15.
+
+- Apple Human Interface Guidelines, [Typography](https://developer.apple.com/design/human-interface-guidelines/typography): cỡ mặc định macOS 13 pt, tối thiểu 10 pt; bảng text style của macOS (Body 13/16, Callout 12/15, Subheadline 11/14, Title 3 15/20); bảng tracking của SF.
+- GitHub Primer, [Size](https://primer.style/foundations/primitives/size) (control 24/28/32/40/48, padding, bo góc 3/6/12, viền 1/2) và [Typography](https://primer.style/foundations/primitives/typography) (body 12/14/16, code block 13 × 1,5, code inline 0,9285 em).
+- Microsoft [Fluent 2 Shapes](https://fluent2.microsoft.design/shapes): bo góc 2/4/8/12, phần tử chạm mép không bo.
+- libadwaita, [`_buttons.scss`](https://gitlab.gnome.org/GNOME/libadwaita/-/raw/main/src/stylesheet/widgets/_buttons.scss): nút GNOME cao tối thiểu 24 cộng padding 5/10, tức khoảng 34; nút tròn 34.
+- VS Code: [`fontInfo.ts`](https://github.com/microsoft/vscode/blob/main/src/vs/editor/common/config/fontInfo.ts) (editor 12 trên macOS, 14 nơi khác; dòng 1,5 trên macOS, 1,35 nơi khác), [`editorTabsControl.ts`](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/browser/parts/editor/editorTabsControl.ts) (tab 35, compact 22), [`activitybarPart.ts`](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/browser/parts/activitybar/activitybarPart.ts) (activity bar 48 với icon 24; compact 36 với icon 16).
+- Zed, [`default.json`](https://github.com/zed-industries/zed/blob/main/assets/settings/default.json): `ui_font_size` 16, `buffer_font_size` 15, dòng "comfortable" 1,618; cỡ chữ UI và cỡ chữ nội dung là hai cài đặt riêng.
+- IntelliJ: [New UI](https://www.jetbrains.com/help/idea/new-ui.html) dùng Inter cho UI và có compact mode; row 24 (compact 22) theo [một thread hỗ trợ của JetBrains](https://intellij-support.jetbrains.com/hc/en-us/community/posts/18492517107858/comments/18501784139538) thời 2024.1, cần kiểm lại khi dùng làm căn cứ chặt; [quy tắc layout](https://plugins.jetbrains.com/docs/intellij/layout.html) về khoảng trong nhóm nhỏ hơn giữa nhóm.
+- W3C WCAG 2.2: [2.5.8 Target Size (Minimum)](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html) 24 × 24; [2.4.13 Focus Appearance](https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html) tương đương viền 2 px, tương phản 3:1; [1.4.8 Visual Presentation](https://www.w3.org/WAI/WCAG22/Understanding/visual-presentation.html) dòng tối đa 80 ký tự, giãn dòng ít nhất 1,5.
+- Inter, [dynamic metrics](https://d.rsms.me/inter-website/v3/dynmetrics/) (bản lưu của trang v3): tracking = −0,0223 + 0,185 · e^(−0,1745 · cỡ chữ) em.
+- Gio v0.10.3 (mã nguồn): `unit.Metric` (`PxPerDp` theo hệ số scale của macOS, của Wayland nhân `text-scaling-factor`, và `Xft.dpi` của X11); `text.Parameters` mặc định dòng 1,2 và có `LineHeight` tuyệt đối; `font.Font` chỉ có typeface, style, weight (không letter-spacing, không tính năng OpenType).
+
