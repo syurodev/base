@@ -5,7 +5,7 @@ description: H-51 — bộ component dùng chung của app Gio; token kích thư
 
 # UI kit
 
-Trạng thái: **v0.1, ngày 2026-11-15, đề xuất, chờ duyệt**. Số đo ở §3 đã đối chiếu với các hệ thống thiết kế và chuẩn ở §13. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8).
+Trạng thái: **v0.2, ngày 2026-11-15, đề xuất, chờ duyệt**. Số đo ở §3 đã đối chiếu với các hệ thống thiết kế và chuẩn ở §13. v0.2 ghi kết quả spike (§9): giữ mọi token chữ, chốt giá trị màu tương tác, thêm bóng nhẹ cho lớp nổi, chốt Lucide, và thêm các luật Gio mà spike tìm ra ở §6. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8).
 
 Bố cục khung app (rail, sidebar nhiều project, khung chia đôi, panel đồng hành) và hợp đồng module (tham chiếu `fugue://`, card view, item `module_action`) thuộc các trang khác, viết sau spike. Trang này chỉ định nghĩa phần nền mà khung và module lắp ráp từ đó.
 
@@ -41,6 +41,7 @@ Màu đã có ở `theme` (F10.2c). Các nhóm dưới đây thêm vào `theme` 
 - Gio đo bằng `dp` (kích thước) và `sp` (chữ). Trên macOS, 1 dp là 1 point (nhân hệ số Retina). Trên Wayland, 1 dp là 1 pixel logic nhân hệ số scale của màn hình và `text-scaling-factor` của GNOME; trên X11 theo `Xft.dpi`. Vì vậy 1 dp xấp xỉ 1 CSS px và 1 point của macOS, và số liệu của các hệ thống dưới đây so sánh trực tiếp được. Đây cũng là lý do F10.1 thấy màn 1080p ở scale 1,25 chỉ cao 864 dp.
 - Gio mặc định chiều cao dòng bằng 1,2 lần cỡ chữ. Kit đặt chiều cao dòng tuyệt đối theo bảng §3.3 (đặt `LineHeight` và `LineHeightScale = 1`), không dùng mặc định.
 - **Cỡ giao diện do người dùng chỉnh**: cài đặt "Cỡ giao diện" 90, 100, 110, 125% (mặc định 100%) nhân cả `dp` và `sp`, giữ nguyên tỉ lệ như zoom của VS Code. Thêm một cài đặt riêng "Cỡ chữ nội dung" chỉ cho `type.prose` và `type.code` (như `buffer_font_size` của Zed), vì người đọc transcript và code lâu thường muốn chữ nội dung to hơn chữ giao diện.
+- **Cách cài cỡ giao diện** (spike đã kiểm): nhân `PxPerDp` và `PxPerSp` của `unit.Metric` với cùng một hệ số. Mọi trang gallery vẽ đúng ở 90% và 125%. Hệ quả là không cache nào được giữ số pixel thiết bị; cache nét icon khoá theo cỡ `dp` nên vẫn đúng. "Cỡ chữ nội dung" thì nhân cỡ của `type.prose` và `type.code`, không đổi `PxPerSp` chung, vì đổi `PxPerSp` sẽ làm chữ UI to theo.
 
 ### 3.1 Khoảng cách
 
@@ -92,7 +93,7 @@ Inter cho chữ, JetBrains Mono cho code (DA-04). Độ đậm của UI chỉ 40
 Lý do và ràng buộc:
 
 - **13 cho UI, 14 cho nội dung.** 13 là cỡ mặc định của macOS (tối thiểu 10) và là cỡ UI của IntelliJ và VS Code. Ubuntu dùng font hệ thống 11 pt (khoảng 14,7 px) nên app Fugue trông nhỏ hơn app GNOME một chút; đó là mật độ của IDE, và cài đặt "Cỡ giao diện" ở §3.0 bù cho người cần to hơn. Đo lại trên màn Ubuntu của chủ dự án trong spike.
-- **Tiếng Việt cần dòng cao hơn macOS.** Chữ hoa có hai dấu chồng (Ễ, Ặ, Ỡ) cao hơn phần ascender thường của Latin. Mọi token giữ tỉ lệ dòng ít nhất khoảng 1,35 (vì vậy `caption` là 11/16, không phải 11/14 như macOS). Spike kiểm bằng chuỗi "Ễ Ặ Ỡ Ậ ỷ ộ" ở mọi cỡ: không bị cắt, không chạm dòng trên.
+- **Tiếng Việt cần dòng cao hơn macOS.** Chữ hoa có hai dấu chồng (Ễ, Ặ, Ỡ) cao hơn phần ascender thường của Latin. Mọi token giữ tỉ lệ dòng ít nhất 1,33; mức thấp nhất là `small` và `codeSmall` 12/16 (vì vậy `caption` là 11/16, không phải 11/14 như macOS). Spike đo chuỗi "Ễ Ặ Ỡ Ậ ỷ ộ" ở mọi token, hai dòng liền nhau, chiều cao dòng tuyệt đối: không token nào cắt dấu ở đáy; ba token để mực nhô tối đa 0,7 dp trên mép trên của dòng, vô hại với khoảng cách §3.1; khe nhỏ nhất giữa hai dòng là 0,45 dp ở `small`. Mọi giá trị trong bảng giữ nguyên.
 - **Không quá 20 sp trong UI.** Gio chưa có letter-spacing, nên không áp được tracking động của Inter (ở 13–14 px chỉ −0,04 đến −0,09 px, bỏ qua được; ở 20 px là −0,33 px và chữ trông hơi thưa). Cỡ lớn hơn 20 trông thưa rõ, nên không dùng.
 - **Gio chưa bật được tính năng OpenType** của Inter: số đều nhau (`tnum`) và bộ ký tự phân biệt `l I 1` (`ss02`). Vì vậy số cần thẳng cột (thời gian, đếm, kích thước, cột số trong bảng), ID, hash và path dùng `type.codeSmall`; JetBrains Mono vốn có số đều nhau và phân biệt rõ các ký tự dễ nhầm.
 - **Bề rộng dòng nội dung** tối đa khoảng 80 ký tự với `prose` (WCAG 1.4.8), tức khoảng 720 dp ở 14 sp; khung transcript rộng hơn thì căn giữa cột chữ. Khối code và bảng được rộng hơn và cuộn ngang.
@@ -119,19 +120,23 @@ Số đo của khung app (rail, sidebar, panel) định nghĩa ở trang bố c�
 
 Thêm vào Chrome, kèm test tương phản như các token hiện có:
 
-| Token | Ý nghĩa |
-| --- | --- |
-| `HoverWash` | Lớp phủ khi hover lên row, ghost button, tab |
-| `PressedWash` | Lớp phủ khi đang nhấn |
-| `SelectedWash` | Nền của mục đang chọn; vẫn thấy rõ khi row khác đang hover |
-| `FgDisabled` | Chữ và icon bị tắt |
-| `Scrim` | Nền mờ phía sau dialog |
+| Token | Ý nghĩa | Giá trị (spike đã kiểm ở sáng và tối) |
+| --- | --- | --- |
+| `HoverWash` | Lớp phủ khi hover lên row, ghost button, tab | `Fg` ở 7% |
+| `PressedWash` | Lớp phủ khi đang nhấn | `Fg` ở 14% |
+| `SelectedWash` | Nền của mục đang chọn; vẫn thấy rõ khi row khác đang hover | `Fg` ở 11% |
+| `FgDisabled` | Chữ và icon bị tắt | `Fg` ở 35% |
+| `Scrim` | Nền mờ phía sau dialog | đen ở 40% |
+
+Các wash là token của `theme`, suy ra từ `Fg` của chế độ đang dùng; component không tự pha màu, để scan test UK-E02 và test tương phản UK-E04 chỉ cần kiểm một chỗ.
 
 Selected, hover, running và success là bốn ý nghĩa khác nhau và không dùng chung màu.
 
 ### 3.6 Lớp nổi
 
-Mặc định không đổ bóng: bề mặt nổi dùng `SurfaceRaised` cộng viền hairline. Spike đo chi phí của một bóng mềm trên Gio; nếu rẻ, thêm một token `elevation.float` duy nhất cho menu, popover, toast, dialog.
+Bề mặt nổi dùng `SurfaceRaised`, viền hairline và một token bóng duy nhất `elevation.float`, dùng cho menu, popover, toast và dialog (chủ dự án chốt 2026-11-15). Không thành phần nào khác có bóng.
+
+`elevation.float` là vài lớp hình chữ nhật bo góc trong mờ chồng nhau, lệch dần xuống dưới; không phải blur, vì Gio không có blur và ảnh bóng làm mờ sẵn cần thêm đường ảnh mà không nhanh hơn. Spike đo trang bóng qua 120 frame: p50 0,64 ms với bốn lớp, 0,55 ms khi không bóng; p95 2,5 và 1,7 ms. Số lớp, độ lệch và độ mờ của từng lớp chốt trong kit v1 và nằm trong `theme`.
 
 ### 3.7 Gán chuyển động
 
@@ -219,7 +224,7 @@ Mỗi mục dùng cùng mẫu. "Bàn phím" chỉ ghi khi control nhận focus.
 | Màu | Mặc định `IconMuted`; lấy màu chữ của control chứa nó; màu Status chỉ khi icon mang nghĩa trạng thái và luôn kèm chữ |
 | Không được | Icon là nguồn thông tin duy nhất; trộn bộ icon khác nét |
 
-Bộ icon chưa chốt: xem §10.
+Bộ icon là Lucide (§10). Mỗi icon là một file path data, đóng gói cùng license ISC; cung tròn SVG đổi thành đường cong bậc ba lúc build. Nét đã dựng được cache theo cỡ `dp`, rồi đặt bằng phép biến đổi affine: spike đo 100 icon 16 dp mất 1,06 ms mỗi frame khi cache so với 4,53 ms khi parse và dựng nét lại, độ sắc như nhau. Một `clip.PathSpec` gắn với bộ `op.Ops` đã ghi ra nó, nên nét cache phải ghi vào một bộ ops không bao giờ reset.
 
 ### 6.2 Button
 
@@ -229,8 +234,8 @@ Bộ icon chưa chốt: xem §10.
 | Biến thể | `primary` (tối đa một nút trong một khung hoặc dialog), `secondary` (mặc định), `ghost` (thao tác phụ trong toolbar, row), `danger` (mất dữ liệu, không phải nút nổi nhất của màn làm việc thường xuyên) |
 | Kích cỡ | `sm`, `md` (mặc định), `lg` theo `size.control` |
 | Trạng thái | §4.1 đủ; `busy` giữ bề rộng, nhãn không đổi hoặc đổi sang dạng tiếp diễn đúng thao tác ("Đang chạy…") mà không làm toolbar nhảy |
-| Bàn phím | Enter và Space kích hoạt; Space kích hoạt khi nhả phím |
-| Chuyển động | Nền đổi theo Snappy; không scale khi nhấn |
+| Bàn phím | Enter và Space kích hoạt; Space kích hoạt khi nhả phím. `widget.Clickable` đã làm đúng cả hai và nhận focus sẵn |
+| Chuyển động | Nền đổi theo Snappy; không scale khi nhấn. Spinner của `busy` chỉ xin frame khi đang được vẽ |
 | Sự kiện | `Clicked` |
 | Không được | Đặt màu riêng; dùng `primary` cho nhiều nút cạnh nhau; dùng nút như switch bật tắt |
 
@@ -283,6 +288,7 @@ Bộ icon chưa chốt: xem §10.
 | Trạng thái | §4.1; lỗi chỉ hiện sau khi rời ô hoặc khi gửi, rồi cập nhật khi sửa; không báo lỗi ở ô trống chưa chạm |
 | Bàn phím | Gõ chữ có IME (Telex qua IBus, bộ gõ macOS), chọn bằng Shift+mũi tên, copy, cắt, dán, undo, redo; Enter báo `Submitted`; Escape xoá ô `search` |
 | Sự kiện | `Changed`, `Submitted`, `FocusLost` |
+| IME | Spike gõ Telex thật trên macOS: `aa` thành `â`, `vieets` và dấu cách thành `viết`, một Backspace sau đó xoá đúng một ký tự. Test phải mô phỏng đúng thứ tự của IME: sau khi commit, con trỏ nằm ở đầu đoạn vừa commit, rồi IME gửi thêm một `SelectionEvent` để đặt con trỏ. IME có kiểm chính tả commit cả từ ở ranh giới từ. Chèn ký tự unicode trực tiếp bỏ qua IME, nên chỉ phím thật mới kiểm được IME |
 | Không được | Mất nội dung đã gõ khi gửi lỗi; tự chuyển focus |
 
 ### 6.9 TextArea
@@ -318,12 +324,13 @@ TextField `search` cộng danh sách gợi ý trên lớp nổi. Có trạng th�
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Bề mặt `SurfaceRaised`, `radius.xl`; mục cao `size.row`: icon, nhãn, phím tắt bên phải, mũi tên khi có menu con; nhóm cách nhau bằng Divider |
+| Cấu tạo | Bề mặt `SurfaceRaised`, `radius.xl`, `elevation.float`; mục cao `size.row`: icon, nhãn, phím tắt bên phải, mũi tên khi có menu con; khi có một mục mang icon thì mọi mục chừa cột icon để nhãn thẳng hàng; nhóm cách nhau bằng Divider, không thêm hàng trống |
 | Loại | Dropdown (mở từ nút), context menu (chuột phải hoặc phím menu tại đối tượng) |
 | Thứ tự mục | Mở hoặc kết nối → tạo, sửa, nhân bản → copy, xuất → xoá (danger, cuối cùng) |
 | Vị trí | Neo vào nút hoặc con trỏ; lật khi chạm mép cửa sổ; menu con mở ngang |
 | Bàn phím | Mũi tên di chuyển (vòng), Enter chọn, mũi tên phải mở menu con, trái đóng, gõ chữ nhảy tới mục, Escape đóng và trả focus về nơi mở |
-| Chuột | Đi chéo từ mục cha sang menu con không làm menu con đóng |
+| Chuột | Đi chéo từ mục cha sang menu con không làm menu con đóng. Bấm ra ngoài thì đóng, và cú bấm đó không lọt xuống control bên dưới |
+| Bắt chuột | Khi menu gốc mở, nó đặt một vùng bắt chuột phủ cả cửa sổ, nằm dưới các mục của nó; vùng này nhận mọi cú bấm mà các mục không nhận và đóng menu khi bấm ngoài khung. Gio chỉ đưa sự kiện chuột cho vùng trên cùng, nên mọi vùng sự kiện khác trong kit phải clip theo khung của control: một vùng không clip sẽ nuốt mọi cú bấm bên dưới (UK-E10) |
 | Chuyển động | Mở Snappy (mờ và dịch nhẹ từ phía neo), đóng Exit; mở đóng liên tục thì quay đầu từ vị trí hiện tại (F10.6) |
 | Không được | Chứa form lớn; tự đóng khi dữ liệu nền cập nhật |
 
@@ -399,7 +406,7 @@ Danh sách ảo hoá chung, tổng quát từ `transcriptview` (F10.4a): chỉ l
 | Mục | Nội dung |
 | --- | --- |
 | Cấu tạo | Hai vùng và một tay kéo; tay kéo nhìn thấy là một đường hairline, vùng bắt chuột rộng 8 dp |
-| Hành vi | Kéo bám con trỏ, con trỏ đổi thành mũi tên đổi cỡ; mỗi vùng có bề rộng tối thiểu; bấm đúp tay kéo trả về tỉ lệ mặc định; vị trí lưu ở host theo bố cục của khung app |
+| Hành vi | Kéo bám con trỏ, con trỏ đổi thành mũi tên đổi cỡ; mỗi vùng có bề rộng tối thiểu; bấm đúp tay kéo trả về tỉ lệ mặc định; vị trí lưu ở host theo bố cục của khung app. Bấm đúp phải phân biệt với kéo: con trỏ dịch quá khoảng 4 dp là kéo, và lần thả của một lần kéo không tính vào bấm đúp |
 | Bàn phím | Tay kéo nhận focus; mũi tên trái phải dịch 16 dp, kèm Shift dịch 64 dp |
 | Chuyển động | Không spring khi kéo; mở hoặc đóng một vùng bằng lệnh thì Smooth |
 
@@ -451,13 +458,43 @@ Trước khi làm kit v1, một spike bỏ đi sau khi xong dựng bốn compone
 
 Spike cũng đo chi phí bóng mềm (§3.6), thử một bộ icon (§10), chụp gallery trên màn Ubuntu của chủ dự án ở scale 1 và 1,25 để chốt cỡ chữ 13 và 14, và kiểm dấu tiếng Việt chồng ở mọi token chữ. Kết quả cập nhật §3 và §6 của trang này, và là bản nháp đầu của hướng dẫn Gio (lớp 2) trong repo Fugue.
 
+### 9.1 Kết quả (2026-11-15)
+
+Spike chạy trên Gio v0.10.3, macOS, ở branch bỏ đi `spike/ui-kit-components` của repo Fugue. Thứ được giữ lại là bộ ảnh gallery và bản nháp `docs/ui/gio-guide.md`.
+
+| Câu hỏi | Kết quả |
+| --- | --- |
+| Focus và Tab | Cửa sổ Gio tự đổi Tab và Shift+Tab thành di chuyển focus; thứ tự là thứ tự các vùng nhập đăng ký trong frame, nên chỉ cần layout theo thứ tự nhìn. Một tag nhận focus được khi đọc `key.FocusFilter` qua `gtx.Event`; một `key.Filter` có `Focus` thôi là chưa đủ. Gio không có focus-visible: kit giữ một cờ cấp cửa sổ, Tab bật và bấm chuột tắt (UK-05 giữ nguyên) |
+| Lớp nổi | Làm được như UK-07: một overlay do cửa sổ sở hữu, layout sau cùng, ghi trong `op.Record` rồi `op.Defer`. Neo tính theo toạ độ cửa sổ vì Gio không cho đọc phép biến đổi hiện tại, nên kit v1 cần một helper truyền offset qua các lớp layout. Lật ở mép, bấm ra ngoài, trả focus và quay đầu chuyển động đều chạy. Bẫy lớn nhất là vùng bắt chuột không clip (§6.15) |
+| Lõi nhập chữ | Một `widget.Editor` dùng cho mọi biến thể; Telex qua IME của macOS đúng (§6.8). Chưa kiểm IBus trên Ubuntu |
+| Chiều cao dòng | Giữ mọi giá trị §3.3 (số đo ở §3.3) |
+| Icon | Lucide; cache nét rẻ hơn khoảng 4 lần (§6.1) |
+| Bóng | Rẻ; thêm `elevation.float` (§3.6) |
+| Frame | Trang đứng yên không xin thêm frame nào sau frame đầu. Menu ở 60 Hz: mở 26 frame, menu con 25, đóng 21, rồi dừng. Test đếm hai frame yên liên tiếp, vì frame xử lý lệnh đóng chỉ đổi đích của spring |
+| Cỡ giao diện | Nhân `PxPerDp` và `PxPerSp` là đủ (§3.0) |
+
+Còn chờ chủ dự án kiểm trên Ubuntu: cỡ chữ 13 và 14 ở scale 1 và 1,25 cạnh chữ hệ thống GNOME; Telex qua IBus trên Wayland và X11, kể cả chữ đang soạn hiện tại chỗ có gạch dưới; menu lật ở mép phải; gallery ở 90% và 125%.
+
+### 9.2 Chia kit v1
+
+Mỗi phần dưới đây là một item của roadmap Fugue, dưới trần khoảng 1.000 dòng. Kit làm trước composer F10.4b, vì composer lắp từ TextArea, Menu và Button (chủ dự án chốt 2026-11-15).
+
+| Phần | Nội dung |
+| --- | --- |
+| Lõi kit | Token §3 vào `theme` (gồm wash §3.5 và `elevation.float`), Env (cờ focus-visible, motion driver, cỡ giao diện), nền chữ, icon và spinner |
+| Button và gallery | Button, IconButton; gallery (cửa sổ, điều hướng, máy chụp headless, ma trận ảnh) |
+| Nhập chữ | TextField, TextArea, test IME theo cặp sự kiện ở §6.8 |
+| Menu và lớp nổi | Overlay, neo và lật, menu con, bàn phím, gõ chữ nhảy mục; luật clip vùng sự kiện (UK-E10). Tách phần bàn phím và gõ chữ nhảy mục ra nếu vượt trần |
+| SplitPane | SplitPane, Divider, Tag, Progress |
+| Chuyển code cũ | `appwin` và `transcriptview` sang kit; bật UK-E01 và UK-E02 |
+
 ## 10. Cần quyết định
 
 | Câu hỏi | Đề xuất |
 | --- | --- |
-| Bộ icon | **Lucide** (license ISC, DevKit đang dùng nên quen mắt, nét outline đồng nhất): chỉ đóng gói các icon dùng tới, chuyển từ SVG sang dạng Gio vẽ được lúc build. Cần một dòng ở `docs/dependencies.md` |
-| Cỡ chữ UI | 13 cho UI, 14 cho nội dung đọc (§3.3), theo macOS, IntelliJ và GitHub; cài đặt cỡ giao diện và cỡ chữ nội dung bù cho người cần to hơn (§3.0). Đo lại trên màn Ubuntu của chủ dự án trong spike |
-| Bóng của lớp nổi | Không bóng, trừ khi spike cho thấy rẻ (§3.6) |
+| Bộ icon | Đã chốt: **Lucide** (license ISC, DevKit đang dùng nên quen mắt, nét outline đồng nhất). Chỉ đóng gói các icon dùng tới, mỗi icon một file path data; cung tròn đổi thành đường cong bậc ba lúc build (§6.1). Cần một dòng ở `docs/dependencies.md` |
+| Cỡ chữ UI | 13 cho UI, 14 cho nội dung đọc (§3.3), theo macOS, IntelliJ và GitHub; cài đặt cỡ giao diện và cỡ chữ nội dung bù cho người cần to hơn (§3.0). Spike giữ nguyên các giá trị; còn chờ chủ dự án nhìn trên màn Ubuntu (§9.1) |
+| Bóng của lớp nổi | Đã chốt 2026-11-15: thêm `elevation.float` bằng các lớp trong mờ, không blur (§3.6) |
 
 ## 11. Evidence
 
@@ -470,8 +507,9 @@ Spike cũng đo chi phí bóng mềm (§3.6), thử một bộ icon (§10), ch�
 | **UK-E05** | Test bàn phím: mọi control tương tác tới được bằng Tab; Menu, Select, Combobox, Dialog đóng bằng Escape và trả focus về nơi mở |
 | **UK-E06** | Gõ Telex trong TextField, TextArea và Combobox đạt như DA-E02 |
 | **UK-E07** | Giảm chuyển động: không component nào xin frame liên tục khi bật chế độ này, trừ Spinner đang hiện |
-| **UK-E08** | Mọi token chữ ở §3.3 vẽ chuỗi "Ễ Ặ Ỡ Ậ ỷ ộ" không bị cắt và không chạm dòng trên (test headless đo vùng mực so với chiều cao dòng) |
+| **UK-E08** | Mọi token chữ ở §3.3 vẽ chuỗi "Ễ Ặ Ỡ Ậ ỷ ộ" thành hai dòng: không cắt dấu ở đáy, mực nhô trên mép trên không quá 1 dp, và hai dòng không chạm nhau (test headless đo vùng mực so với chiều cao dòng) |
 | **UK-E09** | Gallery ở cỡ giao diện 90% và 125%: không control nào tràn chữ hay cắt nhãn, vùng bấm vẫn ít nhất `size.hit.min` |
+| **UK-E10** | Vùng sự kiện của mọi control trong kit clip theo khung của control: test headless bấm ngay ngoài khung từng control và kiểm control đó không nhận, còn control bên dưới thì nhận. Ngoại lệ duy nhất là vùng phủ cửa sổ của menu gốc đang mở (§6.15) |
 
 ## 12. Phụ thuộc
 
