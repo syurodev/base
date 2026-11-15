@@ -5,7 +5,7 @@ description: H-51 — bộ component dùng chung của app Gio; token kích thư
 
 # UI kit
 
-Trạng thái: **v0.2, ngày 2026-11-15, đã duyệt** (chủ dự án, 2026-11-15, base-doc PR #14). Số đo ở §3 đã đối chiếu với các hệ thống thiết kế và chuẩn ở §13. v0.2 ghi kết quả spike (§9): giữ mọi token chữ, chốt giá trị màu tương tác, thêm bóng nhẹ cho lớp nổi, chốt Lucide, và thêm các luật Gio mà spike tìm ra ở §6. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8).
+Trạng thái: **v0.3, ngày 2026-11-15, chờ duyệt**. v0.2 đã duyệt (chủ dự án, 2026-11-15, base-doc PR #14). Số đo ở §3 đã đối chiếu với các hệ thống thiết kế và chuẩn ở §13. v0.2 ghi kết quả spike (§9): giữ mọi token chữ, chốt giá trị màu tương tác, thêm bóng nhẹ cho lớp nổi, chốt Lucide, và thêm các luật Gio mà spike tìm ra ở §6. v0.3 đổi phong cách sang kiểu HeroUI theo lựa chọn của chủ dự án sau khi xem gallery của F10.9 (§3.8): bo góc lớn hơn, nền tông màu thay cho viền, viền nhạt, nhấn co lại, vòng focus cách mép, control tắt mờ đi, và mọi component có chuyển động phù hợp (§3.7). Mật độ của IDE (chiều cao control, cỡ chữ) giữ nguyên. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8).
 
 Bố cục khung app (rail, sidebar nhiều project, khung chia đôi, panel đồng hành) và hợp đồng module (tham chiếu `fugue://`, card view, item `module_action`) thuộc các trang khác, viết sau spike. Trang này chỉ định nghĩa phần nền mà khung và module lắp ráp từ đó.
 
@@ -64,13 +64,14 @@ Khoảng trong một nhóm luôn nhỏ hơn khoảng giữa các nhóm (quy tắ
 
 | Token | dp | Dùng cho | Cơ sở |
 | --- | --- | --- | --- |
-| `radius.sm` | 4 | Tag, checkbox, chip code inline, vùng chọn trong chữ | Fluent `medium` 4 cho control nhỏ; Primer `small` 3 |
-| `radius.md` | 6 | Button, input, list row, tab, menu item | Primer `default` 6 cho control |
-| `radius.lg` | 8 | Card, khối code, panel trong nội dung | Fluent `large` 8 |
-| `radius.xl` | 12 | Menu, popover, toast, dialog, composer | Primer `large` 12; Fluent `x-large` 12 cho popover |
-| `radius.full` | một nửa chiều cao | Switch, avatar, chấm trạng thái | Primer `full`, Fluent `circle` |
+| `radius.xs` | 4 | Chip code inline, vùng chọn trong chữ | Bám theo dòng chữ, không theo control |
+| `radius.sm` | 6 | Checkbox, ô nhỏ trong control | HeroUI checkbox `md`: nửa `radius.medium` |
+| `radius.md` | 10 | Button, IconButton, input, list row, tab, menu item, tooltip | HeroUI `medium` 12 ở control 40; thu theo control 28 của Fugue |
+| `radius.lg` | 14 | Card, khối code, panel trong nội dung | HeroUI `large` 14 |
+| `radius.xl` | 16 | Menu, popover, toast, dialog, composer | HeroUI popover và modal `large`; nới thêm để góc trong của item vẫn là `radius.md` |
+| `radius.full` | một nửa chiều cao | Tag, switch, avatar, chấm trạng thái, thanh progress | HeroUI chip và switch `full` |
 
-Góc lồng nhau: bo góc bên trong bằng bo góc bên ngoài trừ khoảng padding giữa hai lớp, tối thiểu `radius.sm`. Ví dụ menu `radius.xl` 12 với padding 4 thì item bên trong là 8. Phần tử chạm mép cửa sổ hoặc mép khung (sidebar, rail, thanh tab) không bo góc ở cạnh chạm mép (Fluent).
+Góc lồng nhau: bo góc bên trong bằng bo góc bên ngoài trừ khoảng padding giữa hai lớp, tối thiểu `radius.sm`. Ví dụ menu `radius.xl` 16 với padding 6 thì item bên trong là 10, tức `radius.md`. Phần tử chạm mép cửa sổ hoặc mép khung (sidebar, rail, thanh tab) không bo góc ở cạnh chạm mép (Fluent).
 
 ### 3.3 Kiểu chữ
 
@@ -112,7 +113,12 @@ Lý do và ràng buộc:
 | `stroke.icon` | 1,5 ở 16 và 20; 1,25 ở 12 và 14 | Độ dày nét icon | Bộ icon nét kẻ ở lưới 24 với nét 2 sẽ quá đậm khi thu về 16 |
 | `size.hit.min` | 24 | Vùng bấm tối thiểu, kể cả icon 12 hoặc 14 | WCAG 2.5.8 (AA): 24 × 24 |
 | `stroke.hairline` | 1 | Viền, divider | Primer `thin` 1 |
-| `stroke.focus` | 2, cách mép 1 | Vòng focus | WCAG 2.4.13: tương đương viền 2 px, tương phản 3:1 giữa có và không focus |
+| `stroke.focus` | 2, cách mép ngoài 2 | Vòng focus | HeroUI `outline-2 outline-offset-2`; WCAG 2.4.13: tương đương viền 2 px, tương phản 3:1 giữa có và không focus |
+| `motion.press` | 0,97 | Tỉ lệ co của control khi đang nhấn | HeroUI button `scale-[0.97]` |
+
+Chiều cao control giữ mật độ IDE (24/28/32). HeroUI dùng 32/40/48 cho web; Fugue lấy phong cách của HeroUI (bo góc, nền tông màu, chuyển động) nhưng không lấy kích thước.
+
+Vòng focus nằm ngoài khung control 2 dp, nên control đứng riêng phải chừa 4 dp quanh mình mà không bị clip. Mục nằm trong vùng bị clip (row của list, mục menu, ô của bảng) dùng vòng vẽ bên trong khung, cách mép 1.
 
 Số đo của khung app (rail, sidebar, panel) định nghĩa ở trang bố cục khung; tham chiếu để đối chiếu: activity bar của VS Code rộng 48 (icon 24), bản compact rộng 36 (icon 16).
 
@@ -125,29 +131,69 @@ Thêm vào Chrome, kèm test tương phản như các token hiện có:
 | `HoverWash` | Lớp phủ khi hover lên row, ghost button, tab | `Fg` ở 7% |
 | `PressedWash` | Lớp phủ khi đang nhấn | `Fg` ở 14% |
 | `SelectedWash` | Nền của mục đang chọn; vẫn thấy rõ khi row khác đang hover | `Fg` ở 11% |
-| `FgDisabled` | Chữ và icon bị tắt | `Fg` ở 35% |
+| `FgDisabled` | Chữ và icon bị tắt ngoài control (mục menu tắt, chữ phụ của row tắt) | `Fg` ở 35% |
 | `Scrim` | Nền mờ phía sau dialog | đen ở 40% |
+| `FillSoft` | Nền tông của biến thể `secondary` và của tag `neutral` | `Fg` ở 6% (v0.3, chốt trong kit bằng test tương phản) |
+| `FillSoftHover` | `FillSoft` khi hover | `Fg` ở 10% |
+| `BorderSubtle` | Viền nhạt của control `bordered`, card, ô nhập và lớp nổi | `Fg` ở 9% |
+| `DangerSoft` | Nền tông của biến thể `danger` | `Status.Danger` ở 14%; chữ trên nền này là `DangerFg` đậm đủ 4,5:1 |
+| `DisabledOpacity` | Độ mờ của cả control khi tắt (§4.1) | 0,5 (HeroUI `disabledOpacity`) |
 
 Các wash là token của `theme`, suy ra từ `Fg` của chế độ đang dùng; component không tự pha màu, để scan test UK-E02 và test tương phản UK-E04 chỉ cần kiểm một chỗ.
+
+Viền nhạt (v0.3): control và card phân biệt với nền bằng nền tông (`FillSoft`, `SurfaceRaised`), không bằng viền đậm. Chỗ nào cần viền thì dùng `BorderSubtle`; `Border` hiện có chỉ còn cho Divider. Nhãn chữ là thứ nhận diện control, nên viền nhạt không vi phạm WCAG 1.4.11.
 
 Selected, hover, running và success là bốn ý nghĩa khác nhau và không dùng chung màu.
 
 ### 3.6 Lớp nổi
 
-Bề mặt nổi dùng `SurfaceRaised`, viền hairline và một token bóng duy nhất `elevation.float`, dùng cho menu, popover, toast và dialog (chủ dự án chốt 2026-11-15). Không thành phần nào khác có bóng.
+Bề mặt nổi dùng `SurfaceRaised`, viền `BorderSubtle` và một token bóng duy nhất `elevation.float`, dùng cho menu, popover, toast và dialog (chủ dự án chốt 2026-11-15). Không thành phần nào khác có bóng.
 
 `elevation.float` là vài lớp hình chữ nhật bo góc trong mờ chồng nhau, lệch dần xuống dưới; không phải blur, vì Gio không có blur và ảnh bóng làm mờ sẵn cần thêm đường ảnh mà không nhanh hơn. Spike đo trang bóng qua 120 frame: p50 0,64 ms với bốn lớp, 0,55 ms khi không bóng; p95 2,5 và 1,7 ms. Số lớp, độ lệch và độ mờ của từng lớp chốt trong kit v1 và nằm trong `theme`.
 
 ### 3.7 Gán chuyển động
 
-| Tình huống | Token |
-| --- | --- |
-| Hover, nhấn, đổi trạng thái control | Snappy |
-| Menu, popover, tooltip xuất hiện | Snappy; biến mất bằng Exit |
-| Nội dung dịch chỗ, mở và gập section | Smooth |
-| Núm switch | Bouncy (chỗ duy nhất dùng Bouncy) |
-| Kéo đổi kích thước, kéo thả | Bám con trỏ, không spring; thả ra thì đứng yên |
-| Dữ liệu, con trỏ chữ, focus, selection | Không nảy, không animate |
+Chủ dự án chốt (v0.3): mọi component có chuyển động phù hợp, theo cảm giác của HeroUI. Mỗi mục ở §6 có dòng "Chuyển động"; bảng dưới là luật chung.
+
+| Tình huống | Chuyển động | Token |
+| --- | --- | --- |
+| Hover, đổi màu nền hay màu chữ của control | Màu chuyển dần | Snappy |
+| Nhấn Button, IconButton, Checkbox, card bấm được | Co về `motion.press` khi nhấn, về 1 khi nhả; chỉ phần vẽ co, vùng bấm giữ nguyên | Snappy |
+| Gợn sóng khi nhấn (ripple) | Vòng tròn mờ loang từ điểm nhấn, clip theo khung bo góc, mờ hẳn rồi biến mất; chỉ ở Button và IconButton | Smooth, mờ đi bằng Exit |
+| Vòng focus | Hiện bằng mờ dần nhanh; không co giãn | Snappy |
+| Đổi nội dung trong cùng chỗ (icon thành spinner, icon copy thành dấu tích) | Mờ chéo, icon mới phóng nhẹ từ 0,8 | Snappy |
+| Menu, popover, tooltip, combobox mở | Mờ dần cộng phóng từ 0,96 về phía neo | Snappy; đóng bằng Exit |
+| Dialog | Scrim mờ dần; khung mờ dần cộng phóng từ 0,95 | Smooth cho scrim, Snappy cho khung; đóng bằng Exit |
+| Toast | Trượt vào từ mép dưới cộng mờ dần; toast khác dịch chỗ | Snappy; dịch chỗ Smooth; đóng bằng Exit |
+| Nội dung dịch chỗ, mở và gập section, cây, accordion | Chiều cao và vị trí chuyển dần, nội dung mờ dần | Smooth |
+| Chỉ báo đang chọn (tab, segmented, row đang chọn của sidebar) | Nền hoặc gạch chân trượt từ mục cũ sang mục mới | Smooth |
+| Mục mới vào list, mục bị xoá | Mờ dần cộng mở chiều cao; xoá thì mờ đi rồi gập | Smooth; xoá bằng Exit |
+| Mũi tên mở gập, mũi tên của Select | Xoay 90° hoặc 180° | Snappy |
+| Núm switch | Trượt có nảy; khi nhấn núm giãn ngang | Bouncy |
+| Khung giả khi tải (§4.3) | Dải sáng quét ngang (shimmer) | Đều, không spring; chỉ xin frame khi đang hiện |
+| Kéo đổi kích thước, kéo thả | Bám con trỏ, không spring; thả ra thì đứng yên | — |
+| Không animate | Vị trí con trỏ chữ (chỉ nhấp nháy), số liệu và chữ của dữ liệu, cuộn do người dùng, vị trí vùng chọn chữ | — |
+
+Luật chung:
+
+- Mọi chuyển động **quay đầu được**: đổi đích giữa chừng thì đi tiếp từ giá trị hiện tại, không nhảy (F10.6).
+- **Không chặn thao tác**: control nhận input ngay khi đang chuyển động; menu đang đóng không nhận cú bấm.
+- **Chỉ xin frame khi đang chuyển động**; đến đích thì dừng (§9.1 đo bằng hai frame yên liên tiếp).
+- **Giảm chuyển động** (UK-04): đổi tức thì, không ripple, không co khi nhấn, không shimmer; spinner thành chấm đứng yên kèm chữ. Trạng thái cuối giống hệt.
+- Co khi nhấn quay quanh tâm control bằng phép biến đổi affine. Vùng sự kiện không co theo, để con trỏ ở sát mép không làm hover nhấp nháy.
+- Không blur: Gio không có blur, nên lớp nổi dùng nền đặc `SurfaceRaised` và `elevation.float` (§3.6), không dùng nền mờ kính của HeroUI.
+
+### 3.8 Phong cách (v0.3)
+
+Chủ dự án chọn phong cách HeroUI sau khi xem ba hướng (2026-11-15): Primer hiện tại, HeroUI, và kiểu viên thuốc. Cụ thể:
+
+- Bo góc lớn hơn (§3.2); tag và chip bo tròn hẳn.
+- Nút mặc định là nền tông (`flat` của HeroUI), không phải nút viền. Viền chỉ ở biến thể `bordered`, và luôn là `BorderSubtle` (§3.5).
+- Nút `primary` là nền đặc `Action`; hover và nhấn theo token `ActionHover`, `ActionPressed`.
+- Control tắt vẽ cả khối ở `DisabledOpacity` (§4.1).
+- Vòng focus 2 dp cách mép ngoài 2 dp (§3.4).
+- Nhấn co lại `motion.press`, có ripple (§3.7).
+- Màu accent của HeroUI (xanh dương) chưa đổi: `Action` và `FocusBorder` giữ giá trị hiện tại của `theme` cho đến khi chủ dự án chọn hue (§10).
 
 ## 4. Hành vi chung
 
@@ -157,12 +203,12 @@ Mọi control tương tác có các trạng thái sau, theo đúng thứ tự ư
 
 | Trạng thái | Cách hiện |
 | --- | --- |
-| Tắt (`disabled`) | `FgDisabled`, không hover, không focus; lý do tắt phải tìm được ở helper text hoặc status gần đó, không chỉ trong tooltip |
-| Đang chạy (`busy`) | Spinner thay icon, giữ nguyên bề rộng, chặn kích hoạt lặp |
+| Tắt (`disabled`) | Cả control ở `DisabledOpacity`, không hover, không nhấn, không focus; lý do tắt phải tìm được ở helper text hoặc status gần đó, không chỉ trong tooltip |
+| Đang chạy (`busy`) | Spinner thay icon (mờ chéo), giữ nguyên bề rộng, chặn kích hoạt lặp; không wash hover hay nhấn |
 | Lỗi (`error`) | Viền Status.Danger cộng thông điệp dưới control |
-| Đang nhấn | `PressedWash` |
-| Focus từ bàn phím | Vòng focus `FocusBorder`, `stroke.focus` |
-| Hover | `HoverWash` |
+| Đang nhấn | Wash nhấn của biến thể (thay wash hover, không chồng lên) và co `motion.press` |
+| Focus từ bàn phím | Vòng focus `FocusBorder`, `stroke.focus` (§3.4) |
+| Hover | Wash hover của biến thể |
 | Đang chọn | `SelectedWash`, độc lập với hover |
 | Nghỉ | Theo biến thể |
 
@@ -231,11 +277,12 @@ Bộ icon là Lucide (§10). Mỗi icon là một file path data, đóng gói c�
 | Mục | Nội dung |
 | --- | --- |
 | Cấu tạo | Icon (tùy chọn), nhãn `type.label`; `sm`: padding ngang `space.md`, `space.xs` giữa icon và nhãn; `md` và `lg`: padding ngang `space.lg`, `space.sm` giữa icon và nhãn |
-| Biến thể | `primary` (tối đa một nút trong một khung hoặc dialog), `secondary` (mặc định), `ghost` (thao tác phụ trong toolbar, row), `danger` (mất dữ liệu, không phải nút nổi nhất của màn làm việc thường xuyên) |
+| Biến thể | `primary`: nền đặc `Action`, tối đa một nút trong một khung hoặc dialog. `secondary` (mặc định): nền tông `FillSoft`, không viền (HeroUI `flat`). `bordered`: nền trong suốt, viền `BorderSubtle`. `ghost`: trong suốt, chỉ hiện nền khi hover (HeroUI `light`). `danger`: nền tông `DangerSoft`, chữ `DangerFg`, cho thao tác mất dữ liệu; không phải nút nổi nhất của màn làm việc thường xuyên |
+| Bo góc | `radius.md` |
 | Kích cỡ | `sm`, `md` (mặc định), `lg` theo `size.control` |
-| Trạng thái | §4.1 đủ; `busy` giữ bề rộng, nhãn không đổi hoặc đổi sang dạng tiếp diễn đúng thao tác ("Đang chạy…") mà không làm toolbar nhảy |
+| Trạng thái | §4.1 đủ; `busy` giữ bề rộng, nhãn không đổi hoặc đổi sang dạng tiếp diễn đúng thao tác ("Đang chạy…") mà không làm toolbar nhảy. Spinner nằm giữa ô icon khi có icon, giữa nút khi không có |
 | Bàn phím | Enter và Space kích hoạt; Space kích hoạt khi nhả phím. `widget.Clickable` đã làm đúng cả hai và nhận focus sẵn |
-| Chuyển động | Nền đổi theo Snappy; không scale khi nhấn. Spinner của `busy` chỉ xin frame khi đang được vẽ |
+| Chuyển động | Màu đổi theo Snappy; nhấn co `motion.press` và có ripple từ điểm nhấn (§3.7); icon và spinner mờ chéo khi vào hay ra `busy`. Spinner chỉ xin frame khi đang được vẽ |
 | Sự kiện | `Clicked` |
 | Không được | Đặt màu riêng; dùng `primary` cho nhiều nút cạnh nhau; dùng nút như switch bật tắt |
 
@@ -243,18 +290,20 @@ Bộ icon là Lucide (§10). Mỗi icon là một file path data, đóng gói c�
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Một icon; vùng bấm ít nhất `size.hit.min` dù icon nhỏ hơn |
-| Biến thể | `ghost` (mặc định), `secondary`; trạng thái bật (`toggled`) cho nút như ghim, theo dõi |
+| Cấu tạo | Một icon trong ô vuông `size.control`, bo `radius.md`; vùng bấm ít nhất `size.hit.min` dù icon nhỏ hơn |
+| Biến thể | `ghost` (mặc định), `secondary`, `bordered`; trạng thái bật (`toggled`) cho nút như ghim, theo dõi: nền `SelectedWash`, icon `Fg` |
 | Bắt buộc | Tên truy cập; tooltip khi ý nghĩa chưa hiển nhiên, kèm phím tắt nếu có |
 | Bàn phím | Như Button |
+| Chuyển động | Như Button. Đổi icon theo trạng thái (copy thành dấu tích, ghim thành đã ghim) bằng mờ chéo cộng phóng từ 0,8 |
 
 ### 6.4 Tag
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Chữ `type.small`, icon tùy chọn, `radius.sm` |
-| Biến thể | `neutral`; `status` (info, success, warning, danger); `hue` (một trong 8 hue cho phân loại); `env` (env tag của tài nguyên: `prod` luôn danger, `stg` warning, `dev` neutral, tag lạ warning) |
+| Cấu tạo | Chữ `type.small`, icon tùy chọn, `radius.full`, nền tông của màu tag, không viền (HeroUI chip `flat`) |
+| Biến thể | `neutral` (`FillSoft`); `status` (info, success, warning, danger); `hue` (một trong 8 hue cho phân loại); `env` (env tag của tài nguyên: `prod` luôn danger, `stg` warning, `dev` neutral, tag lạ warning) |
 | Hành vi | Không tự là nút. Nếu bấm được thì phải có hover, focus và nhãn hành động như IconButton |
+| Chuyển động | Xuất hiện bằng mờ dần cộng phóng từ 0,9; gỡ bằng mờ đi rồi gập bề rộng; đổi màu (ví dụ trạng thái chạy thành xong) chuyển dần theo Snappy |
 | Không được | Nhấp nháy; chỉ dùng màu không có chữ; dùng hue cho trạng thái |
 
 ### 6.5 Spinner và Progress
@@ -263,7 +312,7 @@ Bộ icon là Lucide (§10). Mỗi icon là một file path data, đóng gói c�
 | --- | --- |
 | Spinner | Không xác định thời lượng; chỉ hiện sau khoảng 150 ms để không nháy với việc nhanh |
 | Progress | Chỉ dùng khi backend báo tổng thật; không giả phần trăm |
-| Chuyển động | Spinner quay đều, không spring; giảm chuyển động thì thành chấm đứng yên kèm chữ |
+| Chuyển động | Spinner hiện bằng mờ dần, quay đều, không spring; giảm chuyển động thì thành chấm đứng yên kèm chữ. Thanh progress `radius.full`, phần đã xong chạy tới giá trị mới theo Smooth |
 | Hiệu năng | Chỉ xin frame khi đang hiện (F10.6 Driver) |
 
 ### 6.6 Divider
@@ -274,16 +323,18 @@ Bộ icon là Lucide (§10). Mỗi icon là một file path data, đóng gói c�
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Chữ `type.small`, phím tắt (nếu có) bằng `type.codeSmall`, nền `SurfaceRaised`, `radius.md` |
+| Cấu tạo | Chữ `type.small`, phím tắt (nếu có) bằng `type.codeSmall`, nền `SurfaceRaised`, viền `BorderSubtle`, `radius.md`, `elevation.float` |
 | Kích hoạt | Hover sau khoảng 500 ms, hoặc focus bàn phím ngay; đi từ control này sang control kế bên khi tooltip đang mở thì hiện ngay |
 | Vị trí | Trên control, lật xuống khi không đủ chỗ; không che con trỏ |
+| Chuyển động | Mờ dần cộng phóng từ 0,96 về phía control; đóng bằng Exit; nhảy sang control kế bên thì trượt tới chỗ mới thay vì đóng rồi mở |
 | Không được | Chứa thông tin bắt buộc, lỗi cần đọc, hay secret; nhận click |
 
 ### 6.8 TextField
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Nhãn cố định phía trên (không dùng placeholder làm nhãn), ô nhập `size.control.md`, icon đầu hoặc nút cuối tùy chọn (xoá, hiện mật khẩu), helper text hoặc lỗi phía dưới |
+| Cấu tạo | Nhãn cố định phía trên (không dùng placeholder làm nhãn), ô nhập `size.control.md` bo `radius.md` nền `FillSoft` không viền (HeroUI input `flat`), icon đầu hoặc nút cuối tùy chọn (xoá, hiện mật khẩu), helper text hoặc lỗi phía dưới |
+| Chuyển động | Hover đổi nền sang `FillSoftHover` theo Snappy; focus hiện vòng focus và nền sáng lên; lỗi và helper text đổi chỗ bằng mờ chéo, dòng lỗi mới mở chiều cao theo Smooth; nút xoá mờ dần khi có chữ |
 | Biến thể | `text`, `search` (icon kính lúp, nút xoá), `secret` (che mặc định, nút hiện rõ ràng, không bao giờ điền sẵn secret), `number` (đơn vị và khoảng hợp lệ; ô rỗng không tự thành 0) |
 | Trạng thái | §4.1; lỗi chỉ hiện sau khi rời ô hoặc khi gửi, rồi cập nhật khi sửa; không báo lỗi ở ô trống chưa chạm |
 | Bàn phím | Gõ chữ có IME (Telex qua IBus, bộ gõ macOS), chọn bằng Shift+mũi tên, copy, cắt, dán, undo, redo; Enter báo `Submitted`; Escape xoá ô `search` |
@@ -297,15 +348,15 @@ TextField nhiều dòng trên cùng lõi (UK-08). Enter xuống dòng; gửi b�
 
 ### 6.10 Checkbox
 
-Ô `radius.sm` 16 dp cộng nhãn; bấm cả nhãn cũng đổi. Ba trạng thái: chọn, không chọn, một phần (cho nhóm). Space đổi trạng thái. Dùng khi áp dụng lúc gửi form hoặc chọn nhiều mục.
+Ô `radius.sm` 16 dp cộng nhãn; bấm cả nhãn cũng đổi. Ba trạng thái: chọn, không chọn, một phần (cho nhóm). Space đổi trạng thái. Dùng khi áp dụng lúc gửi form hoặc chọn nhiều mục. Chuyển động: nhấn co `motion.press`; khi chọn, nền ô đầy dần và dấu tích được vẽ dần theo nét (Snappy); bỏ chọn thì ngược lại.
 
 ### 6.11 Switch
 
-Bật tắt có hiệu lực ngay. Núm dùng Bouncy. Nhãn nói phạm vi tác động. Nếu việc lưu chậm hoặc lỗi thì có trạng thái chờ và lỗi, không giả là đã bật. Không dùng cho lệnh một lần (chạy, kết nối, xoá).
+Bật tắt có hiệu lực ngay. Rãnh và núm `radius.full`; rãnh đổi màu theo Snappy, núm trượt bằng Bouncy và giãn ngang khi đang nhấn (HeroUI). Nhãn nói phạm vi tác động. Nếu việc lưu chậm hoặc lỗi thì có trạng thái chờ và lỗi, không giả là đã bật. Không dùng cho lệnh một lần (chạy, kết nối, xoá).
 
 ### 6.12 SegmentedControl
 
-Hai đến bốn lựa chọn loại trừ nhau, cần thấy cùng lúc. Mũi tên trái phải đổi lựa chọn trong nhóm, Tab ra khỏi nhóm. Mục đang chọn trượt bằng Smooth.
+Hai đến bốn lựa chọn loại trừ nhau, cần thấy cùng lúc. Mũi tên trái phải đổi lựa chọn trong nhóm, Tab ra khỏi nhóm. Nền nhóm `FillSoft` bo `radius.md`; mục đang chọn là một viên `SurfaceRaised` trượt sang mục mới bằng Smooth (HeroUI tabs `solid`).
 
 ### 6.13 Select
 
@@ -315,6 +366,7 @@ Hai đến bốn lựa chọn loại trừ nhau, cần thấy cùng lúc. Mũi t
 | Trạng thái | Có trạng thái chưa chọn rõ ràng khi chưa có mặc định |
 | Bàn phím | Enter, Space hoặc mũi tên xuống mở; gõ chữ nhảy tới mục; Escape đóng và trả focus |
 | Khi nào | Danh sách ngắn (đến khoảng 10 mục); dài hơn dùng Combobox |
+| Chuyển động | Mũi tên xoay 180° khi mở (Snappy); menu như §6.15 |
 
 ### 6.14 Combobox
 
@@ -324,19 +376,19 @@ TextField `search` cộng danh sách gợi ý trên lớp nổi. Có trạng th�
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Bề mặt `SurfaceRaised`, `radius.xl`, `elevation.float`; mục cao `size.row`: icon, nhãn, phím tắt bên phải, mũi tên khi có menu con; khi có một mục mang icon thì mọi mục chừa cột icon để nhãn thẳng hàng; nhóm cách nhau bằng Divider, không thêm hàng trống |
+| Cấu tạo | Bề mặt `SurfaceRaised`, viền `BorderSubtle`, `radius.xl`, padding 6, `elevation.float`; mục cao `size.row`, bo `radius.md`: icon, nhãn, phím tắt bên phải, mũi tên khi có menu con; khi có một mục mang icon thì mọi mục chừa cột icon để nhãn thẳng hàng; nhóm cách nhau bằng Divider, không thêm hàng trống |
 | Loại | Dropdown (mở từ nút), context menu (chuột phải hoặc phím menu tại đối tượng) |
 | Thứ tự mục | Mở hoặc kết nối → tạo, sửa, nhân bản → copy, xuất → xoá (danger, cuối cùng) |
 | Vị trí | Neo vào nút hoặc con trỏ; lật khi chạm mép cửa sổ; menu con mở ngang |
 | Bàn phím | Mũi tên di chuyển (vòng), Enter chọn, mũi tên phải mở menu con, trái đóng, gõ chữ nhảy tới mục, Escape đóng và trả focus về nơi mở |
 | Chuột | Đi chéo từ mục cha sang menu con không làm menu con đóng. Bấm ra ngoài thì đóng, và cú bấm đó không lọt xuống control bên dưới |
 | Bắt chuột | Khi menu gốc mở, nó đặt một vùng bắt chuột phủ cả cửa sổ, nằm dưới các mục của nó; vùng này nhận mọi cú bấm mà các mục không nhận và đóng menu khi bấm ngoài khung. Gio chỉ đưa sự kiện chuột cho vùng trên cùng, nên mọi vùng sự kiện khác trong kit phải clip theo khung của control: một vùng không clip sẽ nuốt mọi cú bấm bên dưới (UK-E10) |
-| Chuyển động | Mở Snappy (mờ và dịch nhẹ từ phía neo), đóng Exit; mở đóng liên tục thì quay đầu từ vị trí hiện tại (F10.6) |
+| Chuyển động | Mở Snappy (mờ dần, phóng từ 0,96 và dịch nhẹ từ phía neo), đóng Exit; mở đóng liên tục thì quay đầu từ vị trí hiện tại (F10.6). Nền của mục đang trỏ (chuột hay phím) trượt sang mục mới theo Snappy thay vì nhảy |
 | Không được | Chứa form lớn; tự đóng khi dữ liệu nền cập nhật |
 
 ### 6.16 Popover
 
-Lớp nổi có neo, chứa nội dung tương tác nhỏ (bộ lọc, chọn cột, xem trước link như `mdview`). Đóng bằng Escape, bấm ra ngoài hoặc nút đóng; đóng không làm mất việc lớn. Popover ghim được thì không tự đổi đối tượng theo selection.
+Lớp nổi có neo, chứa nội dung tương tác nhỏ (bộ lọc, chọn cột, xem trước link như `mdview`). Đóng bằng Escape, bấm ra ngoài hoặc nút đóng; đóng không làm mất việc lớn. Popover ghim được thì không tự đổi đối tượng theo selection. Hình dạng và chuyển động như Menu (§6.15).
 
 ### 6.17 Dialog
 
@@ -347,6 +399,7 @@ Lớp nổi có neo, chứa nội dung tương tác nhỏ (bộ lọc, chọn c�
 | Confirm | Tiêu đề nêu đối tượng ("Xoá connection dev-pg?"); thân nói tác động và khả năng phục hồi thật; nút chính là động từ cụ thể, `danger` khi mất dữ liệu; focus mặc định ở lựa chọn an toàn |
 | Bàn phím | Bẫy focus trong dialog; Escape đóng khi đóng an toàn; Enter gửi form (không áp cho TextArea, và không tự chấp nhận hành động nguy hiểm); đóng xong trả focus về control đã mở |
 | Đang gửi | Chặn gửi lặp; nếu đóng không huỷ được request thì không giả là đã huỷ |
+| Chuyển động | Scrim mờ dần theo Smooth; khung mờ dần cộng phóng từ 0,95 theo Snappy; đóng bằng Exit. Đổi chiều cao thân (thêm lỗi, đổi bước) theo Smooth |
 | Không được | Dialog chồng dialog; mở dialog cho thành công thông thường |
 
 ### 6.18 Toast
@@ -356,11 +409,13 @@ Lớp nổi có neo, chứa nội dung tương tác nhỏ (bộ lọc, chọn c�
 | Cấu tạo | Icon trạng thái, tiêu đề (kết quả cụ thể), mô tả tối đa hai dòng, tối đa một hành động, nút đóng |
 | Vị trí | Góc dưới phải của cửa sổ, trên lớp nổi; tối đa ba toast; sự kiện giống nhau gộp theo đối tượng |
 | Thời gian | 4 s; có hành động hoặc cảnh báo thì 6 s; dừng đếm khi hover hay focus |
+| Hình dạng | `SurfaceRaised`, viền `BorderSubtle`, `radius.xl`, `elevation.float` |
+| Chuyển động | Trượt lên từ mép dưới cộng mờ dần (Snappy); các toast khác dịch chỗ theo Smooth; đóng hay hết giờ thì trượt sang phải cộng mờ đi (Exit) |
 | Không được | Lấy focus; tự mở trang đích; chứa secret, lệnh hay nội dung riêng; dùng cho yêu cầu duyệt của agent (§4.2) |
 
 ### 6.19 Card
 
-Bề mặt `SurfaceBase`, viền hairline, `radius.lg`, padding `space.lg`. Dùng khi nội dung là một khối có nghĩa (thẻ tool call, thẻ module trong transcript). Không lồng card trong card nhiều tầng; danh sách dày dùng ListRow, không dùng card.
+Bề mặt `SurfaceRaised`, viền `BorderSubtle`, `radius.lg`, padding `space.lg`, không bóng. Card bấm được có hover (nền sáng lên theo Snappy) và co nhẹ 0,99 khi nhấn. Dùng khi nội dung là một khối có nghĩa (thẻ tool call, thẻ module trong transcript). Không lồng card trong card nhiều tầng; danh sách dày dùng ListRow, không dùng card.
 
 ### 6.20 ListRow
 
@@ -371,10 +426,12 @@ Bề mặt `SurfaceBase`, viền hairline, `radius.lg`, padding `space.lg`. Dùn
 | Hành động | Hiện khi hover hoặc focus bàn phím; hành động quan trọng còn có trong context menu, không chỉ tồn tại khi hover |
 | Bàn phím | Mũi tên lên xuống giữa các row, Enter mở, phím menu mở context menu |
 | Kéo thả | Row kéo được khi bên gọi cho phép (ví dụ kéo phiên sang khung bên kia) |
+| Hình dạng | Bo `radius.md`, cách mép list 4 dp; nền hover và nền chọn là viên bo góc, không phải dải chạm mép |
+| Chuyển động | Hover theo Snappy; nền chọn trượt từ row cũ sang row mới theo Smooth; hành động của row mờ dần khi hover; row mới mờ dần cộng mở chiều cao, row bị xoá mờ đi rồi gập (Exit) |
 
 ### 6.21 TreeView
 
-ListRow cao `size.row.dense`, thụt lề 12 dp mỗi cấp, mũi tên mở gập `size.icon.xs`. Tách ba việc: bấm row là chọn, bấm mũi tên là mở gập, Enter hoặc bấm đúp là mở đối tượng. Mũi tên phải mở nhánh hoặc vào con đầu, trái gập hoặc về cha. Ảo hoá như VirtualList; chỉ tải nhánh khi mở.
+ListRow cao `size.row.dense`, thụt lề 12 dp mỗi cấp, mũi tên mở gập `size.icon.xs`. Tách ba việc: bấm row là chọn, bấm mũi tên là mở gập, Enter hoặc bấm đúp là mở đối tượng. Mũi tên phải mở nhánh hoặc vào con đầu, trái gập hoặc về cha. Ảo hoá như VirtualList; chỉ tải nhánh khi mở. Chuyển động: mũi tên xoay 90° theo Snappy; nhánh mở bằng chiều cao cộng mờ dần theo Smooth, gập bằng Exit; đường dẫn thụt lề vẽ nhạt bằng `BorderSubtle`.
 
 ### 6.22 Tabs
 
@@ -384,18 +441,19 @@ ListRow cao `size.row.dense`, thụt lề 12 dp mỗi cấp, mũi tên mở gậ
 | Hành vi | Mở đối tượng đã có tab thì focus tab đó; đóng tab đang xem chuyển sang tab gần nhất; đóng tab nền không đổi focus; tab có thay đổi chưa lưu có chấm báo |
 | Bàn phím | Ctrl+Tab và Ctrl+Shift+Tab giữa tab document; mũi tên trong nhóm tab mode |
 | Tràn | Tab cuộn ngang và có menu liệt kê tab ẩn |
+| Chuyển động | Chỉ báo tab đang chọn (gạch chân với `document`, viên nền với `mode`) trượt sang tab mới theo Smooth; tab mới mở rộng bề rộng, tab đóng gập lại; kéo đổi thứ tự thì tab khác dịch chỗ theo Smooth |
 
 ### 6.23 SectionHeader
 
-Nhãn nhóm `type.small` màu `FgSubtle`, tùy chọn nút cuối (thêm, gập nhóm). Dùng trong sidebar ("Projects", "Recents") và trong panel.
+Nhãn nhóm `type.small` màu `FgSubtle`, tùy chọn nút cuối (thêm, gập nhóm). Dùng trong sidebar ("Projects", "Recents") và trong panel. Gập nhóm: mũi tên xoay và nội dung gập theo Smooth.
 
 ### 6.24 Banner
 
-Nằm đầu vùng bị ảnh hưởng, trong luồng bố cục, không đè nội dung. Loại info, warning, danger. Một nguyên nhân một banner, có hành động xử lý cụ thể (nối lại, mở khoá). Đóng banner chỉ ẩn lời nhắc, không có nghĩa vấn đề đã hết; điều kiện vẫn hiện bằng tag hay trạng thái.
+Nằm đầu vùng bị ảnh hưởng, trong luồng bố cục, không đè nội dung. Loại info, warning, danger. Một nguyên nhân một banner, có hành động xử lý cụ thể (nối lại, mở khoá). Đóng banner chỉ ẩn lời nhắc, không có nghĩa vấn đề đã hết; điều kiện vẫn hiện bằng tag hay trạng thái. Nền tông của loại banner, `radius.lg`, không viền. Hiện bằng mở chiều cao cộng mờ dần (Smooth), nội dung bên dưới dịch xuống theo cùng nhịp.
 
 ### 6.25 EmptyState
 
-Icon hoặc hình nhỏ, tiêu đề là lời mời ("Bắt đầu một phiên"), một câu mô tả, một hành động chính. Biến thể "không có kết quả" giữ bộ lọc và có nút xoá lọc.
+Icon hoặc hình nhỏ, tiêu đề là lời mời ("Bắt đầu một phiên"), một câu mô tả, một hành động chính. Biến thể "không có kết quả" giữ bộ lọc và có nút xoá lọc. Hiện bằng mờ dần cộng dịch lên 4 dp (Smooth).
 
 ### 6.26 VirtualList
 
@@ -412,11 +470,11 @@ Danh sách ảo hoá chung, tổng quát từ `transcriptview` (F10.4a): chỉ l
 
 ### 6.28 Panel
 
-Vùng phụ có tiêu đề, nút ghim, nút đóng; dùng cho panel đồng hành của khung app. Panel theo selection hay theo agent phải nói rõ nó đang theo gì; panel ghim thì giữ đối tượng. Đóng panel chỉ đóng vùng xem, không dừng việc đang chạy.
+Vùng phụ có tiêu đề, nút ghim, nút đóng; dùng cho panel đồng hành của khung app. Panel theo selection hay theo agent phải nói rõ nó đang theo gì; panel ghim thì giữ đối tượng. Đóng panel chỉ đóng vùng xem, không dừng việc đang chạy. Mở và đóng: trượt từ mép cộng mờ dần, vùng chính co giãn theo cùng nhịp Smooth; đổi đối tượng đang theo thì nội dung mờ chéo.
 
 ### 6.29 ScrollArea
 
-Cuộn dọc hoặc ngang cho nội dung không ảo hoá. Thanh cuộn mảnh, hiện khi cuộn hoặc hover. Không lồng hai vùng cuộn cùng chiều. Vùng đang stream không kéo người đọc về cuối nếu họ đã cuộn lên.
+Cuộn dọc hoặc ngang cho nội dung không ảo hoá. Thanh cuộn mảnh `radius.full`, mờ dần khi cuộn hoặc hover và mờ đi sau khoảng 1 s yên. Không lồng hai vùng cuộn cùng chiều. Vùng đang stream không kéo người đọc về cuối nếu họ đã cuộn lên.
 
 ### 6.30 DataGrid và CodeEditor (sau giai đoạn A)
 
@@ -441,7 +499,8 @@ Hai component này được thiết kế chi tiết cùng module đầu tiên c�
 
 ## 8. Gallery, tài liệu sống và test
 
-- **Gallery**: binary chỉ dùng khi phát triển (mở rộng từ `motiongallery`, F10.7), mỗi component một trang với mọi biến thể × trạng thái, sáng và tối, có chế độ giảm chuyển động và chế độ chỉ bàn phím.
+- **Gallery**: binary chỉ dùng khi phát triển (mở rộng từ `motiongallery`, F10.7), mỗi component một trang với mọi biến thể × trạng thái, sáng và tối, có chế độ giảm chuyển động, chế độ chỉ bàn phím và chế độ quay chậm (mọi chuyển động chạy ở 1/4 tốc độ để soi bằng mắt). Ảnh chụp headless là ảnh tĩnh, nên chủ dự án duyệt chuyển động bằng chế độ quay chậm.
+- **Cửa sổ gallery cố định** khi đổi cỡ giao diện, giống cửa sổ thật của người dùng; trang phải xuống dòng hoặc cuộn, không được tràn ngang (UK-E09).
 - **Doc comment** của mỗi component trỏ về mục tương ứng ở §6 và có ví dụ lắp ráp ngắn.
 - **Test headless** cho mỗi component: kích thước theo token, tương phản chữ trên nền ở mọi trạng thái, đường đi bàn phím, trả focus, vùng bấm tối thiểu.
 
@@ -488,6 +547,8 @@ Mỗi phần dưới đây là một item của roadmap Fugue, dưới trần kh
 | SplitPane | SplitPane, Divider, Tag, Progress |
 | Chuyển code cũ | `appwin` và `transcriptview` sang kit; bật UK-E01 và UK-E02 |
 
+v0.3 (§3.8) áp vào phần "Button và gallery" trước khi merge: token bo góc, màu tông và chuyển động mới vào `theme` và `kit` trong cùng PR đó. Các phần sau làm theo v0.3 ngay từ đầu, mỗi phần kèm dòng "Chuyển động" của component mình và evidence UK-E11.
+
 ## 10. Cần quyết định
 
 | Câu hỏi | Đề xuất |
@@ -495,6 +556,8 @@ Mỗi phần dưới đây là một item của roadmap Fugue, dưới trần kh
 | Bộ icon | Đã chốt: **Lucide** (license ISC, DevKit đang dùng nên quen mắt, nét outline đồng nhất). Chỉ đóng gói các icon dùng tới, mỗi icon một file path data; cung tròn đổi thành đường cong bậc ba lúc build (§6.1). Cần một dòng ở `docs/dependencies.md` |
 | Cỡ chữ UI | 13 cho UI, 14 cho nội dung đọc (§3.3), theo macOS, IntelliJ và GitHub; cài đặt cỡ giao diện và cỡ chữ nội dung bù cho người cần to hơn (§3.0). Spike giữ nguyên các giá trị; còn chờ chủ dự án nhìn trên màn Ubuntu (§9.1) |
 | Bóng của lớp nổi | Đã chốt 2026-11-15: thêm `elevation.float` bằng các lớp trong mờ, không blur (§3.6) |
+| Phong cách | Đã chốt 2026-11-15: kiểu HeroUI, viền nhạt, mọi component có chuyển động phù hợp (§3.7, §3.8) |
+| Hue của accent | Mở. HeroUI dùng xanh dương cho `primary` và vòng focus. Đề xuất: giữ `Action` trung tính hiện tại (nút chính đen hoặc trắng như Codex) và chỉ đổi `FocusBorder` sang một hue accent; chủ dự án chọn hue khi xem gallery v0.3 |
 
 ## 11. Evidence
 
@@ -508,8 +571,9 @@ Mỗi phần dưới đây là một item của roadmap Fugue, dưới trần kh
 | **UK-E06** | Gõ Telex trong TextField, TextArea và Combobox đạt như DA-E02 |
 | **UK-E07** | Giảm chuyển động: không component nào xin frame liên tục khi bật chế độ này, trừ Spinner đang hiện |
 | **UK-E08** | Mọi token chữ ở §3.3 vẽ chuỗi "Ễ Ặ Ỡ Ậ ỷ ộ" thành hai dòng: không cắt dấu ở đáy, mực nhô trên mép trên không quá 1 dp, và hai dòng không chạm nhau (test headless đo vùng mực so với chiều cao dòng) |
-| **UK-E09** | Gallery ở cỡ giao diện 90% và 125%: không control nào tràn chữ hay cắt nhãn, vùng bấm vẫn ít nhất `size.hit.min` |
+| **UK-E09** | Gallery trong cửa sổ cố định ở cỡ giao diện 90% và 125%: không control nào tràn chữ hay cắt nhãn, không control hay chữ nào đè lên nhau hoặc tràn ngang khỏi trang, vùng bấm vẫn ít nhất `size.hit.min` |
 | **UK-E10** | Vùng sự kiện của mọi control trong kit clip theo khung của control: test headless bấm ngay ngoài khung từng control và kiểm control đó không nhận, còn control bên dưới thì nhận. Ngoại lệ duy nhất là vùng phủ cửa sổ của menu gốc đang mở (§6.15) |
+| **UK-E11** | Chuyển động (§3.7): mỗi chuyển động của component đến đích rồi dừng xin frame (hai frame yên liên tiếp); đổi đích giữa chừng thì đi tiếp từ giá trị hiện tại; khi co lúc nhấn, vùng bấm không đổi; ripple và nền nhấn nằm trong khung bo góc của control |
 
 ## 12. Phụ thuộc
 
@@ -522,6 +586,7 @@ H-33 ([desktop app](/dev-kit/core-harness/desktop-app): DA-04 font, DA-06 gõ ti
 - Apple Human Interface Guidelines, [Typography](https://developer.apple.com/design/human-interface-guidelines/typography): cỡ mặc định macOS 13 pt, tối thiểu 10 pt; bảng text style của macOS (Body 13/16, Callout 12/15, Subheadline 11/14, Title 3 15/20); bảng tracking của SF.
 - GitHub Primer, [Size](https://primer.style/foundations/primitives/size) (control 24/28/32/40/48, padding, bo góc 3/6/12, viền 1/2) và [Typography](https://primer.style/foundations/primitives/typography) (body 12/14/16, code block 13 × 1,5, code inline 0,9285 em).
 - Microsoft [Fluent 2 Shapes](https://fluent2.microsoft.design/shapes): bo góc 2/4/8/12, phần tử chạm mép không bo.
+- HeroUI, [Layout](https://www.heroui.com/docs/customization/layout) (bo góc 8/12/14, viền 1/2/3, `disabledOpacity` 0,5, `hoverOpacity` 0,8) và [Button](https://www.heroui.com/docs/components/button) (biến thể solid, bordered, light, flat, faded, shadow, ghost; co 0,97 khi nhấn; ripple; vòng focus `outline-offset-2`), [Chip](https://www.heroui.com/docs/components/chip), [Switch](https://www.heroui.com/docs/components/switch), [Tabs](https://www.heroui.com/docs/components/tabs). Phong cách tham chiếu từ v0.3; kích thước vẫn theo mật độ IDE ở §3.4.
 - libadwaita, [`_buttons.scss`](https://gitlab.gnome.org/GNOME/libadwaita/-/raw/main/src/stylesheet/widgets/_buttons.scss): nút GNOME cao tối thiểu 24 cộng padding 5/10, tức khoảng 34; nút tròn 34.
 - VS Code: [`fontInfo.ts`](https://github.com/microsoft/vscode/blob/main/src/vs/editor/common/config/fontInfo.ts) (editor 12 trên macOS, 14 nơi khác; dòng 1,5 trên macOS, 1,35 nơi khác), [`editorTabsControl.ts`](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/browser/parts/editor/editorTabsControl.ts) (tab 35, compact 22), [`activitybarPart.ts`](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/browser/parts/activitybar/activitybarPart.ts) (activity bar 48 với icon 24; compact 36 với icon 16).
 - Zed, [`default.json`](https://github.com/zed-industries/zed/blob/main/assets/settings/default.json): `ui_font_size` 16, `buffer_font_size` 15, dòng "comfortable" 1,618; cỡ chữ UI và cỡ chữ nội dung là hai cài đặt riêng.
