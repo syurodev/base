@@ -191,7 +191,12 @@ Chủ dự án chọn phong cách HeroUI sau khi xem ba hướng (2026-11-15): P
 - Nút mặc định là nền tông (`flat` của HeroUI), không phải nút viền. Viền chỉ ở biến thể `bordered`, và luôn là `BorderSubtle` (§3.5).
 - Nút `primary` là nền đặc `Action`; hover và nhấn theo token `ActionHover`, `ActionPressed`.
 - Control tắt vẽ cả khối ở `DisabledOpacity` (§4.1).
-- Vòng focus 2 dp cách mép ngoài 2 dp (§3.4).
+- Vòng focus 2 dp cách mép ngoài 2 dp (§3.4), cùng tông với control (chủ dự án chốt 2026-11-15):
+  - `primary` dùng `Action`;
+  - `danger` dùng `Status.Danger` đặc, không dùng `DangerSoft`;
+  - `secondary`, `bordered`, `ghost`, row và ô nhập dùng `FocusBorder`.
+
+  Vòng luôn là màu đặc, đạt 3:1 so với nền ngay quanh nó (WCAG 2.4.13). Khi chủ dự án chọn hue accent, `FocusBorder` đổi theo hue đó.
 - Nhấn co lại `motion.press`, có ripple (§3.7).
 - Màu accent của HeroUI (xanh dương) chưa đổi: `Action` và `FocusBorder` giữ giá trị hiện tại của `theme` cho đến khi chủ dự án chọn hue (§10).
 
@@ -207,7 +212,7 @@ Mọi control tương tác có các trạng thái sau, theo đúng thứ tự ư
 | Đang chạy (`busy`) | Spinner thay icon (mờ chéo), giữ nguyên bề rộng, chặn kích hoạt lặp; không wash hover hay nhấn |
 | Lỗi (`error`) | Viền Status.Danger cộng thông điệp dưới control |
 | Đang nhấn | Wash nhấn của biến thể (thay wash hover, không chồng lên) và co `motion.press` |
-| Focus từ bàn phím | Vòng focus `FocusBorder`, `stroke.focus` (§3.4) |
+| Focus từ bàn phím | Vòng focus `stroke.focus` (§3.4) theo màu của biến thể (§3.8) |
 | Hover | Wash hover của biến thể |
 | Đang chọn | `SelectedWash`, độc lập với hover |
 | Nghỉ | Theo biến thể |
@@ -566,7 +571,7 @@ v0.3 (§3.8) áp vào phần "Button và gallery" trước khi merge: token bo g
 | **UK-E01** | Arch test: ngoài `theme`, `kit`, `mdview` không package nào import `gioui.org/widget/material` |
 | **UK-E02** | Scan test: không có màu, `dp` hay `sp` viết trực tiếp ngoài `theme` (mở rộng `TestUiInternalDefinesNoColorsOutsideTheme`) |
 | **UK-E03** | Mỗi component ở §5 đợt kit v1 có trang gallery đủ biến thể × trạng thái ở sáng và tối |
-| **UK-E04** | Test tương phản: chữ và icon đạt 4,5:1 trên nền của mọi trạng thái (nghỉ, hover, nhấn, chọn), trừ `FgDisabled` |
+| **UK-E04** | Test tương phản: chữ và icon đạt 4,5:1 trên nền của mọi trạng thái (nghỉ, hover, nhấn, chọn), trừ `FgDisabled`; vòng focus của mọi biến thể đạt 3:1 so với nền quanh nó |
 | **UK-E05** | Test bàn phím: mọi control tương tác tới được bằng Tab; Menu, Select, Combobox, Dialog đóng bằng Escape và trả focus về nơi mở |
 | **UK-E06** | Gõ Telex trong TextField, TextArea và Combobox đạt như DA-E02 |
 | **UK-E07** | Giảm chuyển động: không component nào xin frame liên tục khi bật chế độ này, trừ Spinner đang hiện |
