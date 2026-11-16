@@ -5,7 +5,7 @@ description: H-33 — client desktop của Fugue viết bằng Gio; binary riên
 
 # Desktop app
 
-Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B.
+Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). **v0.5 (2026-11-16), chờ duyệt**: khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B.
 
 ## 1. Phạm vi
 
@@ -34,6 +34,7 @@ Ngoài phạm vi giai đoạn A: Windows, đóng gói có ký, auto-update, nhi�
 | DA-06 | **Gõ tiếng Việt** (Telex qua IBus, Wayland và X11) là điều kiện phát hành (DA-E02). Không đạt thì sửa trong Gio hoặc đóng góp upstream trước khi phát hành |
 | DA-07 | **v0.3**: app là client duy nhất của giai đoạn A và **tự khởi động host**: mở app mà chưa có host thì app chạy `fugue serve` tách riêng (process riêng, log trong data dir), chờ sẵn sàng tối đa 10 s rồi `Hello` ([cli](/dev-kit/core-harness/cli) §2.1). Lease và 10 s ân hạn theo cli §2.2. Chế độ chạy nền (`app-background`) giữ host sống khi đóng cửa sổ; đóng cửa sổ cuối mà còn phiên hoặc đội đang chạy và chưa bật chạy nền thì app hỏi trước (dừng hết rồi thoát, hoặc ở lại). Host cũ hoặc mới hơn app xử lý theo cli §2.3 |
 | DA-08 | Thao tác chính có phím tắt; giao diện sáng và tối |
+| DA-10 | **v0.5, khung app**: rail bên trái, sidebar, và một **lưới slot** tối đa 3 cột, mỗi cột tối đa 2 dòng. **Slot chính** (chat của phiên đang làm) luôn ở dòng trên của cột đầu tiên, ngay cạnh sidebar, và không bao giờ đổi chỗ; mọi view khác (phiên khác, bảng đội, chi tiết agent, panel và workbench của module, diff, hộp duyệt) là slot thường, kéo thả và sắp xếp được. Bố cục thuộc về từng cửa sổ và do host lưu (§5.3) |
 | DA-09 | Mọi việc của giai đoạn A làm được trên app: mở và khoá vault (master password nhập trong app, không bao giờ qua argv hay env), đăng nhập account (chạy lệnh login của CLI vendor), phiên, duyệt, đội, tích hợp. Test e2e dùng `pkg/client` thay cho CLI |
 
 ## 4. Kiến trúc
@@ -46,11 +47,11 @@ Ngoài phạm vi giai đoạn A: Windows, đóng gói có ký, auto-update, nhi�
 
 | Màn hình | Nội dung |
 | --- | --- |
-| Thanh bên | Workspace; phiên nhóm theo đội; mỗi phiên có vendor, account, state, số yêu cầu chờ duyệt |
+| Rail và thanh bên | Rail chọn mảng (chat, đội, các module); thanh bên đổi theo mảng. Ở mảng chat: mọi workspace cùng lúc, phiên nhóm theo đội; mỗi phiên có vendor, account, state, số yêu cầu chờ duyệt (§5.3) |
 | Transcript | Item theo [transcript §3](/dev-kit/core-harness/transcript#3-loại-item); `tool_call` và `reasoning` gập; diff mở tại chỗ. v0.4: cuối mỗi lượt có thẻ `turn_diff` gập (số file, dòng thêm và bớt, cờ `partial` hoặc `overlapped`), mở ra là danh sách file và diff từng file; `notice(possible_secret)` hiện rule, file, dòng và phần che |
 | Composer | Nhập nhiều dòng, IME; menu slash gồm nhóm của vendor và nhóm `fugue:` ([vendor runtime §9](/dev-kit/core-harness/vendor-runtime#9-slash-command)); chọn model và hồ sơ; nút dừng lượt |
 | Hộp duyệt | Mọi yêu cầu duyệt, câu hỏi "cần bạn", đề xuất và bổ sung đội đang chờ của mọi phiên; allow, deny kèm lời nhắn, grant theo phạm vi ([interaction](/dev-kit/core-harness/interaction)) |
-| Bảng đội | Cây agent của đội (§5.2) |
+| Bảng đội | Cây agent của đội (§5.2); xem ngay trong slot chính bằng nút đổi Chat/Đội, hoặc mở thành slot riêng (§5.3) |
 | Chi tiết agent | Đặc tả task, transcript của agent, diff, kết quả check, review chéo; nhắn trực tiếp, dừng, chạy lại; duyệt tích hợp cuối của đội |
 | Account và quota | Account theo vendor, trạng thái (`ok`, `paused`, `needs_login`), mức dùng từng cửa sổ, thời điểm reset; thêm account bằng luồng login của CLI |
 | Vault | Mở khoá bằng master password khi host khởi động; khoá thủ công |
@@ -75,9 +76,91 @@ Cây agent từ trên xuống: lead ở gốc, trưởng nhóm ở tầng 2, th�
 - **Thanh đầu**: số agent, số đang chạy, chip **cần bạn** (màu cảnh báo) và **thất bại** (màu lỗi) khi lớn hơn 0, mỗi chip mở danh sách để nhảy tới nút; tổng mức dùng của đội (phần trăm quota theo account, USD nếu là API key).
 - **Thẻ của mỗi agent**: vai trò, vendor và model, badge state ([orchestration §3.1](/dev-kit/core-harness/orchestration#31-task)), một dòng việc, biểu tượng các MCP hoặc tool chính đang bật, mức dùng, thời gian chạy, số agent con với nút gập.
 - Màu badge: đang chạy (xanh dương), xong (xanh lá), cần bạn (cam), thất bại (đỏ), `stopped` và `queued` (xám, thẻ mờ), `unknown` (tím). Task được chạy lại hiện ngay dưới bản cũ đã `stopped`.
-- Bấm một thẻ mở **chi tiết agent** ở panel bên: transcript của agent đó, diff, check; user nhắn trực tiếp được (người giao nhận một dòng theo [orchestration §6.2](/dev-kit/core-harness/orchestration#62-định-tuyến)).
+- Bấm một thẻ mở **chi tiết agent** ở một slot (slot trống gần slot chính nhất, §5.3): transcript của agent đó, diff, check; user nhắn trực tiếp được (người giao nhận một dòng theo [orchestration §6.2](/dev-kit/core-harness/orchestration#62-định-tuyến)).
 - Cập nhật theo topic `team:<id>`; thẻ chỉ vẽ lại khi revision của nó đổi.
 - Khi đội ở `final_review`, đầu bảng có nút **Xem và tích hợp** mở tóm tắt theo nhánh và toàn bộ diff của nhánh đội.
+
+### 5.3 Khung app: rail, sidebar và lưới slot
+
+Chủ dự án chốt ngày 2026-11-15 và 2026-11-16. Chat với agent là trung tâm; khi agent làm việc ở module khác, user phải thấy nó làm gì ở đó; khi user tự làm trong module thì có chỗ để tập trung.
+
+**Rail và sidebar**
+
+- Rail bên trái kiểu Codex: chat, đội, rồi các module (database, API client, git, terminal… theo thứ tự cài). Sidebar đổi theo mục rail đang chọn.
+- Không có bộ chuyển workspace chung: sidebar của mảng chat liệt kê mọi workspace cùng lúc, vì user làm việc ở nhiều workspace một lúc.
+- Sidebar gập được về chỉ còn rail; rail không gập.
+
+**Lưới slot**
+
+- Vùng bên phải sidebar là một lưới tối đa **3 cột**, mỗi cột tối đa **2 dòng**, tức tối đa 6 slot trong một cửa sổ.
+- **Slot chính** là chat của phiên đang làm: transcript cộng composer. Nó luôn ở dòng trên của cột đầu tiên, ngay cạnh sidebar. Không kéo đi được, không đóng được, và không bao giờ bị gập. Chọn phiên khác ở sidebar chỉ đổi nội dung của slot chính, không đổi chỗ.
+- Dòng dưới của cột đầu tiên là slot thường, tùy chọn (ví dụ diff của lượt vừa xong ngay dưới chat).
+- Mọi thứ khác là **slot thường**, gồm:
+  - một phiên khác (transcript và composer của nó);
+  - bảng đội, chi tiết agent;
+  - panel và workbench của module;
+  - diff, hộp duyệt, account và quota.
+
+  Terminal là một module. Vì DA-02 không có widget terminal trong giai đoạn A, slot terminal đến cùng module terminal sau giai đoạn A, trừ khi DA-02 được sửa.
+- **Panel đồng hành** (khi agent của phiên đang xem dùng một module) là một slot thường. Lần đầu module đó được dùng trong một lượt, nó tự mở vào slot trống gần slot chính nhất, theo thứ tự: cột 2 dòng trên, cột 2 dòng dưới, cột 3 dòng trên, cột 3 dòng dưới, dòng dưới của cột 1. Sau đó nó giữ module đó cho tới khi user ghim hoặc đóng. Nếu user đã kéo panel của loại module đó tới chỗ khác thì lần sau nó mở ở chỗ đó.
+- Kích thước: slot chính rộng tối thiểu 520 dp, slot thường 300 dp, mỗi dòng cao tối thiểu 160 dp. Ranh giới giữa các cột và các dòng là SplitPane ([ui kit §6.27](/dev-kit/core-harness/ui-kit#627-splitpane)) theo cả hai hướng; bấm đúp tay kéo trả về tỉ lệ mặc định.
+
+**Đầu slot và popover sắp xếp**
+
+- Mỗi slot thường có thanh đầu: icon và tên nội dung, chỗ để kéo, nút "sắp xếp" và nút đóng. Slot chính có thanh đầu riêng (xem phần bảng đội bên dưới) và không có nút đóng.
+- Nút "sắp xếp" mở một Popover ([ui kit §6.16](/dev-kit/core-harness/ui-kit#616-popover)):
+  - **Di chuyển**: sang trái, sang phải, lên trên, xuống dưới. Hướng nào không hợp lệ thì tắt, ví dụ sang trái khi bên trái là slot chính.
+  - **Lấp đầy**: phóng slot ra cả vùng lưới tạm thời. Các slot khác ẩn đi chứ không đóng; Escape hoặc bấm lại để trở về.
+  - **Chia đôi**: đặt slot cạnh slot chính.
+  - **Mở trong cửa sổ mới**.
+- Chuyển động theo [ui kit §3.7](/dev-kit/core-harness/ui-kit#37-gán-chuyển-động): slot đổi chỗ thì các slot trượt tới chỗ mới theo Smooth; lấp đầy và trở về cũng theo Smooth.
+
+**Kéo thả**
+
+- Kéo thanh đầu của một slot thường để di chuyển nó. Trong lúc kéo, lưới hiện các vùng thả có nền nhấn:
+  - mép trái hoặc phải của một cột: tạo cột mới ở đó;
+  - nửa trên hoặc nửa dưới của một ô: chia ô đó thành hai dòng;
+  - giữa một slot thường: đổi chỗ hai slot.
+- Vùng thả vi phạm giới hạn thì không hiện: cột thứ 4, dòng thứ 3, bên trái slot chính, hoặc ô của slot chính.
+- Escape huỷ kéo và slot trượt về chỗ cũ. Kéo bám con trỏ, không spring; thả xong thì các slot khác trượt theo Smooth.
+- Gio không có kéo thả giữa hai cửa sổ, nên đưa slot sang cửa sổ khác chỉ làm qua lệnh "Mở trong cửa sổ mới", không kéo xé.
+
+**Cửa sổ hẹp**
+
+Khi cửa sổ không đủ rộng cho mọi cột với bề rộng tối thiểu:
+
+1. Các cột thường gập dần từ phải sang trái thành một **dải tab dọc** ở mép phải. Mỗi tab là một slot. Bấm tab thì slot trượt ra phủ lên lưới (Smooth); bấm lại hoặc Escape thì đóng.
+2. Nếu vẫn chưa đủ thì sidebar gập về chỉ còn rail.
+3. Slot chính không bao giờ gập; nó giữ ít nhất 520 dp.
+
+Cửa sổ rộng ra thì các cột mở lại đúng chỗ cũ. Bố cục đã lưu không bị đổi chỉ vì cửa sổ hẹp tạm thời.
+
+**Bảng đội trong slot chính**
+
+- Khi phiên đang xem là lead, thanh đầu của slot chính có một SegmentedControl **Chat / Đội**. Chọn Đội thì slot chính hiện bảng đội (§5.2) thay cho transcript. Composer vẫn ở dưới cùng, nên user vẫn nhắn lead được trong lúc xem bảng.
+- Ở chế độ Chat, ngay trên composer có một dải đội gọn: số agent đang chạy, chip **cần bạn** và **thất bại**. Bấm một chip thì chuyển sang Đội và nhảy tới agent đó.
+- Bảng đội cũng mở được thành slot riêng (nút "mở ở slot") để xem chat và bảng cùng lúc. Khi đó nút đổi trong slot chính vẫn còn, và hai view theo cùng một topic.
+- Chuyển Chat ↔ Đội bằng mờ chéo theo Snappy. Vị trí cuộn của mỗi view được giữ riêng.
+
+**Nhiều cửa sổ**
+
+- "Mở trong cửa sổ mới" đưa slot sang một cửa sổ mới. Ở đó nội dung ấy thành slot chính của cửa sổ mới, và sidebar mở ở trạng thái gập.
+- Mỗi cửa sổ có lưới, overlay và Env riêng ([ui kit](/dev-kit/core-harness/ui-kit) UK-07). Mọi cửa sổ dùng chung một kết nối tới host. State nằm ở host, nên hai cửa sổ xem cùng một phiên thì luôn khớp nhau.
+- Đóng cửa sổ phụ không dừng việc đang chạy. Đóng cửa sổ cuối thì theo DA-07.
+
+**Lưu bố cục**
+
+- Bố cục thuộc về từng cửa sổ: các cột và dòng, nội dung mỗi slot (tham chiếu tới đối tượng, không chứa dữ liệu), tỉ lệ chia, slot nào đang lấp đầy, vị trí và kích thước cửa sổ.
+- Host lưu bố cục qua Host API và khôi phục mọi cửa sổ khi mở lại app.
+- Slot trỏ tới đối tượng không còn tồn tại (phiên đã xoá, module đã gỡ) hiện EmptyState có nút đóng, không tự biến mất.
+
+**Phím tắt**
+
+- Ctrl/Cmd+1 tới 6: focus slot theo thứ tự cột rồi dòng; Ctrl/Cmd+1 luôn là slot chính.
+- F6 và Shift+F6: đi vòng qua các slot.
+- Ctrl/Cmd+W: đóng slot thường đang focus. Slot chính không đóng được.
+- Ctrl/Cmd+Shift+Enter: lấp đầy hoặc trở về.
+- Mọi phím tắt dùng modifier, vì khi đang bật bộ gõ tiếng Việt thì phím chữ trơn không tới được app.
 
 ## 6. Failure UX
 
@@ -127,6 +210,9 @@ Ngưỡng phát hành trên máy Ubuntu của chủ dự án: **60 fps** khi str
 | **DA-E05** | Mọi hàng failure UX ở §6 có test e2e với host thật và vendor giả |
 | **DA-E06** | Arch test: module lõi không import module UI; app không có đường ghi ngoài Host API |
 | **DA-E07** | Thẻ đề xuất đội: sửa model và bỏ một nút rồi duyệt, host nhận đúng bản đã sửa; bảng đội 12 agent cập nhật state liên tục vẫn đạt ngưỡng §9 |
+| **DA-E09** | Lưới slot (§5.3): slot chính luôn ở dòng trên của cột đầu và không kéo, đóng hay gập được; kéo thả chỉ hiện vùng thả hợp lệ (không cột thứ 4, không dòng thứ 3, không bên trái slot chính); Escape huỷ kéo và trả slot về chỗ cũ; cửa sổ hẹp gập cột từ phải sang thành dải tab rồi mới gập sidebar, rộng lại thì về đúng chỗ cũ |
+| **DA-E10** | Bố cục lưu và khôi phục: đóng rồi mở lại app thì mọi cửa sổ có đúng lưới, tỉ lệ chia và nội dung slot; slot trỏ tới đối tượng đã mất hiện EmptyState; mở slot trong cửa sổ mới thì nó thành slot chính của cửa sổ đó và hai cửa sổ xem cùng phiên luôn khớp |
+| **DA-E11** | Panel đồng hành tự mở vào slot trống gần slot chính nhất theo thứ tự ở §5.3, chỉ cho phiên đang xem và chỉ ở lần dùng module đầu tiên trong lượt; nút Chat/Đội đổi view trong slot chính mà composer vẫn dùng được |
 | **DA-E08** | Vòng đời host theo app: mở app khi chưa có host thì host khởi động và app nối được; đóng cửa sổ cuối khi còn phiên chạy thì app hỏi; bật chạy nền thì host sống sau khi đóng cửa sổ; tắt chạy nền và không còn client thì host tắt sau 10 s |
 
 ## 11. Phụ thuộc
