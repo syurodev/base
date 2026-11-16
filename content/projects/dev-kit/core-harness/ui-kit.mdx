@@ -255,7 +255,7 @@ Ví dụ chữ trên trang này viết bằng tiếng Việt chỉ để minh ho
 
 | Nhóm | Component | Đợt |
 | --- | --- | --- |
-| Cơ bản | Icon, Button, IconButton, Tag, Spinner, Progress, Divider, Tooltip | Kit v1 (Button: spike) |
+| Cơ bản | Icon, Button, IconButton, Tag, Spinner, Progress, Divider, Tooltip, Kbd | Kit v1 (Button: spike; Kbd: cùng Menu, F10.11b) |
 | Nhập liệu | TextField, TextArea, Checkbox, Switch, SegmentedControl, Select, Combobox | Kit v1 (TextField: spike) |
 | Lớp nổi | Menu, Popover, Dialog, Toast | Kit v1 (Menu: spike) |
 | Chứa và danh sách | Card, ListRow, TreeView, Tabs, SectionHeader, Banner, EmptyState, VirtualList | Kit v1 |
@@ -328,7 +328,7 @@ Bộ icon là Lucide (§10). Mỗi icon là một file path data, đóng gói c�
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Chữ `type.small`, phím tắt (nếu có) bằng `type.codeSmall`, nền `SurfaceRaised`, viền `BorderSubtle`, `radius.md`, `elevation.float` |
+| Cấu tạo | Chữ `type.small`, phím tắt (nếu có) bằng Kbd (§6.31), nền `SurfaceRaised`, viền `BorderSubtle`, `radius.md`, `elevation.float` |
 | Kích hoạt | Hover sau khoảng 500 ms, hoặc focus bàn phím ngay; đi từ control này sang control kế bên khi tooltip đang mở thì hiện ngay |
 | Vị trí | Trên control, lật xuống khi không đủ chỗ; không che con trỏ |
 | Chuyển động | Mờ dần cộng phóng từ 0,96 về phía control; đóng bằng Exit; nhảy sang control kế bên thì trượt tới chỗ mới thay vì đóng rồi mở |
@@ -381,7 +381,7 @@ TextField `search` cộng danh sách gợi ý trên lớp nổi. Có trạng th�
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Bề mặt `SurfaceRaised`, viền `BorderSubtle`, `radius.xl`, padding 6, `elevation.float`; mục cao `size.row`, bo `radius.md`: icon, nhãn, phím tắt bên phải, mũi tên khi có menu con; khi có một mục mang icon thì mọi mục chừa cột icon để nhãn thẳng hàng; nhóm cách nhau bằng Divider, không thêm hàng trống |
+| Cấu tạo | Bề mặt `SurfaceRaised`, viền `BorderSubtle`, `radius.xl`, padding 6, `elevation.float`; mục cao `size.row`, bo `radius.md`: icon, nhãn, phím tắt bên phải bằng Kbd (§6.31), cột phím tắt rộng theo Kbd rộng nhất để nhãn và phím thẳng hàng, mũi tên khi có menu con; khi có một mục mang icon thì mọi mục chừa cột icon để nhãn thẳng hàng; nhóm cách nhau bằng Divider, không thêm hàng trống |
 | Loại | Dropdown (mở từ nút), context menu (chuột phải hoặc phím menu tại đối tượng) |
 | Thứ tự mục | Mở hoặc kết nối → tạo, sửa, nhân bản → copy, xuất → xoá (danger, cuối cùng) |
 | Vị trí | Neo vào nút hoặc con trỏ; lật khi chạm mép cửa sổ; menu con mở ngang |
@@ -489,6 +489,20 @@ Ghi lại yêu cầu để không ai dùng tạm control sai chỗ:
 - **CodeEditor**: tô màu theo các role syntax của `theme`, số dòng, tìm và thay, nhiều con trỏ là tùy chọn, gõ tiếng Việt qua lõi UK-08, gợi ý do module cung cấp.
 
 Hai component này được thiết kế chi tiết cùng module đầu tiên cần chúng (database hoặc API client). Trước đó không dùng TextArea thay CodeEditor cho query hay body.
+
+### 6.31 Kbd
+
+Chủ dự án yêu cầu ngày 2026-11-16, làm cùng bàn phím của Menu (F10.11b).
+
+| Mục | Nội dung |
+| --- | --- |
+| Mục đích | Hiện một phím tắt: cột phím tắt của Menu, Tooltip, command palette, chữ hướng dẫn |
+| Dữ liệu | Phím tắt có cấu trúc, không phải chuỗi: modifier `Mod` (Cmd trên macOS, Ctrl ở nơi khác), `Ctrl`, `Alt`, `Shift`, `Super`, cộng một phím (chữ, số, Enter, Escape, Tab, Space, Backspace, Delete, mũi tên, Home, End, PageUp, PageDown, F1–F12, dấu câu) |
+| Nền tảng | Cửa sổ đặt nền tảng một lần vào Env; component không tự đoán hệ điều hành (§7). macOS: ký hiệu theo thứ tự ⌃ ⌥ ⇧ ⌘ rồi tới phím, không có dấu nối; Enter ↩, Escape ⎋, Tab ⇥, Space ␣, Backspace ⌫, Delete ⌦, mũi tên ← ↑ → ↓; chữ viết hoa. Linux và Windows: chữ nối bằng "+", thứ tự Ctrl, Alt, Shift, Super, phím (ví dụ "Ctrl+Shift+K", "Esc") |
+| Cấu tạo | Một chip nhỏ cho mỗi phím tắt; padding 2 dp dọc, 6 dp ngang; `radius.xs`; nền `FillSoft`, không viền (kiểu Kbd của HeroUI); chữ `type.small` hoặc `type.codeSmall` (chốt trong kit theo độ rõ của ký hiệu) màu đủ 4,5:1 trên `FillSoft` ở mọi bề mặt nó nằm, kể cả viên nền đang chọn của Menu |
+| Trạng thái | Không tương tác. Trong mục tắt thì theo dáng tắt của mục |
+| Chuyển động | Không có |
+| Không được | Ghép chuỗi phím tắt bằng tay ở bên gọi; tự đoán nền tảng; dùng làm nút |
 
 ## 7. Phím tắt chung
 
