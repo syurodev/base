@@ -5,7 +5,7 @@ description: H-33 — client desktop của Fugue viết bằng Gio; binary riên
 
 # Desktop app
 
-Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B.
+Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). **v0.6 (2026-11-18), chờ duyệt**: cách vẽ transcript theo phong cách DevKit (DA-11, §5.4, DA-E12). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B.
 
 ## 1. Phạm vi
 
@@ -35,6 +35,7 @@ Ngoài phạm vi giai đoạn A: Windows, đóng gói có ký, auto-update, nhi�
 | DA-07 | **v0.3**: app là client duy nhất của giai đoạn A và **tự khởi động host**: mở app mà chưa có host thì app chạy `fugue serve` tách riêng (process riêng, log trong data dir), chờ sẵn sàng tối đa 10 s rồi `Hello` ([cli](/dev-kit/core-harness/cli) §2.1). Lease và 10 s ân hạn theo cli §2.2. Chế độ chạy nền (`app-background`) giữ host sống khi đóng cửa sổ; đóng cửa sổ cuối mà còn phiên hoặc đội đang chạy và chưa bật chạy nền thì app hỏi trước (dừng hết rồi thoát, hoặc ở lại). Host cũ hoặc mới hơn app xử lý theo cli §2.3 |
 | DA-08 | Thao tác chính có phím tắt; giao diện sáng và tối |
 | DA-10 | **v0.5, khung app**: rail bên trái, sidebar, và một **lưới slot** tối đa 3 cột, mỗi cột tối đa 2 dòng. **Slot chính** chứa thứ user đang làm theo mục rail đang chọn: chat của một phiên, workbench của một module (database, API client…), hay bảng đội. Nó luôn ở dòng trên của cột đầu tiên, ngay cạnh sidebar, và không bao giờ đổi chỗ, chỉ đổi nội dung. Mọi view khác là slot thường, kéo thả và sắp xếp được. Bố cục thuộc về từng cửa sổ và do host lưu (§5.3) |
+| DA-11 | **v0.6, cách vẽ transcript**: theo phong cách transcript của DevKit (chủ dự án chọn, 2026-11-18). Chữ của agent là trang tài liệu, không bubble; việc của một lượt gập dưới một dòng "Worked for …"; mỗi tool call là một hàng có icon và tiêu đề, mở ra mới thấy output; tham chiếu file, commit và mã là chip bấm được (§5.4) |
 | DA-09 | Mọi việc của giai đoạn A làm được trên app: mở và khoá vault (master password nhập trong app, không bao giờ qua argv hay env), đăng nhập account (chạy lệnh login của CLI vendor), phiên, duyệt, đội, tích hợp. Test e2e dùng `pkg/client` thay cho CLI |
 
 ## 4. Kiến trúc
@@ -170,6 +171,45 @@ Cửa sổ rộng ra thì các cột mở lại đúng chỗ cũ. Bố cục đ�
 - Ctrl/Cmd+Shift+Enter: lấp đầy hoặc trở về.
 - Mọi phím tắt dùng modifier, vì khi đang bật bộ gõ tiếng Việt thì phím chữ trơn không tới được app.
 
+### 5.4 Cách vẽ transcript (v0.6)
+
+Chủ dự án chọn phong cách transcript của DevKit (2026-11-18). Chỉ lấy thiết kế, không lấy code: DevKit đã đóng băng. Mục này nói cách mỗi loại item ở [transcript §3](/dev-kit/core-harness/transcript#3-loại-item) hiện ra; component và token là của [ui-kit](/dev-kit/core-harness/ui-kit).
+
+**Nguyên tắc**
+
+- Thứ cần đọc nổi lên, thứ chỉ là dấu vết thì lặng. Một lượt làm 40 tool call phải đọc như một việc, không như 40 thẻ.
+- Không huy hiệu DONE hay FAILED: ô bên phải của hàng chính là trạng thái ("running…", "exit 1", "+2 −1"). Xong không phải tin tốt, chỉ là xong, nên trạng thái xong không có màu.
+- Lỗi là trạng thái duy nhất đổi nền (`DangerSoft`) và thêm một dòng lý do.
+
+**Từng loại item**
+
+| Item | Cách hiện |
+| --- | --- |
+| `user_message` | Viên nền `FillSoft`, `radius.lg`, căn phải, rộng tối đa khoảng 75% cột; không avatar. Origin `lead` hay `fugue` có một dòng nhãn nhỏ phía trên ("From lead", "Fugue") để user không nhầm là mình gõ |
+| `assistant_message` | Không bubble, không avatar, không viền: markdown đọc như trang tài liệu, chữ `type.body` màu `Fg`, rộng hết cột tới bề rộng đọc tối đa. Heading, danh sách, bảng, khối code do renderer markdown riêng của app vẽ (§4) |
+| `reasoning` | Một dòng nhỏ `type.small`, `FgSubtle`: "Thought for 6s", bấm mở ra phần suy nghĩ vendor cho xem. Không dùng "Thinking…" cho khối đã xong |
+| Nhóm việc của lượt | Các item `tool_call`, `file_change`, `subagent`, `command` liền nhau của một lượt gom dưới một dòng đầu "Worked for 19s ›" kèm Divider dưới nó. Lượt đang chạy: dòng đầu là bước hiện tại và tự mở; lượt xong: gập lại. Trong nhóm, các tool call liền nhau cùng loại gom tiếp thành nhóm con có tiêu đề tóm tắt ("Ran commands, used tools", "Read 3 files", "Edited 2 files") |
+| `tool_call` | Một hàng: icon theo loại tool (terminal, sửa file, đọc file, tìm, mạng, tool khác), tiêu đề ngắn của item (ví dụ mô tả vendor gửi kèm lệnh: "Verify guard save path evidence and new test"; không có thì động từ cộng đối tượng: "Read hook.go"), mũi tên mở. Ô bên phải: "running…" lúc chạy, kết quả ngắn lúc xong (số dòng, số match, exit code khác 0). Mở ra: thẻ Output |
+| Thẻ Output | Nền `SurfaceRaised`, `radius.lg`. Đầu thẻ: icon, chữ "Output", định dạng (json, text, diff), nút Copy bên phải. Thân: khối code tô màu theo định dạng, cao tối đa vài chục dòng rồi "Show full output" |
+| `file_change` | Hàng "Edited path" với "+2 −1" (thêm `Status.Success`, bớt `Status.Danger`); mở ra là diff tại chỗ cùng ngôn ngữ với khung duyệt (cùng màu, số dòng, gập) |
+| Lệnh shell | Đầu thẻ là lệnh (không phải ID terminal); exit code chỉ hiện khi khác 0, màu `Status.Danger` |
+| Kết quả đã biết | Có thẻ riêng khi output là một hiệu ứng có tên: commit ("Committed 621f7176" cộng message, link "View diff ↗"), push, tạo nhánh. Thẻ khác chỉ là thẻ Output |
+| `plan` | Thẻ nền `SurfaceRaised`: mỗi bước một chấm theo trạng thái của vendor (xong: chấm đặc `Status.Success`; đang làm: chấm đặc `Action`, chữ đậm; chưa làm: vòng rỗng `FgSubtle`) và chữ trạng thái bên phải. Không thanh tiến độ, không gạch ngang bước đã xong |
+| `subagent` | Một dòng lặng như `reasoning`: việc được giao và trạng thái; không có thẻ, vì app không điều khiển được nó |
+| `approval`, `team_proposal`, `notice`, `turn_diff` | Giữ thẻ của mục riêng (§5, §5.1, git guard) |
+
+**Chip trong chữ**
+
+- Code inline là chip nền `FillSoft`, font mono.
+- Tham chiếu file là chip có icon ngôn ngữ, đường dẫn và khoảng dòng (`internal/git/git.go:270-285`); bấm mở file ở slot gần nhất (§5.3).
+- Mã commit, ID phiên, ID task là chữ mono có gạch chân chấm; bấm mở đối tượng đó.
+- Chip là nội dung của item, không phải metadata: nhận ra từ markdown và tiêu đề lúc vẽ, không lưu thêm gì (INV-09).
+
+**Chuyển động**
+
+- Mở và gập nhóm việc, hàng tool, thẻ Output: chiều cao cộng mờ dần theo Smooth (ui-kit §3.7).
+- Dòng "Worked for …" của lượt đang chạy đổi chữ theo bước hiện tại bằng mờ dần; lượt cũ đứng yên, cuộn lại lịch sử không phát lại hoạt ảnh nào.
+
 ## 6. Failure UX
 
 Mọi hàng ở [activation §3](/dev-kit/core-harness/activation#3-failure-ux-bắt-buộc) có trên app, cộng:
@@ -221,6 +261,7 @@ Ngưỡng phát hành trên máy Ubuntu của chủ dự án: **60 fps** khi str
 | **DA-E09** | Lưới slot (§5.3): slot chính luôn ở dòng trên của cột đầu và không kéo, đóng hay gập được; kéo thả chỉ hiện vùng thả hợp lệ (không cột thứ 4, không dòng thứ 3, không bên trái slot chính); Escape huỷ kéo và trả slot về chỗ cũ; cửa sổ hẹp gập cột từ phải sang thành dải tab rồi mới gập sidebar, rộng lại thì về đúng chỗ cũ |
 | **DA-E10** | Bố cục lưu và khôi phục: đóng rồi mở lại app thì mọi cửa sổ có đúng lưới, tỉ lệ chia và nội dung slot; slot trỏ tới đối tượng đã mất hiện EmptyState; mở slot trong cửa sổ mới thì nó thành slot chính của cửa sổ đó và hai cửa sổ xem cùng phiên luôn khớp |
 | **DA-E11** | Panel đồng hành tự mở vào slot trống gần slot chính nhất theo thứ tự ở §5.3, chỉ cho phiên đang xem và chỉ ở lần dùng module đầu tiên trong lượt; nút Chat/Đội đổi view trong slot chính mà composer vẫn dùng được |
+| **DA-E12** | Transcript theo §5.4: một lượt có 40 tool call vẽ thành một dòng "Worked for …" gập, mở ra là các nhóm con có tiêu đề tóm tắt; tool call lỗi đổi nền và có dòng lý do, tool call xong không có màu; `assistant_message` không bubble; chip file mở đúng file và dòng; golden ảnh cho mỗi loại item ở sáng và tối |
 | **DA-E08** | Vòng đời host theo app: mở app khi chưa có host thì host khởi động và app nối được; đóng cửa sổ cuối khi còn phiên chạy thì app hỏi; bật chạy nền thì host sống sau khi đóng cửa sổ; tắt chạy nền và không còn client thì host tắt sau 10 s |
 
 ## 11. Phụ thuộc
