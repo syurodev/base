@@ -5,7 +5,7 @@ description: H-51 — bộ component dùng chung của app Gio; token kích thư
 
 # UI kit
 
-Trạng thái: **v0.3, ngày 2026-11-15, đã duyệt** (chủ dự án, 2026-11-15, base-doc PR #15). v0.2 đã duyệt (chủ dự án, 2026-11-15, base-doc PR #14). Số đo ở §3 đã đối chiếu với các hệ thống thiết kế và chuẩn ở §13. v0.2 ghi kết quả spike (§9): giữ mọi token chữ, chốt giá trị màu tương tác, thêm bóng nhẹ cho lớp nổi, chốt Lucide, và thêm các luật Gio mà spike tìm ra ở §6. v0.3 đổi phong cách sang kiểu HeroUI theo lựa chọn của chủ dự án sau khi xem gallery của F10.9 (§3.8): bo góc lớn hơn, nền tông màu thay cho viền, viền nhạt, nhấn co lại, vòng focus cách mép, control tắt mờ đi, và mọi component có chuyển động phù hợp (§3.7). Mật độ của IDE (chiều cao control, cỡ chữ) giữ nguyên. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8).
+Trạng thái: **v0.3, ngày 2026-11-15, đã duyệt** (chủ dự án, 2026-11-15, base-doc PR #15). v0.2 đã duyệt (chủ dự án, 2026-11-15, base-doc PR #14). Số đo ở §3 đã đối chiếu với các hệ thống thiết kế và chuẩn ở §13. v0.2 ghi kết quả spike (§9): giữ mọi token chữ, chốt giá trị màu tương tác, thêm bóng nhẹ cho lớp nổi, chốt Lucide, và thêm các luật Gio mà spike tìm ra ở §6. v0.3 đổi phong cách sang kiểu HeroUI theo lựa chọn của chủ dự án sau khi xem gallery của F10.9 (§3.8): bo góc lớn hơn, nền tông màu thay cho viền, viền nhạt, nhấn co lại, vòng focus cách mép, control tắt mờ đi, và mọi component có chuyển động phù hợp (§3.7). Mật độ của IDE (chiều cao control, cỡ chữ) giữ nguyên. Cập nhật 2026-11-18 (chủ dự án duyệt): tab `document` ở §6.22 đổi từ gạch chân sang viên bo nền như tab `mode`, nút đóng nhỏ chỉ hiện khi cần, và tab có icon tùy chọn. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8).
 
 Bố cục khung app (rail, sidebar nhiều project, khung chia đôi, panel đồng hành) và hợp đồng module (tham chiếu `fugue://`, card view, item `module_action`) thuộc các trang khác, viết sau spike. Trang này chỉ định nghĩa phần nền mà khung và module lắp ráp từ đó.
 
@@ -443,10 +443,15 @@ ListRow cao `size.row.dense`, thụt lề 12 dp mỗi cấp, mũi tên mở gậ
 | Mục | Nội dung |
 | --- | --- |
 | Loại | `document` (nội dung đang mở trong một khung: console, bảng, request; đóng được, ghim được, kéo đổi thứ tự) và `mode` (chế độ bên trong một đối tượng, cố định) |
+| Cấu tạo | Mỗi tab: icon tùy chọn (`size.icon.sm`, bên gọi truyền, ví dụ icon loại file hay loại đối tượng), nhãn `type.label`, rồi ô cuối (nút đóng hoặc chấm chưa lưu). Tab cao `size.control.md`, đệm ngang `space.md`, khoảng icon–nhãn `space.xs`, cách nhau `space.xxs`. Không viền, không gạch chân |
+| Tab đang chọn (`document`, v0.3, chủ dự án chốt 2026-11-18) | Viên bo `radius.md` nền `SurfaceRaised` cộng `BorderSubtle`, chữ `Fg`; tab khác không nền, chữ `FgMuted`, hover nền `FillSoft` |
+| Nút đóng | Icon `x` cỡ `size.icon.xs`, canh giữa theo chiều dọc với nhãn, vùng bấm đủ 20 dp. Chỉ hiện ở tab đang chọn, tab đang hover và tab có focus bàn phím; tab khác giữ chỗ trống cùng bề rộng để tab không nhảy |
+| Chưa lưu | Chấm 6 dp màu `Action` ở ô cuối thay cho nút đóng; hover hoặc focus thì chấm đổi thành nút đóng |
+| Tab ghim | Chỉ còn icon (icon tùy chọn của tab; tab không có icon thì dùng icon `pin`), tooltip là nhãn đầy đủ; đứng đầu hàng, không có nút đóng |
 | Hành vi | Mở đối tượng đã có tab thì focus tab đó; đóng tab đang xem chuyển sang tab gần nhất; đóng tab nền không đổi focus; tab có thay đổi chưa lưu có chấm báo |
 | Bàn phím | Ctrl+Tab và Ctrl+Shift+Tab giữa tab document; mũi tên trong nhóm tab mode |
-| Tràn | Tab cuộn ngang và có menu liệt kê tab ẩn |
-| Chuyển động | Chỉ báo tab đang chọn (gạch chân với `document`, viên nền với `mode`) trượt sang tab mới theo Smooth; tab mới mở rộng bề rộng, tab đóng gập lại; kéo đổi thứ tự thì tab khác dịch chỗ theo Smooth |
+| Tràn | Tab cuộn ngang; nhãn quá dài và tab bị cắt ở mép mờ dần, không cắt ngang chữ; cuối hàng có nút menu ghi số tab ẩn (chevron cộng số), menu liệt kê tab ẩn kèm icon của chúng |
+| Chuyển động | Viên nền của tab đang chọn (cả `document` lẫn `mode`) trượt sang tab mới theo Smooth; nút đóng và chấm chưa lưu đổi nhau bằng mờ dần theo Snappy; tab mới mở rộng bề rộng, tab đóng gập lại; kéo đổi thứ tự thì tab khác dịch chỗ theo Smooth |
 
 ### 6.23 SectionHeader
 
