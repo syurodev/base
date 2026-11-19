@@ -5,7 +5,7 @@ description: H-33 — client desktop của Fugue viết bằng Gio; binary riên
 
 # Desktop app
 
-Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). **v0.6 (2026-11-18), chờ duyệt**: cách vẽ transcript theo phong cách DevKit (DA-11, §5.4, DA-E12). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B.
+Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). **v0.6 (2026-11-18), đã duyệt** (chủ dự án, base-doc PR #20): cách vẽ transcript theo phong cách DevKit (DA-11, §5.4, DA-E12). **v0.7 (2026-11-19), chờ duyệt**: bảng đội có tab Channel kiểu Slack, tab Thành viên và tab Cây (§5.2, [orchestration §6.7](/dev-kit/core-harness/orchestration#67-channel-của-đội-v03), DA-E13). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B.
 
 ## 1. Phạm vi
 
@@ -72,7 +72,20 @@ Composer có nút "Lập đội" gửi `/fugue:team`; khi phiên đã là lead t
 
 ### 5.2 Bảng đội
 
-Cây agent từ trên xuống: lead ở gốc, trưởng nhóm ở tầng 2, thành viên thụt vào dưới trưởng nhóm, nối bằng đường thẳng.
+v0.7 (2026-11-19, chờ duyệt): bảng đội có ba tab: **Channel** (mặc định), **Cây**, **Thành viên**. Tab **Đồ thị** (phụ thuộc giữa task) để sau.
+
+**Tab Channel**: theo dõi và nhắn với đội như chat trên Slack ([orchestration §6.7](/dev-kit/core-harness/orchestration#67-channel-của-đội-v03)).
+
+- **Cột trái**: channel chung ở đầu, rồi một dòng cho mỗi thread task: chấm state (màu như badge ở dưới), vai trò, tiêu đề task, số tin chưa đọc. Thread con thụt dưới thread của trưởng nhóm. Lọc theo state (cần bạn, thất bại, đang chạy).
+- **Dòng tin**: mỗi tin là một hàng kiểu chat: avatar theo vai trò (icon vendor nhỏ ở góc), tên vai trò, `→ người nhận` khi có, giờ, số `#n` ở cuối hàng, thẻ loại (`question`, `stall`, `failed`… dùng Tag của [ui-kit](/dev-kit/core-harness/ui-kit), màu theo state; tin thường không có thẻ). Thân tin vẽ như `assistant_message` của §5.4 (markdown, chip file, chip `#n` bấm được để nhảy tới tin đó).
+- Tin của user căn như tin của người khác (không bubble riêng) nhưng tên là "You". Tin `stall` và `failed` có nền nhạt theo màu của nó; tin dẫn tới yêu cầu duyệt có nút "Mở trong hộp duyệt".
+- Ở channel chung, mỗi tin thuộc một thread có dòng "N trả lời ›" mở thread ở panel bên phải (như thread của Slack); trong panel đó user trả lời thẳng.
+- **Ô nhắn** ở dưới: composer của kit; gõ `@` mở danh sách thành viên (Combobox); không có `@` thì tin đi theo luật ở orchestration §6.7. Enter gửi, Shift+Enter xuống dòng.
+- Đã đọc tới đâu: mỗi thread nhớ tin cuối user đã xem; mở lại thì cuộn tới tin chưa đọc đầu tiên, có vạch "tin mới".
+
+**Tab Thành viên**: mỗi agent một hàng: avatar, vai trò và mô tả ngắn, vendor và model, badge state, tin gần nhất (một dòng) kèm số `#n`, và tin cuối mà agent đã nhận. Bấm mở chi tiết agent như ở dưới.
+
+**Tab Cây**: cây agent từ trên xuống: lead ở gốc, trưởng nhóm ở tầng 2, thành viên thụt vào dưới trưởng nhóm, nối bằng đường thẳng.
 
 - **Thanh đầu**: số agent, số đang chạy, chip **cần bạn** (màu cảnh báo) và **thất bại** (màu lỗi) khi lớn hơn 0, mỗi chip mở danh sách để nhảy tới nút; tổng mức dùng của đội (phần trăm quota theo account, USD nếu là API key).
 - **Thẻ của mỗi agent**: vai trò, vendor và model, badge state ([orchestration §3.1](/dev-kit/core-harness/orchestration#31-task)), một dòng việc, biểu tượng các MCP hoặc tool chính đang bật, mức dùng, thời gian chạy, số agent con với nút gập.
@@ -262,6 +275,7 @@ Ngưỡng phát hành trên máy Ubuntu của chủ dự án: **60 fps** khi str
 | **DA-E10** | Bố cục lưu và khôi phục: đóng rồi mở lại app thì mọi cửa sổ có đúng lưới, tỉ lệ chia và nội dung slot; slot trỏ tới đối tượng đã mất hiện EmptyState; mở slot trong cửa sổ mới thì nó thành slot chính của cửa sổ đó và hai cửa sổ xem cùng phiên luôn khớp |
 | **DA-E11** | Panel đồng hành tự mở vào slot trống gần slot chính nhất theo thứ tự ở §5.3, chỉ cho phiên đang xem và chỉ ở lần dùng module đầu tiên trong lượt; nút Chat/Đội đổi view trong slot chính mà composer vẫn dùng được |
 | **DA-E12** | Transcript theo §5.4: một lượt có 40 tool call vẽ thành một dòng "Worked for …" gập, mở ra là các nhóm con có tiêu đề tóm tắt; tool call lỗi đổi nền và có dòng lý do, tool call xong không có màu; `assistant_message` không bubble; chip file mở đúng file và dòng; golden ảnh cho mỗi loại item ở sáng và tối |
+| **DA-E13** | Tab Channel (v0.7): tin của đội hiện đúng thread với số `#n`, người gửi, người nhận và thẻ loại; `@agent` từ user tới đúng agent và người giao nhận một dòng; tin không `@` trong thread tới agent của task; chip `#n` nhảy tới tin; vị trí đã đọc của mỗi thread giữ qua lần mở lại; yêu cầu duyệt chỉ có dòng dẫn, trả lời ở hộp duyệt |
 | **DA-E08** | Vòng đời host theo app: mở app khi chưa có host thì host khởi động và app nối được; đóng cửa sổ cuối khi còn phiên chạy thì app hỏi; bật chạy nền thì host sống sau khi đóng cửa sổ; tắt chạy nền và không còn client thì host tắt sau 10 s |
 
 ## 11. Phụ thuộc
