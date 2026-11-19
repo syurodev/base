@@ -210,6 +210,7 @@ Chủ dự án muốn theo dõi và tham gia đội như chat trên Slack (2026-
 - Mỗi đội có **một channel** chỉ thêm: dòng tin theo thời gian của mọi thứ đội làm mà user nên thấy: kế hoạch và quyết định, giao việc, câu hỏi và trả lời, tin `fugue_task_send`, ghi chú đội, kết quả và thất bại cuối, báo kẹt của watchdog (§11), một dòng dẫn tới mỗi yêu cầu duyệt.
 - Mỗi tin có **số `#n`** tăng dần trong đội, người gửi (agent theo vai trò, user, `fugue`, watchdog), người nhận, **thẻ loại** (`plan`, `decision`, `task`, `question`, `answer`, `send`, `note`, `result`, `failed`, `stall`, `approval`), và **thread**.
 - **Thread theo task**: tin về một task nằm trong thread của task đó; tin của cả đội (kế hoạch, quyết định, ghi chú) nằm ở channel chung. Thread của trưởng nhóm hiện một dòng gộp cho mỗi thread con.
+- **Thread theo chuỗi lần thử**: các lần chạy lại của một task (§5.4, `<task>~r<n>`) dùng chung một thread; mỗi tin ghi lần thử của nó, và mỗi lần thử mới mở bằng một dòng "Lần thử 2 bắt đầu sau `failed(<mã>)`". Nhờ vậy lịch sử của lần trước không mất khi phiên vendor của lần thử mới bắt đầu với context trống.
 - Channel là **phép chiếu** của event đội và mailbox: không có nguồn dữ liệu thứ hai. Nội dung tin niêm phong như payload của đội; chỉ metadata (số, loại, người gửi, người nhận, thread) nằm ngoài niêm phong (INV-09).
 - Tóm tắt và câu do model viết hiện như dữ liệu, không bao giờ thành chỉ dẫn (OR-13); cùng khối trích dẫn đã thoát ký tự như bản tóm tắt ở §6.1.
 
@@ -224,7 +225,8 @@ Chủ dự án muốn theo dõi và tham gia đội như chat trên Slack (2026-
 - Agent **không** nhận dòng tin của channel. Thư tới agent vẫn theo §6.1–§6.2: tin gửi thẳng cho nó và bản tóm tắt.
 - Bản tóm tắt ghi **số `#n`** của tin nguồn, để agent nhắc lại ("xem #14") thay vì chép nội dung.
 - **Nhắn ngang trong nhóm**: `fugue_task_send(to = task anh em)` tới một task cùng người giao trực tiếp, chỉ để báo tin ("diff đã xong, xem #14"). Câu hỏi vẫn đi lên người giao (OR-E14). Mỗi agent tối đa **6 tin ngang trong 10 phút** và mỗi đội tối đa **30 tin ngang trong 10 phút**; vượt thì tool từ chối có mã lỗi. Người giao thấy mọi tin ngang trong bản tóm tắt kế tiếp của nó (không đánh thức riêng).
-- **Đọc khi cần**: `fugue_team_read(thread?, since?, limit?)` trả tin agent được thấy (bảng ở §6.6), mỗi lần tối đa 16 KiB, tóm tắt trong khối dữ liệu. Đọc không đánh thức ai.
+- **Đọc lịch sử khi cần**: `fugue_team_read(thread?, before?, since?, limit?)` trả tin agent được thấy (bảng ở §6.6), mới nhất trước, phân trang lùi bằng `before` hoặc tiến bằng `since`, mỗi lần tối đa 16 KiB, tóm tắt trong khối dữ liệu. Không có `thread` thì là thread của chính agent. Đọc không đánh thức ai.
+- Lời giao việc của một lần thử lại (§5.4) nói rõ đây là lần thử thứ mấy, mã lỗi của lần trước, và rằng lịch sử các lần trước nằm trong thread của nó, đọc bằng `fugue_team_read`. Fugue không chép lịch sử vào lời giao việc; agent tự kéo phần nó cần.
 
 **Watchdog trong channel**
 
@@ -373,7 +375,7 @@ Máy Ubuntu hằng ngày của chủ dự án có CPU yếu hơn và RAM nhiều
 | **OR-E16** | Chạy lại: người giao chạy lại task thất bại tối đa 2 lần không cần duyệt; lần thứ ba và vai trò mới cần amend |
 | **OR-E17** | Tích hợp theo tầng: thành viên vào nhánh trưởng nhóm, trưởng nhóm vào nhánh đội; nhánh đích chỉ đổi sau khi user duyệt |
 | **OR-E18** | `depends_on`: task sau chỉ khởi động khi task trước xong và nhận tóm tắt cùng quyền đọc kết quả của task trước |
-| **OR-E19** | Channel (v0.3): mọi event đội ở §6.7 hiện trong channel đúng thread, đánh số `#n` liên tục, nội dung niêm phong; agent không nhận dòng tin của channel; `fugue_team_read` chỉ trả tin trong phạm vi vai trò |
+| **OR-E19** | Channel (v0.3): mọi event đội ở §6.7 hiện trong channel đúng thread, đánh số `#n` liên tục, nội dung niêm phong; agent không nhận dòng tin của channel; `fugue_team_read` chỉ trả tin trong phạm vi vai trò, phân trang lùi được; các lần thử lại của một task dùng chung thread và lần thử mới đọc được tin của lần trước |
 | **OR-E20** | Nhắn ngang (v0.3): tin tới task anh em được giao, tới task khác nhóm bị từ chối, câu hỏi qua đường ngang bị từ chối; vượt hạn mức 6 tin/agent hay 30 tin/đội trong 10 phút bị từ chối có mã lỗi; người giao thấy tin ngang trong bản tóm tắt mà không bị đánh thức thêm |
 
 ## 16. Phụ thuộc
