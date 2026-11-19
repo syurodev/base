@@ -5,7 +5,7 @@ description: H-49 — agent tự quyết làm một mình hay đề xuất lập
 
 # Orchestration
 
-Trạng thái: **đề xuất v0.2, ngày 2026-11-07, chờ chủ dự án duyệt**. v0.2 thêm lập đội theo đề xuất (§5), đội nhiều tầng và luồng thông tin theo ngoại lệ (§6), tích hợp theo tầng (§9). Mảng H-49 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-30 (team cho native) ở giai đoạn A. Chạy trên [vendor runtime](/dev-kit/core-harness/vendor-runtime) (H-47), hiển thị qua [transcript](/dev-kit/core-harness/transcript) (H-48) và [desktop app](/dev-kit/core-harness/desktop-app) (H-33).
+Trạng thái: **đề xuất v0.2, ngày 2026-11-07, chờ chủ dự án duyệt**. v0.2 thêm lập đội theo đề xuất (§5), đội nhiều tầng và luồng thông tin theo ngoại lệ (§6), tích hợp theo tầng (§9). **v0.3 (2026-11-19), chờ duyệt**: channel của đội kiểu Slack (§6.7): người xem và nhắn trong một channel có thread theo task; agent vẫn chỉ nhận thông tin của mình, cộng nhắn ngang trong nhóm có hạn mức và tool đọc channel. Mảng H-49 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-30 (team cho native) ở giai đoạn A. Chạy trên [vendor runtime](/dev-kit/core-harness/vendor-runtime) (H-47), hiển thị qua [transcript](/dev-kit/core-harness/transcript) (H-48) và [desktop app](/dev-kit/core-harness/desktop-app) (H-33).
 
 Tham khảo đã nghiên cứu: orchestration của [Orca](https://github.com/stablyai/orca) (`worker-start`, mailbox, đánh thức coordinator, "silence never proves exit"), `delegate_task` và credential pool của [Hermes](https://github.com/nousresearch/hermes-agent) (`output_schema`, giao kết quả at-least-once, bảng xoay account theo lỗi), `PickAccount` của Agent Hub ([budget và quota §3](/dev-kit/core-harness/budget)), spike swarm ngày 2026-11-07 (§14), và mẫu giao diện cây agent do chủ dự án cung cấp (orchestrator, trưởng nhóm, thành viên; badge "cần bạn" và "thất bại"; chi phí theo từng nút; task thất bại được thay bằng lần chạy mới).
 
@@ -28,7 +28,7 @@ Ngoài phạm vi giai đoạn A: độ sâu lớn hơn 2, tin nhắn trực ti�
 | OR-05 | **Định tuyến theo người quyết.** Yêu cầu duyệt quyền tool đi thẳng tới user; câu hỏi về việc đi tới người giao trực tiếp; lỗi cơ học do Fugue tự xử (§6.2) |
 | OR-06 | Agent nhận **đặc tả task có cấu trúc** (§4), báo kết quả qua `fugue_task_done`, hỏi qua `fugue_task_ask`. Báo cáo là dữ liệu không tin cậy |
 | OR-07 | Model của từng task lấy từ **danh mục vai trò** (§5.2) và quota hiện có; lead đề nghị, user chốt trên đề xuất. **Không tự chuyển vendor** giữa chừng một task |
-| OR-08 | **Scheduler ba tầng slot**: theo account, toàn máy, và lệnh nặng (§7) |
+| OR-08 | **Scheduler ba tầng slot và nhịp gửi tự động**: theo account, toàn máy, và lệnh nặng; mọi prompt do Fugue tự bắn tới vendor (khởi động task, đánh thức qua mailbox, nhắc báo cáo — trừ prompt trực tiếp của user) đều vào hàng chờ theo từng vendor từ **10–15 s** (có jitter) giữa hai lần gửi để tránh bắn dồn dập (§6.1, §7) |
 | OR-09 | **Cổng quota**: ngừng giao việc mới cho account khi bất kỳ cửa sổ nào vượt 85%; account hết hạn mức thì `paused` tới thời điểm reset vendor báo, không đoán (§8) |
 | OR-10 | **Nhiều account mỗi vendor** là opt-in theo vendor, tắt mặc định, kèm cảnh báo điều khoản. Chỉ chuyển account **ở ranh giới task**; không trộn gói sub với API key (M-09) |
 | OR-11 | **Fugue giữ mọi thao tác git** để tích hợp. Tích hợp **theo tầng**: thành viên vào nhánh của người giao, trưởng nhóm vào nhánh đội, nhánh đội vào nhánh đích chỉ khi user duyệt (§9) |
@@ -155,6 +155,7 @@ Mục tiêu: mỗi agent chỉ nhận thông tin nó phải quyết; mọi thứ
 - Mỗi lead và trưởng nhóm có **mailbox**. Khi phiên đang rảnh, Fugue gửi một **lượt mới** nguồn `fugue` (`user_message` origin `fugue` trong [transcript](/dev-kit/core-harness/transcript)) chứa bản tóm tắt.
 - **Gom thông báo**: chờ tối đa 30 s hoặc tới khi cả nhóm task cùng phụ thuộc xong, rồi gửi một bản. Một bản tối đa 8 KiB; vượt thì phần cuối chỉ còn task ID và trạng thái.
 - Phiên đang chạy lượt thì thư chờ tới khi lượt xong. Câu hỏi đứng đầu bản tóm tắt.
+- **Hàng chờ giãn nhịp theo vendor (10–15 s)**: mọi lượt nguồn `fugue` bắn tới một vendor (đánh thức mailbox, nhắc báo cáo `no_report`, hoặc prompt mở đầu khi khởi động task) đều đi qua hàng chờ điều tiết theo từng vendor với khoảng cách ngẫu nhiên **10–15 s** giữa hai lần gửi để tránh lưu lượng tự động dồn dập. Prompt do chính user gửi trực tiếp (`origin = user`) đi thẳng ngay lập tức, không qua hàng chờ này.
 - Giao thư **at-least-once** qua crash; mỗi thư có ID, đã nhận thì không gửi lại.
 
 ### 6.2 Định tuyến
@@ -197,6 +198,40 @@ Mỗi đội có **bản tóm tắt** (`brief` trong đề xuất: mục tiêu c
 | `fugue_task_status`, `fugue_task_result` | Task con trực tiếp | Task con trực tiếp | Task mà nó phụ thuộc |
 | `fugue_task_done`, `fugue_task_ask` | Không | Có | Có |
 | `fugue_team_brief` | Có | Có | Có |
+| `fugue_team_read` (v0.3, §6.7) | Cả đội | Phần của nhóm và channel chung | Thread của nó, thread anh em cùng người giao, channel chung |
+| `fugue_task_send` tới task anh em (v0.3, §6.7) | Không áp dụng | Trưởng nhóm cùng người giao | Thành viên cùng người giao |
+
+### 6.7 Channel của đội (v0.3)
+
+Chủ dự án muốn theo dõi và tham gia đội như chat trên Slack (2026-11-19). Nghiên cứu cho thấy cho agent nói tự do với nhau (định tuyến phẳng) làm token tăng nhanh theo số agent và số vòng, còn kiểu orchestrator–worker và kiểu đăng ký nhận tin theo vai trò (MetaGPT) giữ được chi phí và độ ồn. Vì vậy chọn **kiểu lai**: channel là chỗ của **người**; agent vẫn chỉ nhận thông tin nó phải quyết theo §6.1–§6.2, cộng hai đường mới có giới hạn.
+
+**Channel**
+
+- Mỗi đội có **một channel** chỉ thêm: dòng tin theo thời gian của mọi thứ đội làm mà user nên thấy: kế hoạch và quyết định, giao việc, câu hỏi và trả lời, tin `fugue_task_send`, ghi chú đội, kết quả và thất bại cuối, báo kẹt của watchdog (§11), một dòng dẫn tới mỗi yêu cầu duyệt.
+- Mỗi tin có **số `#n`** tăng dần trong đội, người gửi (agent theo vai trò, user, `fugue`, watchdog), người nhận, **thẻ loại** (`plan`, `decision`, `task`, `question`, `answer`, `send`, `note`, `result`, `failed`, `stall`, `approval`), và **thread**.
+- **Thread theo task**: tin về một task nằm trong thread của task đó; tin của cả đội (kế hoạch, quyết định, ghi chú) nằm ở channel chung. Thread của trưởng nhóm hiện một dòng gộp cho mỗi thread con.
+- **Thread theo chuỗi lần thử**: các lần chạy lại của một task (§5.4, `<task>~r<n>`) dùng chung một thread; mỗi tin ghi lần thử của nó, và mỗi lần thử mới mở bằng một dòng "Lần thử 2 bắt đầu sau `failed(<mã>)`". Nhờ vậy lịch sử của lần trước không mất khi phiên vendor của lần thử mới bắt đầu với context trống.
+- Channel là **phép chiếu** của event đội và mailbox: không có nguồn dữ liệu thứ hai. Nội dung tin niêm phong như payload của đội; chỉ metadata (số, loại, người gửi, người nhận, thread) nằm ngoài niêm phong (INV-09).
+- Tóm tắt và câu do model viết hiện như dữ liệu, không bao giờ thành chỉ dẫn (OR-13); cùng khối trích dẫn đã thoát ký tự như bản tóm tắt ở §6.1.
+
+**User trong channel**
+
+- User gõ vào channel hoặc một thread. `@agent` gửi tin thẳng cho agent đó (nguồn `user`, đi ngay, không qua hàng chờ giãn nhịp của §6.1); người giao của agent nhận một dòng (§6.2).
+- Tin không có `@` trong thread của task được gửi cho agent đang làm task đó; ở channel chung thì gửi cho lead.
+- Yêu cầu duyệt vẫn chỉ trả lời ở hộp duyệt (VR-05); channel chỉ có một dòng dẫn tới.
+
+**Agent: vẫn chỉ nhận thông tin của mình**
+
+- Agent **không** nhận dòng tin của channel. Thư tới agent vẫn theo §6.1–§6.2: tin gửi thẳng cho nó và bản tóm tắt.
+- Bản tóm tắt ghi **số `#n`** của tin nguồn, để agent nhắc lại ("xem #14") thay vì chép nội dung.
+- **Nhắn ngang trong nhóm**: `fugue_task_send(to = task anh em)` tới một task cùng người giao trực tiếp, chỉ để báo tin ("diff đã xong, xem #14"). Câu hỏi vẫn đi lên người giao (OR-E14). Mỗi agent tối đa **6 tin ngang trong 10 phút** và mỗi đội tối đa **30 tin ngang trong 10 phút**; vượt thì tool từ chối có mã lỗi. Người giao thấy mọi tin ngang trong bản tóm tắt kế tiếp của nó (không đánh thức riêng).
+- **Đọc lịch sử khi cần**: `fugue_team_read(thread?, before?, since?, limit?)` trả tin agent được thấy (bảng ở §6.6), mới nhất trước, phân trang lùi bằng `before` hoặc tiến bằng `since`, mỗi lần tối đa 16 KiB, tóm tắt trong khối dữ liệu. Không có `thread` thì là thread của chính agent. Đọc không đánh thức ai.
+- Lời giao việc của một lần thử lại (§5.4) nói rõ đây là lần thử thứ mấy, mã lỗi của lần trước, và rằng lịch sử các lần trước nằm trong thread của nó, đọc bằng `fugue_team_read`. Fugue không chép lịch sử vào lời giao việc; agent tự kéo phần nó cần.
+
+**Watchdog trong channel**
+
+- Im lặng quá ngân sách (§11) thì watchdog đăng một tin `stall` vào thread của task, nói ai đang chờ ai ("tester chờ author từ #14"), rồi báo người giao như §6.2.
+- Cùng tin đó hiện ở channel chung nếu cả đội đang chờ.
 
 ## 7. Scheduler
 
@@ -205,6 +240,7 @@ Mỗi đội có **bản tóm tắt** (`brief` trong đề xuất: mục tiêu c
 | Phiên đồng thời mỗi account | 6 | Spike: 10 phiên mỗi CLI không gặp 429 với task ngắn; chừa biên cho task dài |
 | Agent toàn máy | `min(8, (RAM − 4 GiB) / 400 MiB)` | Spike: khoảng 200–240 MiB mỗi phiên, cộng phần cho tool agent chạy |
 | Lệnh nặng (`checks` và lệnh agent tự bọc) | `max(1, số core / 4)` | CPU yếu là nút cổ chai thật; phiên CLI gần như chỉ chờ mạng |
+| Giãn nhịp prompt tự động mỗi vendor | 10–15 s (jitter) | Tránh bắn prompt `origin = fugue` dồn dập vào cùng một vendor gây kích hoạt bộ lọc chống bot/harness; prompt của user (`origin = user`) không bị giữ |
 
 - Fugue chạy `checks` dưới semaphore lệnh nặng. Agent được dặn bọc build và test bằng `fugue exclusive -- <lệnh>`, dùng chung semaphore qua Host API. Fugue không ép được lệnh mà vendor tự chạy; trên Linux mỗi phiên trong đội có `CPUWeight` thấp hơn phiên lead để máy vẫn phản hồi.
 - Task chờ slot ở `queued`; ưu tiên task của trưởng nhóm, sau đó theo thứ tự tạo. Bảng đội hiện vị trí trong hàng đợi.
@@ -339,6 +375,8 @@ Máy Ubuntu hằng ngày của chủ dự án có CPU yếu hơn và RAM nhiều
 | **OR-E16** | Chạy lại: người giao chạy lại task thất bại tối đa 2 lần không cần duyệt; lần thứ ba và vai trò mới cần amend |
 | **OR-E17** | Tích hợp theo tầng: thành viên vào nhánh trưởng nhóm, trưởng nhóm vào nhánh đội; nhánh đích chỉ đổi sau khi user duyệt |
 | **OR-E18** | `depends_on`: task sau chỉ khởi động khi task trước xong và nhận tóm tắt cùng quyền đọc kết quả của task trước |
+| **OR-E19** | Channel (v0.3): mọi event đội ở §6.7 hiện trong channel đúng thread, đánh số `#n` liên tục, nội dung niêm phong; agent không nhận dòng tin của channel; `fugue_team_read` chỉ trả tin trong phạm vi vai trò, phân trang lùi được; các lần thử lại của một task dùng chung thread và lần thử mới đọc được tin của lần trước |
+| **OR-E20** | Nhắn ngang (v0.3): tin tới task anh em được giao, tới task khác nhóm bị từ chối, câu hỏi qua đường ngang bị từ chối; vượt hạn mức 6 tin/agent hay 30 tin/đội trong 10 phút bị từ chối có mã lỗi; người giao thấy tin ngang trong bản tóm tắt mà không bị đánh thức thêm |
 
 ## 16. Phụ thuộc
 
