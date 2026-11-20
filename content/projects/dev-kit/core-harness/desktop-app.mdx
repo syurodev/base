@@ -173,7 +173,7 @@ Cửa sổ rộng ra thì các cột mở lại đúng chỗ cũ. Bố cục đ�
 **Lưu bố cục**
 
 - Bố cục thuộc về từng cửa sổ: các cột và dòng, nội dung mỗi slot (tham chiếu tới đối tượng, không chứa dữ liệu), tỉ lệ chia, slot nào đang lấp đầy, vị trí và kích thước cửa sổ.
-- Host lưu bố cục qua Host API và khôi phục mọi cửa sổ khi mở lại app.
+- Host lưu bố cục qua Host API ([host API §5.2](/dev-kit/core-harness/host-api#52-trạng-thái-của-app-v016), `fugue.appstate.v1`) và khôi phục mọi cửa sổ khi mở lại app, kể cả khi vault còn khoá; vì vậy bố cục chỉ chứa loại và ID của đối tượng, không chứa nội dung.
 - Slot trỏ tới đối tượng không còn tồn tại (phiên đã xoá, module đã gỡ) hiện EmptyState có nút đóng, không tự biến mất.
 
 **Phím tắt**
