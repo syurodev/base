@@ -200,7 +200,7 @@ Câu trả lời của `question` và lời nhắn khi `denied` đi vào `ToolRe
 
 - **Authority ở owner**: chỉ interaction owner cấp receipt; `Execute` claim receipt và revalidate theo [architecture](/dev-kit/core-harness/architecture#approval-qua-owning-gateway). Không có cờ "đã duyệt" truyền qua args.
 - **Summary do tool dựng** từ canonical args trong `Prepare`, không lấy mô tả do model viết. Riêng `question`, câu hỏi là output của model và MUST được hiển thị có nhãn là câu hỏi của agent.
-- Summary, `detail`, prompt, câu trả lời và lời nhắn là **nội dung**: chỉ ở memory của owner, chỉ gửi tới principal tin cậy, không vào audit, log, journal metadata hay URL.
+- Summary, `detail`, `body`, prompt, câu trả lời và lời nhắn là **nội dung**: chỉ ở memory của owner, chỉ gửi tới principal tin cậy, không vào audit, log, journal metadata hay URL.
 - **Yêu cầu chuyển tiếp không giấu nội dung (v0.16)**: thứ user duyệt là đúng thứ vendor sẽ chạy, và toàn bộ nó nằm trong `detail`. Không cắt input mà vẫn cho allow; quá giới hạn thì vendor nhận tool error.
 - Principal được trả lời là client local cùng UID ([host API §7](/dev-kit/core-harness/host-api#7-principal-và-tin-cậy)); giai đoạn A là CLI (H-45).
 - Grant không bao giờ được tạo cho kết luận của bước 1 (§3.2).
@@ -216,7 +216,7 @@ Service `fugue.interaction.v1`:
 
 Topic `interaction` (host API §6) phát `requested`, `resolved` (kèm outcome, không kèm nội dung) với sequence, snapshot và catch-up.
 
-View của một request: `request_id`, `incarnation`, `session_id`, tool, kind, `risk`, `envTag`, summary hoặc prompt, `detail` (chỉ yêu cầu chuyển tiếp, v0.16), các outcome được đề nghị, option, và **nhãn `grantScope`** cho lựa chọn "cho cả session".
+View của một request: `request_id`, `incarnation`, `session_id`, tool, kind, `risk`, `envTag`, summary hoặc prompt, `detail` (chỉ yêu cầu chuyển tiếp, v0.16), `body` (chỉ kind `question`: đoạn văn kèm các câu hỏi, ví dụ kế hoạch cần duyệt hay card đề xuất đội), các outcome được đề nghị, option, và **nhãn `grantScope`** cho lựa chọn "cho cả session".
 
 Service session bổ sung `SetSessionPolicy(command_id, session_id, expected_revision, approval_mode?, sandbox_profile?)`.
 
@@ -229,6 +229,7 @@ Mã lỗi công khai mới: `interaction.not_found`, `interaction.already_answer
 | Summary của request | 2 KiB |
 | `detail` của yêu cầu chuyển tiếp (v0.16) | 256 KiB; vượt thì không tạo request, vendor nhận tool error |
 | Câu hỏi (`prompt`) | 8 KiB |
+| `body` của kind `question` | 8 KiB; `confirm` và `select` không được mang `body` |
 | Câu trả lời | 16 KiB |
 | Lời nhắn khi `denied` | 4 KiB |
 | Số option | ≤ 20 |
