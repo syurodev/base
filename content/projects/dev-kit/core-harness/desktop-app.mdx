@@ -5,7 +5,7 @@ description: H-33 — client desktop của Fugue viết bằng Gio; binary riên
 
 # Desktop app
 
-Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). **v0.6 (2026-11-18), đã duyệt** (chủ dự án, base-doc PR #20): cách vẽ transcript theo phong cách DevKit (DA-11, §5.4, DA-E12). **v0.7 (2026-11-19), chờ duyệt**: bảng đội có tab Channel kiểu Slack, tab Thành viên và tab Cây (§5.2, [orchestration §6.7](/dev-kit/core-harness/orchestration#67-channel-của-đội-v03), DA-E13). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B. **v0.8 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #23): thẻ account và quota gọn hơn với Progress hai cấp (§5.5); DA-E14. **v0.9 (2026-11-21), chờ duyệt**: luật cuộn transcript, thao tác của user thắng việc tự mở/gập, và luật của khối code và diff (§5.4), mượn ý từ shadcn AI Elements; DA-E15.
+Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). **v0.6 (2026-11-18), đã duyệt** (chủ dự án, base-doc PR #20): cách vẽ transcript theo phong cách DevKit (DA-11, §5.4, DA-E12). **v0.7 (2026-11-19), chờ duyệt**: bảng đội có tab Channel kiểu Slack, tab Thành viên và tab Cây (§5.2, [orchestration §6.7](/dev-kit/core-harness/orchestration#67-channel-của-đội-v03), DA-E13). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B. **v0.8 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #23): thẻ account và quota gọn hơn với Progress hai cấp (§5.5); DA-E14. **v0.9 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #25): luật cuộn transcript, thao tác của user thắng việc tự mở/gập, và luật của khối code và diff (§5.4), mượn ý từ shadcn AI Elements; DA-E15.
 
 ## 1. Phạm vi
 
@@ -271,6 +271,19 @@ codex   [Tạm dừng · 1h35m]                     ⋯
 - **Tooltip của dòng**: giờ reset theo giờ địa phương và thời gian còn lại, và câu "Đội dừng ở 85%". Không đặt các thông tin này thành chữ thường trên thẻ.
 - **Quota không rõ**: một hàng vạch toàn màu phần dư với chữ "Không rõ"; không đoán số.
 - **Ngưỡng do host cấp**: `Account` trong `fugue.accounts.v1` thêm field `quota_gate` (tỉ lệ, 0 là không có ngưỡng), lấy từ giá trị host đang áp dụng. App không tự viết số 85%.
+- **Cấp chữ** (chủ dự án duyệt 2026-11-21, sau khi thấy bản F10.22 đầu tiên "ngang, không có cấp bậc"): ba bậc, chỉ dùng token sẵn có của ui-kit §3.3.
+
+  | Phần | Token | Màu |
+  | --- | --- | --- |
+  | Tiêu đề pane | `type.heading` 16/500 | `Fg` |
+  | Tên vendor | `type.title` 14/500, bậc nổi nhất của thẻ | `Fg` |
+  | Phần trăm, "Limit" | `type.label` 13/500, căn phải | `Fg`; "Limit" dùng `Status.Danger` |
+  | Nhãn cửa sổ (`5h`, `7d`) | `type.small` 12/400 | `FgMuted` |
+  | Chip trạng thái | `type.small` trong Tag | theo Tag |
+  | Nhãn mục trong khối login | `type.caption` 11/400 | `FgSubtle` |
+  | Nội dung CLI trong khối login | `type.codeSmall` 12 | `Fg` |
+
+  Khoảng cách: tên vendor cách hàng vạch đầu `space.md`; các hàng vạch cách nhau `space.sm`, để mỗi thẻ đọc thành một khối.
 - Chữ trên thẻ ở mục này viết bằng tiếng Việt để minh hoạ; app dùng ngôn ngữ giao diện hiện có (hiện là tiếng Anh: `Paused · 1h35m`, `Sign in`, `Limit`), như ui-kit §5.
 - **Luồng login** giữ như F10.5c: output của CLI là chữ thường không tin cậy, URL `https` chỉ mở khi bấm. Khối này chỉ hiện trong lúc login đang chạy.
 
