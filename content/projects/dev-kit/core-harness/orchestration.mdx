@@ -326,7 +326,10 @@ Chủ dự án chọn dùng [Open Code Review](https://github.com/alibaba/open-c
 
 **OCR như một CLI vendor**
 
-- Khoảng phiên bản được ghim; probe lúc host khởi động như CLI vendor (VR-01); có fixture JSON conformance cho `preview` và `rule`.
+- **Không ghim phiên bản** (chủ dự án chốt 2026-11-21, giống cách IDE dùng ACP thoả thuận phiên bản giao thức thay vì ghim phiên bản client). Tương thích quyết định theo **`schema_version`** của JSON `delegate`: Fugue giữ danh sách schema đã hỗ trợ, mỗi schema có fixture conformance cho `preview` và `rule`. OCR bản nào trả về schema trong danh sách thì dùng được.
+- Probe lúc host khởi động (như VR-01) chỉ để biết OCR có cài không và là bản nào, cho hiển thị và log; không chặn theo phiên bản.
+- Schema lạ thì coi như không có OCR (dự phòng bên dưới), và độ phủ ghi rõ lý do, ví dụ "OCR 1.15.0: schema 2 chưa hỗ trợ".
+- **Fugue không tự cài OCR**: user tự cài như các CLI vendor; chưa có OCR thì app chỉ gợi ý lệnh cài.
 - Lệnh `ocr` là lệnh Fugue chạy, nên đi qua policy (VR-13) và dưới semaphore lệnh nặng (§7).
 - Luật riêng của Fugue (khớp thiết kế, đúng phạm vi item) đặt trong `.opencodereview/rule.json` của workspace nếu user muốn.
 
@@ -412,7 +415,7 @@ Máy Ubuntu hằng ngày của chủ dự án có CPU yếu hơn và RAM nhiều
 | **OR-E18** | `depends_on`: task sau chỉ khởi động khi task trước xong và nhận tóm tắt cùng quyền đọc kết quả của task trước |
 | **OR-E19** | Channel (v0.3): mọi event đội ở §6.7 hiện trong channel đúng thread, đánh số `#n` liên tục, nội dung niêm phong; agent không nhận dòng tin của channel; `fugue_team_read` chỉ trả tin trong phạm vi vai trò, phân trang lùi được; các lần thử lại của một task dùng chung thread và lần thử mới đọc được tin của lần trước |
 | **OR-E20** | Nhắn ngang (v0.3): tin tới task anh em được giao, tới task khác nhóm bị từ chối, câu hỏi qua đường ngang bị từ chối; vượt hạn mức 6 tin/agent hay 30 tin/đội trong 10 phút bị từ chối có mã lỗi; người giao thấy tin ngang trong bản tóm tắt mà không bị đánh thức thêm |
-| **OR-E21** | Review chéo theo bundle (v0.4): có OCR thì bundle và luật lấy từ `ocr delegate`, reviewer chạy trên vendor khác và chỉ đọc; phát hiện `low` và phát hiện sai vị trí bị bỏ, có đếm; độ phủ hiện ở bước duyệt; không có OCR thì chia theo thư mục và độ phủ ghi rõ; `schema_version` lạ coi như không có OCR; lệnh `ocr` đi qua policy |
+| **OR-E21** | Review chéo theo bundle (v0.4): có OCR thì bundle và luật lấy từ `ocr delegate`, reviewer chạy trên vendor khác và chỉ đọc; phát hiện `low` và phát hiện sai vị trí bị bỏ, có đếm; độ phủ hiện ở bước duyệt; không có OCR thì chia theo thư mục và độ phủ ghi rõ; `schema_version` lạ coi như không có OCR và độ phủ ghi phiên bản cùng schema; không chặn theo phiên bản OCR; lệnh `ocr` đi qua policy |
 | **OR-E22** | Task con được nhận lại (v0.4): commit của trưởng nhóm bị huỷ không vào nhánh đội; rebase sạch thì cổng §10 chạy lại; conflict trả về lead với danh sách file và không tự giải |
 
 ## 16. Phụ thuộc
