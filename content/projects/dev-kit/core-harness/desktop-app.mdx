@@ -262,7 +262,7 @@ Hai hàng cuối có nền tông cảnh báo, cùng tông với Tag `warning` (f
 
 - Một cách vẽ duy nhất cho file ở mọi chỗ (trong chữ, trong hàng tool, trong kết quả tìm): viên `radius.full`, nền `SurfaceRaised`, viền `BorderSubtle`; icon theo ngôn ngữ (thư mục: icon folder); đường dẫn `type.codeSmall` màu `Fg`; khoảng dòng màu `FgSubtle`.
 - Lệnh và chuỗi tìm kiếm không phải badge (chúng không mở ra được).
-- Bấm badge mở file (hoặc thư mục, hoặc diff với hàng Edited) trong **trình xem chỉ đọc**: có số dòng, tô màu cú pháp, nhảy tới dòng. **Cho tới khi có lưới slot (F10.20b), trình xem nằm ở pane bên phải** như hộp duyệt và accounts (Q-179 A); sau đó mở ở slot gần nhất (§5.3). Host kiểm đường dẫn nằm trong workspace root của phiên trước khi đọc; ngoài root thì từ chối có kiểu.
+- Bấm badge mở file (hoặc thư mục, hoặc diff với hàng Edited) trong **trình xem chỉ đọc**: có số dòng, tô màu cú pháp, nhảy tới dòng. **Cho tới khi có lưới slot (F10.20b), trình xem nằm ở pane bên phải** như hộp duyệt và accounts (Q-179 A); sau đó mở ở slot gần nhất (§5.3). App đọc file và thư mục qua `ReadWorkspaceFile` và `ListWorkspaceDir` ([host API §5.4](/dev-kit/core-harness/host-api#54-đọc-file-trong-workspace-v018)); host kiểm đường dẫn nằm trong workspace root của phiên, ngoài root thì từ chối có kiểu. Diff đầy đủ của hàng Edited lấy từ chính item `file_change`, không cần đọc file.
 
 *Khối code, terminal, Output và diff: một header chung*
 
