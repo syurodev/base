@@ -5,7 +5,7 @@ description: H-49 — agent tự quyết làm một mình hay đề xuất lập
 
 # Orchestration
 
-Trạng thái: **đề xuất v0.2, ngày 2026-11-07, chờ chủ dự án duyệt**. v0.2 thêm lập đội theo đề xuất (§5), đội nhiều tầng và luồng thông tin theo ngoại lệ (§6), tích hợp theo tầng (§9). **v0.3 (2026-11-19), chờ duyệt**: channel của đội kiểu Slack (§6.7): người xem và nhắn trong một channel có thread theo task; agent vẫn chỉ nhận thông tin của mình, cộng nhắn ngang trong nhóm có hạn mức và tool đọc channel. Mảng H-49 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-30 (team cho native) ở giai đoạn A. Chạy trên [vendor runtime](/dev-kit/core-harness/vendor-runtime) (H-47), hiển thị qua [transcript](/dev-kit/core-harness/transcript) (H-48) và [desktop app](/dev-kit/core-harness/desktop-app) (H-33).
+Trạng thái: **đề xuất v0.2, ngày 2026-11-07, chờ chủ dự án duyệt**. v0.2 thêm lập đội theo đề xuất (§5), đội nhiều tầng và luồng thông tin theo ngoại lệ (§6), tích hợp theo tầng (§9). **v0.3 (2026-11-19), chờ duyệt**: channel của đội kiểu Slack (§6.7): người xem và nhắn trong một channel có thread theo task; agent vẫn chỉ nhận thông tin của mình, cộng nhắn ngang trong nhóm có hạn mức và tool đọc channel. Mảng H-49 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-30 (team cho native) ở giai đoạn A. Chạy trên [vendor runtime](/dev-kit/core-harness/vendor-runtime) (H-47), hiển thị qua [transcript](/dev-kit/core-harness/transcript) (H-48) và [desktop app](/dev-kit/core-harness/desktop-app) (H-33). **v0.4 (2026-11-21), chủ dự án duyệt**: review chéo theo bundle với Open Code Review (§10.1, Q-192 của F11.5) và cách tích hợp task con được nhận lại sau khi huỷ trưởng nhóm (§10.2, Q-193); OR-E21, OR-E22.
 
 Tham khảo đã nghiên cứu: orchestration của [Orca](https://github.com/stablyai/orca) (`worker-start`, mailbox, đánh thức coordinator, "silence never proves exit"), `delegate_task` và credential pool của [Hermes](https://github.com/nousresearch/hermes-agent) (`output_schema`, giao kết quả at-least-once, bảng xoay account theo lỗi), `PickAccount` của Agent Hub ([budget và quota §3](/dev-kit/core-harness/budget)), spike swarm ngày 2026-11-07 (§14), và mẫu giao diện cây agent do chủ dự án cung cấp (orchestrator, trưởng nhóm, thành viên; badge "cần bạn" và "thất bại"; chi phí theo từng nút; task thất bại được thay bằng lần chạy mới).
 
@@ -307,6 +307,41 @@ Chạy trước mỗi bước tích hợp ở §9, theo thứ tự, dừng ở b
 5. **Review chéo** (tuỳ chọn theo vai trò): một phiên vendor khác chỉ đọc review diff, ví dụ Codex review diff của Claude.
 6. **Duyệt** theo bảng ở §9.
 
+### 10.1 Review chéo theo bundle (v0.4)
+
+Chủ dự án chọn dùng [Open Code Review](https://github.com/alibaba/open-code-review) (OCR, Go, Apache-2.0) ở **chế độ delegate** cho bước 5 (2026-11-08, "option 1"; chốt thiết kế 2026-11-21). OCR chỉ lo phần xác định: chia file và chọn luật; phần đọc code vẫn là phiên vendor, dùng subscription của user (M-13), không cần API key.
+
+**Luồng**
+
+1. Fugue chạy trong worktree của task:
+   - `ocr delegate preview --from <base> --to <nhánh task> --format json`: danh sách file đổi đã chia thành bundle;
+   - `ocr delegate rule <paths> --format json`: luật áp cho từng file.
+   JSON phải có `schema_version` trong khoảng Fugue hỗ trợ; ngoài khoảng thì coi như không có OCR.
+2. Mỗi bundle giao cho **một thành viên `reviewer`** chạy trên **vendor khác** vendor của tác giả, chỉ đọc (không có quyền ghi, không chạy lệnh). Lời giao việc gồm diff của bundle, các luật, và `output_schema`: `file`, `line_start`, `line_end`, `severity` (`low`, `medium`, `high`), `rule`, `description`.
+3. Fugue nhận kết quả như dữ liệu không tin cậy (OR-13):
+   - bỏ phát hiện `low`;
+   - **kiểm vị trí**: `file` phải nằm trong diff và khoảng dòng phải chạm dòng đã đổi; sai thì bỏ, đếm số bị bỏ;
+   - gộp các phát hiện còn lại vào bước duyệt (§9) của task.
+4. Ở bước duyệt và review cuối, Fugue hiện **độ phủ**: số file đã review trên tổng số file đổi, cùng lý do bỏ qua (file nhị phân, quá lớn, bundle lỗi, reviewer hết ngân sách), và số phát hiện bị bỏ vì sai vị trí.
+
+**OCR như một CLI vendor**
+
+- Khoảng phiên bản được ghim; probe lúc host khởi động như CLI vendor (VR-01); có fixture JSON conformance cho `preview` và `rule`.
+- Lệnh `ocr` là lệnh Fugue chạy, nên đi qua policy (VR-13) và dưới semaphore lệnh nặng (§7).
+- Luật riêng của Fugue (khớp thiết kế, đúng phạm vi item) đặt trong `.opencodereview/rule.json` của workspace nếu user muốn.
+
+**Khi không có OCR** (không cài, sai phiên bản, `schema_version` lạ, lệnh lỗi): mọi file đổi, chia bundle theo thư mục, không có luật; độ phủ ghi rõ "không có OCR".
+
+**Không được**: dùng chế độ mặc định của OCR (cần API key, chỉ hợp giai đoạn B với OpenRouter); import package của OCR (nằm trong `internal/`); để reviewer sửa code hay chạy check.
+
+### 10.2 Task con được nhận lại (v0.4)
+
+Khi trưởng nhóm bị huỷ lúc `unknown` và các task con được chuyển sang lead (§12, F11.9), worktree của chúng được tách từ nhánh của trưởng nhóm, có thể mang commit chưa được duyệt của trưởng nhóm.
+
+- Lúc tích hợp, Fugue rebase commit của task con lên nhánh đội: `git rebase --onto fugue/team/<team> <gốc ở nhánh trưởng nhóm> <nhánh task con>`. Phần việc độc lập của task con giữ nguyên; commit của trưởng nhóm bị bỏ.
+- Rebase xong thì chạy lại cổng ở §10 (các bước 1–4) trên kết quả mới.
+- Conflict thì dừng rebase, trả về **lead** (chủ nhánh hiện tại) kèm danh sách file conflict để lead sửa hay từ chối task; không bao giờ tự giải conflict.
+
 ## 11. Ngân sách và watchdog
 
 | Ngân sách | Mặc định | Vượt thì |
@@ -377,6 +412,8 @@ Máy Ubuntu hằng ngày của chủ dự án có CPU yếu hơn và RAM nhiều
 | **OR-E18** | `depends_on`: task sau chỉ khởi động khi task trước xong và nhận tóm tắt cùng quyền đọc kết quả của task trước |
 | **OR-E19** | Channel (v0.3): mọi event đội ở §6.7 hiện trong channel đúng thread, đánh số `#n` liên tục, nội dung niêm phong; agent không nhận dòng tin của channel; `fugue_team_read` chỉ trả tin trong phạm vi vai trò, phân trang lùi được; các lần thử lại của một task dùng chung thread và lần thử mới đọc được tin của lần trước |
 | **OR-E20** | Nhắn ngang (v0.3): tin tới task anh em được giao, tới task khác nhóm bị từ chối, câu hỏi qua đường ngang bị từ chối; vượt hạn mức 6 tin/agent hay 30 tin/đội trong 10 phút bị từ chối có mã lỗi; người giao thấy tin ngang trong bản tóm tắt mà không bị đánh thức thêm |
+| **OR-E21** | Review chéo theo bundle (v0.4): có OCR thì bundle và luật lấy từ `ocr delegate`, reviewer chạy trên vendor khác và chỉ đọc; phát hiện `low` và phát hiện sai vị trí bị bỏ, có đếm; độ phủ hiện ở bước duyệt; không có OCR thì chia theo thư mục và độ phủ ghi rõ; `schema_version` lạ coi như không có OCR; lệnh `ocr` đi qua policy |
+| **OR-E22** | Task con được nhận lại (v0.4): commit của trưởng nhóm bị huỷ không vào nhánh đội; rebase sạch thì cổng §10 chạy lại; conflict trả về lead với danh sách file và không tự giải |
 
 ## 16. Phụ thuộc
 
