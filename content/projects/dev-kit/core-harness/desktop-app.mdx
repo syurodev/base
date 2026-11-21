@@ -237,12 +237,12 @@ codex   [Tạm dừng · 1h35m]                     ⋯
 ```
 
 - **Đầu thẻ**: tên vendor; chip trạng thái **chỉ khi không ổn**: `Tạm dừng · <còn lại>`, `Cần đăng nhập`, `Không rõ`. Không hiện chữ "CLI login: logged_in" khi mọi thứ ổn. Hành động: nút **Đăng nhập** chỉ hiện khi `needs_login`; khi đang login thì là **Huỷ**; các việc khác (làm mới) nằm ở menu `⋯` hoặc đầu pane.
-- **Mỗi cửa sổ quota một dòng**: nhãn ngắn theo độ dài cửa sổ (`5h`, `7d`; tên vendor lạ thì hiện nguyên), Progress hai cấp (ui-kit §6.5), phần trăm ở mép phải.
+- **Mỗi cửa sổ quota một dòng**: nhãn ngắn theo độ dài cửa sổ (`5h`, `7d`; tên vendor lạ thì hiện nguyên), Progress hai cấp vẽ bằng hàng vạch bo tròn (ui-kit §3.9, §6.5), phần trăm ở mép phải.
   - `Value` là phần đã dùng.
-  - `Secondary` là **ngưỡng quota của đội** (hiện 85%, OR-09): đoạn cấp hai là phần đội còn được dùng trước khi Fugue ngừng giao task mới; phần kẻ sọc từ ngưỡng tới 100% là phần dành cho user. Đã dùng quá ngưỡng thì không còn đoạn cấp hai.
+  - `Secondary` là **ngưỡng quota của đội** (hiện 85%, OR-09): đoạn cấp hai là phần đội còn được dùng trước khi Fugue ngừng giao task mới; các vạch xám nhạt từ ngưỡng tới 100% là phần dành cho user. Đã dùng quá ngưỡng thì không còn đoạn cấp hai.
   - Tông theo mức của ui-kit; vendor báo `allowed_warning` thì ít nhất cam, `rejected` thì đỏ và phần trăm đổi thành chữ "Hết".
 - **Tooltip của dòng**: giờ reset theo giờ địa phương và thời gian còn lại, và câu "Đội dừng ở 85%". Không đặt các thông tin này thành chữ thường trên thẻ.
-- **Quota không rõ**: một thanh kẻ sọc trống với chữ "Không rõ"; không đoán số.
+- **Quota không rõ**: một hàng vạch toàn màu phần dư với chữ "Không rõ"; không đoán số.
 - **Ngưỡng do host cấp**: `Account` trong `fugue.accounts.v1` thêm field `quota_gate` (tỉ lệ, 0 là không có ngưỡng), lấy từ giá trị host đang áp dụng. App không tự viết số 85%.
 - Chữ trên thẻ ở mục này viết bằng tiếng Việt để minh hoạ; app dùng ngôn ngữ giao diện hiện có (hiện là tiếng Anh: `Paused · 1h35m`, `Sign in`, `Limit`), như ui-kit §5.
 - **Luồng login** giữ như F10.5c: output của CLI là chữ thường không tin cậy, URL `https` chỉ mở khi bấm. Khối này chỉ hiện trong lúc login đang chạy.
