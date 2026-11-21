@@ -5,7 +5,7 @@ description: H-33 — client desktop của Fugue viết bằng Gio; binary riên
 
 # Desktop app
 
-Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). **v0.6 (2026-11-18), đã duyệt** (chủ dự án, base-doc PR #20): cách vẽ transcript theo phong cách DevKit (DA-11, §5.4, DA-E12). **v0.7 (2026-11-19), chờ duyệt**: bảng đội có tab Channel kiểu Slack, tab Thành viên và tab Cây (§5.2, [orchestration §6.7](/dev-kit/core-harness/orchestration#67-channel-của-đội-v03), DA-E13). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B.
+Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). **v0.6 (2026-11-18), đã duyệt** (chủ dự án, base-doc PR #20): cách vẽ transcript theo phong cách DevKit (DA-11, §5.4, DA-E12). **v0.7 (2026-11-19), chờ duyệt**: bảng đội có tab Channel kiểu Slack, tab Thành viên và tab Cây (§5.2, [orchestration §6.7](/dev-kit/core-harness/orchestration#67-channel-của-đội-v03), DA-E13). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B. **v0.8 (2026-11-21), chờ duyệt**: thẻ account và quota gọn hơn với Progress hai cấp (§5.5); DA-E14.
 
 ## 1. Phạm vi
 
@@ -54,7 +54,7 @@ Ngoài phạm vi giai đoạn A: Windows, đóng gói có ký, auto-update, nhi�
 | Hộp duyệt | Mọi yêu cầu duyệt, câu hỏi "cần bạn", đề xuất và bổ sung đội đang chờ của mọi phiên; allow, deny kèm lời nhắn, grant theo phạm vi ([interaction](/dev-kit/core-harness/interaction)) |
 | Bảng đội | Cây agent của đội (§5.2); xem ngay trong slot chính bằng nút đổi Chat/Đội, hoặc mở thành slot riêng (§5.3) |
 | Chi tiết agent | Đặc tả task, transcript của agent, diff, kết quả check, review chéo; nhắn trực tiếp, dừng, chạy lại; duyệt tích hợp cuối của đội |
-| Account và quota | Account theo vendor, trạng thái (`ok`, `paused`, `needs_login`), mức dùng từng cửa sổ, thời điểm reset; thêm account bằng luồng login của CLI |
+| Account và quota | Account theo vendor, trạng thái (`ok`, `paused`, `needs_login`), mức dùng từng cửa sổ, thời điểm reset; thêm account bằng luồng login của CLI. Cách vẽ ở §5.5 (v0.8) |
 | Vault | Mở khoá bằng master password khi host khởi động; khoá thủ công |
 | Cài đặt | Hồ sơ phiên và task, giới hạn scheduler, lệnh terminal ngoài. v0.4: bật và tắt bảo vệ push theo repo, hiện dòng cần thêm khi repo đã có hook riêng, danh sách ngoại lệ theo repo ([git guard §4](/dev-kit/core-harness/git-guard#4-bảo-vệ-push)) |
 
@@ -223,6 +223,31 @@ Chủ dự án chọn phong cách transcript của DevKit (2026-11-18). Chỉ l�
 - Mở và gập nhóm việc, hàng tool, thẻ Output: chiều cao cộng mờ dần theo Smooth (ui-kit §3.7).
 - Dòng "Worked for …" của lượt đang chạy đổi chữ theo bước hiện tại bằng mờ dần; lượt cũ đứng yên, cuộn lại lịch sử không phát lại hoạt ảnh nào.
 
+### 5.5 Account và quota (v0.8)
+
+Chủ dự án thấy thẻ account đầu tiên (F10.5c) quá nhiều chữ và chưa hiện đại (2026-11-21). Mục tiêu: liếc là biết còn bao nhiêu, chữ chỉ khi cần.
+
+```
+claude                                         ⋯
+5h   ██████▓▓▓▓▓▓▓▓▒▒▒▒▒                      42%
+7d   ███████████████▓▒▒▒                      88%
+
+codex   [Tạm dừng · 1h35m]                     ⋯
+5h   ███████████████████                     100%
+```
+
+- **Đầu thẻ**: tên vendor; chip trạng thái **chỉ khi không ổn**: `Tạm dừng · <còn lại>`, `Cần đăng nhập`, `Không rõ`. Không hiện chữ "CLI login: logged_in" khi mọi thứ ổn. Hành động: nút **Đăng nhập** chỉ hiện khi `needs_login`; khi đang login thì là **Huỷ**; các việc khác (làm mới) nằm ở menu `⋯` hoặc đầu pane.
+- **Mỗi cửa sổ quota một dòng**: nhãn ngắn theo độ dài cửa sổ (`5h`, `7d`; tên vendor lạ thì hiện nguyên), Progress hai cấp vẽ bằng hàng vạch bo tròn (ui-kit §3.9, §6.5), phần trăm ở mép phải.
+  - `Value` là phần đã dùng.
+  - `Secondary` là **ngưỡng quota của đội** (hiện 85%, OR-09): đoạn cấp hai là phần đội còn được dùng trước khi Fugue ngừng giao task mới; các vạch xám nhạt từ ngưỡng tới 100% là phần dành cho user. Đã dùng quá ngưỡng thì không còn đoạn cấp hai.
+  - Tông theo mức của ui-kit; vendor báo `allowed_warning` thì ít nhất cam, `rejected` thì đỏ và phần trăm đổi thành chữ "Hết".
+- **Tooltip của dòng**: giờ reset theo giờ địa phương và thời gian còn lại, và câu "Đội dừng ở 85%". Không đặt các thông tin này thành chữ thường trên thẻ.
+- **Quota không rõ**: một hàng vạch toàn màu phần dư với chữ "Không rõ"; không đoán số.
+- **Ngưỡng do host cấp**: `Account` trong `fugue.accounts.v1` thêm field `quota_gate` (tỉ lệ, 0 là không có ngưỡng), lấy từ giá trị host đang áp dụng. App không tự viết số 85%.
+- Chữ trên thẻ ở mục này viết bằng tiếng Việt để minh hoạ; app dùng ngôn ngữ giao diện hiện có (hiện là tiếng Anh: `Paused · 1h35m`, `Sign in`, `Limit`), như ui-kit §5.
+- **Luồng login** giữ như F10.5c: output của CLI là chữ thường không tin cậy, URL `https` chỉ mở khi bấm. Khối này chỉ hiện trong lúc login đang chạy.
+
+
 ## 6. Failure UX
 
 Mọi hàng ở [activation §3](/dev-kit/core-harness/activation#3-failure-ux-bắt-buộc) có trên app, cộng:
@@ -276,6 +301,7 @@ Ngưỡng phát hành trên máy Ubuntu của chủ dự án: **60 fps** khi str
 | **DA-E11** | Panel đồng hành tự mở vào slot trống gần slot chính nhất theo thứ tự ở §5.3, chỉ cho phiên đang xem và chỉ ở lần dùng module đầu tiên trong lượt; nút Chat/Đội đổi view trong slot chính mà composer vẫn dùng được |
 | **DA-E12** | Transcript theo §5.4: một lượt có 40 tool call vẽ thành một dòng "Worked for …" gập, mở ra là các nhóm con có tiêu đề tóm tắt; tool call lỗi đổi nền và có dòng lý do, tool call xong không có màu; `assistant_message` không bubble; chip file mở đúng file và dòng; golden ảnh cho mỗi loại item ở sáng và tối |
 | **DA-E13** | Tab Channel (v0.7): tin của đội hiện đúng thread với số `#n`, người gửi, người nhận và thẻ loại; `@agent` từ user tới đúng agent và người giao nhận một dòng; tin không `@` trong thread tới agent của task; chip `#n` nhảy tới tin; vị trí đã đọc của mỗi thread giữ qua lần mở lại; yêu cầu duyệt chỉ có dòng dẫn, trả lời ở hộp duyệt |
+| **DA-E14** | Thẻ account (v0.8): shot sáng và tối cho `ok`, gần ngưỡng, quá ngưỡng, `rejected`, `paused`, `needs_login` và quota không rõ; chip trạng thái chỉ hiện khi không ổn; đoạn cấp hai kết thúc đúng ở `quota_gate` do host cấp; giờ reset chỉ ở tooltip |
 | **DA-E08** | Vòng đời host theo app: mở app khi chưa có host thì host khởi động và app nối được; đóng cửa sổ cuối khi còn phiên chạy thì app hỏi; bật chạy nền thì host sống sau khi đóng cửa sổ; tắt chạy nền và không còn client thì host tắt sau 10 s |
 
 ## 11. Phụ thuộc

@@ -5,7 +5,7 @@ description: H-51 — bộ component dùng chung của app Gio; token kích thư
 
 # UI kit
 
-Trạng thái: **v0.3, ngày 2026-11-15, đã duyệt** (chủ dự án, 2026-11-15, base-doc PR #15). v0.2 đã duyệt (chủ dự án, 2026-11-15, base-doc PR #14). Số đo ở §3 đã đối chiếu với các hệ thống thiết kế và chuẩn ở §13. v0.2 ghi kết quả spike (§9): giữ mọi token chữ, chốt giá trị màu tương tác, thêm bóng nhẹ cho lớp nổi, chốt Lucide, và thêm các luật Gio mà spike tìm ra ở §6. v0.3 đổi phong cách sang kiểu HeroUI theo lựa chọn của chủ dự án sau khi xem gallery của F10.9 (§3.8): bo góc lớn hơn, nền tông màu thay cho viền, viền nhạt, nhấn co lại, vòng focus cách mép, control tắt mờ đi, và mọi component có chuyển động phù hợp (§3.7). Mật độ của IDE (chiều cao control, cỡ chữ) giữ nguyên. Cập nhật 2026-11-18 (chủ dự án duyệt): tab `document` ở §6.22 đổi từ gạch chân sang viên bo nền như tab `mode`, nút đóng nhỏ chỉ hiện khi cần, và tab có icon tùy chọn. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8).
+Trạng thái: **v0.3, ngày 2026-11-15, đã duyệt** (chủ dự án, 2026-11-15, base-doc PR #15). v0.2 đã duyệt (chủ dự án, 2026-11-15, base-doc PR #14). Số đo ở §3 đã đối chiếu với các hệ thống thiết kế và chuẩn ở §13. v0.2 ghi kết quả spike (§9): giữ mọi token chữ, chốt giá trị màu tương tác, thêm bóng nhẹ cho lớp nổi, chốt Lucide, và thêm các luật Gio mà spike tìm ra ở §6. v0.3 đổi phong cách sang kiểu HeroUI theo lựa chọn của chủ dự án sau khi xem gallery của F10.9 (§3.8): bo góc lớn hơn, nền tông màu thay cho viền, viền nhạt, nhấn co lại, vòng focus cách mép, control tắt mờ đi, và mọi component có chuyển động phù hợp (§3.7). Mật độ của IDE (chiều cao control, cỡ chữ) giữ nguyên. Cập nhật 2026-11-18 (chủ dự án duyệt): tab `document` ở §6.22 đổi từ gạch chân sang viên bo nền như tab `mode`, nút đóng nhỏ chỉ hiện khi cần, và tab có icon tùy chọn. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8). **v0.4 (2026-11-21), chờ duyệt**: hàng vạch bo tròn `LineRow` (§3.9) và Progress hai cấp vẽ bằng vạch, tông theo mức (§6.5), theo yêu cầu và mock chủ dự án đã xem cho thanh quota; UK-E12.
 
 Bố cục khung app (rail, sidebar nhiều project, khung chia đôi, panel đồng hành) và hợp đồng module (tham chiếu `fugue://`, card view, item `module_action`) thuộc các trang khác, viết sau spike. Trang này chỉ định nghĩa phần nền mà khung và module lắp ráp từ đó.
 
@@ -201,6 +201,22 @@ Chủ dự án chọn phong cách HeroUI sau khi xem ba hướng (2026-11-15): P
 - Nhấn co lại `motion.press`, có ripple (§3.7).
 - Màu accent của HeroUI (xanh dương) chưa đổi: `Action` và `FocusBorder` giữ giá trị hiện tại của `theme` cho đến khi chủ dự án chọn hue (§10).
 
+### 3.9 Hàng vạch (v0.4)
+
+Chủ dự án chọn **hàng vạch dọc bo tròn** làm một nét riêng của Fugue (2026-11-21, sau khi xem mock), trước hết cho thanh quota; các chỗ khác sẽ được chốt sau. Đây là một cách vẽ của `kit`, không phải ảnh.
+
+| Token | Giá trị | Ghi chú |
+| --- | --- | --- |
+| `line.width` | 3 dp | Độ rộng một vạch; hai đầu bo `radius.full` |
+| `line.gap` | 2 dp | Khoảng giữa hai vạch; chu kỳ 5 dp |
+| `line.height` | 14 dp (mặc định), 10 dp (`sm`) | Chiều cao vạch, cũng là chiều cao của hàng |
+
+- Không có nền và không có khung bo chung: hàng chỉ gồm các vạch, mỗi vạch tự bo tròn.
+- Số vạch tính từ chiều rộng: `floor((rộng + gap) / (width + gap))`. Vạch bám mép trái của component; phần dư nằm ở mép phải.
+- Mỗi vạch mang **một màu đặc**; nơi dùng quyết định màu của từng vạch. Không có gradient trong một vạch.
+- Vạch không bao giờ chuyển động; giá trị đổi thì chỉ màu của vạch đổi. Giảm chuyển động không đổi gì.
+- Vạch là trang trí: nghĩa luôn có ở chữ hoặc tooltip đi kèm, không chỉ ở màu.
+
 ## 4. Hành vi chung
 
 ### 4.1 Trạng thái
@@ -318,6 +334,8 @@ Bộ icon là Lucide (§10). Mỗi icon là một file path data, đóng gói c�
 | --- | --- |
 | Spinner | Không xác định thời lượng; chỉ hiện sau khoảng 150 ms để không nháy với việc nhanh |
 | Progress | Chỉ dùng khi backend báo tổng thật; không giả phần trăm |
+| Progress hai cấp (v0.4) | Props `Value` và `Secondary` trong [0, 1], `Secondary >= Value`, cộng `Tone`. Vẽ bằng **hàng vạch** (§3.9), không có thanh nền. Vạch thuộc đoạn nào theo **điểm giữa** của nó: điểm giữa ≤ `Value` là **đã dùng**, tô hue đặc của tông; ≤ `Secondary` là **cấp hai**, hue của tông ở 40%; còn lại là **phần dư**, `Fg` ở 14%. Không có `Secondary` thì không có cấp hai. Giá trị khác 0 luôn tô ít nhất một vạch. Trong hàng không có chữ: nhãn và phần trăm nằm cạnh, chi tiết ở Tooltip |
+| Tông theo mức (v0.4) | `Tone` mặc định suy từ `Value`, và **mọi vạch đã dùng cùng một màu** (chủ dự án chọn, 2026-11-21): dưới 70% là `Status.Success` (xanh), từ 70% tới dưới 85% là `Status.Warning` (cam), từ 85% trở lên là `Status.Danger` (đỏ). Nơi gọi được nâng mức, không được hạ (ví dụ vendor báo đã chặn thì luôn đỏ). Ba tông lấy từ `theme`; cấp hai và phần dư nhạt dần nên hàng trông nhẹ và mát. Vạch đã dùng đạt 3:1 so với nền của bề mặt chứa nó ở cả sáng và tối (UK-E04); vạch phần dư đạt ít nhất 1,5:1 để vẫn thấy được |
 | Chuyển động | Spinner hiện bằng mờ dần, quay đều, không spring; giảm chuyển động thì thành chấm đứng yên kèm chữ. Thanh progress `radius.full`, phần đã xong chạy tới giá trị mới theo Smooth |
 | Hiệu năng | Chỉ xin frame khi đang hiện (F10.6 Driver) |
 
@@ -599,6 +617,7 @@ v0.3 (§3.8) áp vào phần "Button và gallery" trước khi merge: token bo g
 | **UK-E09** | Gallery trong cửa sổ cố định ở cỡ giao diện 90% và 125%: không control nào tràn chữ hay cắt nhãn, không control hay chữ nào đè lên nhau hoặc tràn ngang khỏi trang, vùng bấm vẫn ít nhất `size.hit.min` |
 | **UK-E10** | Vùng sự kiện của mọi control trong kit clip theo khung của control: test headless bấm ngay ngoài khung từng control và kiểm control đó không nhận, còn control bên dưới thì nhận. Ngoại lệ duy nhất là vùng phủ cửa sổ của menu gốc đang mở (§6.15) |
 | **UK-E11** | Chuyển động (§3.7): mỗi chuyển động của component đến đích rồi dừng xin frame (hai frame yên liên tiếp); đổi đích giữa chừng thì đi tiếp từ giá trị hiện tại; khi co lúc nhấn, vùng bấm không đổi; ripple và nền nhấn nằm trong khung bo góc của control |
+| **UK-E12** | Hàng vạch và Progress hai cấp (v0.4): shot sáng và tối ở 90%, 100%, 125% cho Progress một cấp, hai cấp và hai cấp đã vượt `Secondary`; số vạch đúng công thức theo chiều rộng; vạch được gán đoạn theo điểm giữa; vạch bám mép trái và không đổi vị trí khi `Value` đổi; mọi vạch đã dùng cùng một màu, đổi đúng ở 70% và 85% và không bị hạ khi nơi gọi nâng mức; tương phản như §6.5; scan UK-E02 không thấy màu hay `dp` viết thẳng trong code vẽ vạch |
 
 ## 12. Phụ thuộc
 
