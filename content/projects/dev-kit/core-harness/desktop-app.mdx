@@ -300,8 +300,9 @@ Chủ dự án chọn mượn luật cuộn của shadcn Message Scroller (2026-
 Áp cho khối code của markdown (DA-03), thẻ Output và diff của `file_change`.
 
 - **Copy không kèm số dòng** và không kèm dấu `+`/`−` của diff; Copy báo "Copied" ngắn tại chỗ.
+- (v0.11) **Số dòng** cho khối code markdown, diff và trình xem file (không cho lệnh và output của terminal, không cho khối một dòng); Copy không kèm số dòng.
 - **Không wrap mặc định**; dòng dài cuộn ngang trong khối. Đầu khối có nút bật wrap, nút nhớ trạng thái bật/tắt.
-- **Diff có dấu**: dòng thêm có `+`, dòng bớt có `−` ở cột riêng trước nội dung, ngoài màu nền; (v0.11) số dòng, dấu và code là ba cột tách nhau bằng `space.md`, dấu nằm giữa cột của nó; không chỉ dựa vào màu (người khó phân biệt đỏ/xanh vẫn đọc được).
+- **Diff có dấu**: dòng thêm có `+`, dòng bớt có `−` ở cột riêng trước nội dung, ngoài màu nền; (v0.11) số dòng, dấu và code là ba cột tách nhau bằng `space.md`, dấu nằm giữa cột của nó; các dòng thêm (hoặc bớt) liền nhau gộp thành **một khối tô màu bo góc**, bán kính đồng tâm với khung ngoài (bán kính khung trừ khoảng lề trong, tối thiểu `radius.sm`); hai khối khác màu đặt sát nhau thì cách nhau `space.xxs`; không chỉ dựa vào màu (người khó phân biệt đỏ/xanh vẫn đọc được).
 - **Giới hạn chiều cao**: khối cao quá vài chục dòng thì cắt kèm "Show full output" (đã có); mở ra không làm view nhảy (luật cuộn ở trên).
 - Khối code cuộn được bằng bàn phím khi có focus; nút Copy và wrap hiện khi hover hoặc focus, không chỉ khi hover.
 
