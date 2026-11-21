@@ -5,7 +5,7 @@ description: H-33 — client desktop của Fugue viết bằng Gio; binary riên
 
 # Desktop app
 
-Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). **v0.6 (2026-11-18), đã duyệt** (chủ dự án, base-doc PR #20): cách vẽ transcript theo phong cách DevKit (DA-11, §5.4, DA-E12). **v0.7 (2026-11-19), chờ duyệt**: bảng đội có tab Channel kiểu Slack, tab Thành viên và tab Cây (§5.2, [orchestration §6.7](/dev-kit/core-harness/orchestration#67-channel-của-đội-v03), DA-E13). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B. **v0.8 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #23): thẻ account và quota gọn hơn với Progress hai cấp (§5.5); DA-E14. **v0.9 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #25): luật cuộn transcript, thao tác của user thắng việc tự mở/gập, và luật của khối code và diff (§5.4), mượn ý từ shadcn AI Elements; DA-E15.
+Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). **v0.6 (2026-11-18), đã duyệt** (chủ dự án, base-doc PR #20): cách vẽ transcript theo phong cách DevKit (DA-11, §5.4, DA-E12). **v0.7 (2026-11-19), chờ duyệt**: bảng đội có tab Channel kiểu Slack, tab Thành viên và tab Cây (§5.2, [orchestration §6.7](/dev-kit/core-harness/orchestration#67-channel-của-đội-v03), DA-E13). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B. **v0.8 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #23): thẻ account và quota gọn hơn với Progress hai cấp (§5.5); DA-E14. **v0.9 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #25): luật cuộn transcript, thao tác của user thắng việc tự mở/gập, và luật của khối code và diff (§5.4), mượn ý từ shadcn AI Elements; DA-E15. **v0.10 (2026-11-21), đã duyệt** (chủ dự án, sau khi xem bản F10.4c đầu tiên "thô và xấu" và các mock): nhịp, nhóm việc, hàng tool theo loại, badge file, khối code và terminal chung một header, git ref mở rộng được, xem file và diff ở pane phải cho tới F10.20b (§5.4, Q-179 A); DA-E16.
 
 ## 1. Phạm vi
 
@@ -223,6 +223,60 @@ Chủ dự án chọn phong cách transcript của DevKit (2026-11-18). Chỉ l�
 - Mở và gập nhóm việc, hàng tool, thẻ Output: chiều cao cộng mờ dần theo Smooth (ui-kit §3.7).
 - Dòng "Worked for …" của lượt đang chạy đổi chữ theo bước hiện tại bằng mờ dần; lượt cũ đứng yên, cuộn lại lịch sử không phát lại hoạt ảnh nào.
 
+**Bản tinh chỉnh (v0.10)**
+
+Chủ dự án thấy bản F10.4c đầu tiên "thô và xấu" và duyệt các mock sau (2026-11-21). Mục này thay các dòng tương ứng ở bảng trên khi hai chỗ khác nhau.
+
+*Nhịp và cấp chữ*
+
+- Cột chữ tối đa khoảng 720 dp và căn giữa (§3.3 ui-kit). Giữa hai lượt: `space.xl`; giữa tin user và phần trả lời: `space.lg`; giữa các hàng trong nhóm việc: `space.xs`.
+- `assistant_message` là `type.prose` màu `Fg`. Dòng lặng (`reasoning`, "Worked for…", `subagent`) là `type.small` màu `FgMuted`.
+- Hàng tool có ba bậc: **động từ** ("Read", "Edited", "Ran") `type.body` màu `FgMuted`; **đối tượng** (badge file, lệnh, chuỗi tìm) màu `Fg`; **thời gian** `type.small` màu `FgSubtle`, căn phải. Icon loại tool màu `IconMuted`.
+
+*Nhóm việc*
+
+- Không còn Divider ngang dưới "Worked for…". Các hàng con thụt vào trong, có **một đường kẻ dọc mảnh** (`BorderSubtle`, 1 dp) bên trái.
+- Lỗi chỉ tô nền `DangerSoft` cho **đúng hàng đó**, kèm mã lỗi bên phải; không bọc thêm thẻ, không lồng thẻ Output trong thẻ lỗi.
+
+*Hàng tool theo loại*
+
+| Hàng | Đối tượng | Bấm | Mở rộng `›` |
+| --- | --- | --- | --- |
+| Read | badge file, kèm khoảng dòng đã đọc | mở file ở đúng đoạn | — |
+| Edited | badge file, `+n −m` | mở **diff đầy đủ** | bản xem trước diff tại chỗ |
+| Created | badge file, `+n` | mở file | — |
+| Deleted | badge file gạch ngang, nhạt, `−n` | không bấm được | — |
+| Searched | chuỗi tìm (mono), "in" badge thư mục, số kết quả | — | danh sách badge `file:dòng`, mỗi badge mở file đúng dòng |
+| Listed | badge thư mục, số file | mở thư mục | danh sách file dạng badge |
+| Ran | lệnh (mono, cắt một dòng), `exit n` (khác 0 màu `Status.Danger`, bằng 0 màu `Status.Success`) | — | khối terminal (dưới) |
+| Fetched | URL (mono) | — | URL đầy đủ và tóm tắt; mở trình duyệt chỉ khi bấm, chỉ `https` |
+| Searched the web | chuỗi tìm, số kết quả | — | danh sách kết quả dạng link (cùng luật mở) |
+| Called (tool MCP và tool không rõ loại) | tên tool | — | input và output dạng khối JSON |
+| Committed, Opened PR, nhánh | git ref (dưới) | theo bảng hành động của git ref | — |
+| Ran subagent, Updated plan | việc, trạng thái | — | — |
+| Waiting for approval, Asked you | lệnh hoặc câu hỏi | "Open inbox", "Answer": nhảy tới hộp duyệt | — |
+
+Hai hàng cuối có nền tông cảnh báo, cùng tông với Tag `warning` (fill mềm của `Status.Warning`, suy như `DangerSoft`) (cần user), theo luật: đỏ là lỗi, vàng là cần bạn, còn lại không màu.
+
+*Badge file và thư mục*
+
+- Một cách vẽ duy nhất cho file ở mọi chỗ (trong chữ, trong hàng tool, trong kết quả tìm): viên `radius.full`, nền `SurfaceRaised`, viền `BorderSubtle`; icon theo ngôn ngữ (thư mục: icon folder); đường dẫn `type.codeSmall` màu `Fg`; khoảng dòng màu `FgSubtle`.
+- Lệnh và chuỗi tìm kiếm không phải badge (chúng không mở ra được).
+- Bấm badge mở file (hoặc thư mục, hoặc diff với hàng Edited) trong **trình xem chỉ đọc**: có số dòng, tô màu cú pháp, nhảy tới dòng. **Cho tới khi có lưới slot (F10.20b), trình xem nằm ở pane bên phải** như hộp duyệt và accounts (Q-179 A); sau đó mở ở slot gần nhất (§5.3). Host kiểm đường dẫn nằm trong workspace root của phiên trước khi đọc; ngoài root thì từ chối có kiểu.
+
+*Khối code, terminal, Output và diff: một header chung*
+
+- Mọi khối kiểu code có cùng bố cục: nền `SurfaceRaised`, viền `BorderSubtle`, `radius.lg`; **header luôn ở trên**: bên trái icon và nhãn (tên ngôn ngữ; `shell` với terminal; `output` kèm định dạng; tên file với diff), bên phải trạng thái nếu có (terminal: `exit n` và thời gian) rồi nút wrap và Copy. Không có footer.
+- **Tô màu cú pháp** theo các role syntax của `theme` (chroma, DA-03) cho: khối code markdown có ngôn ngữ, Output theo định dạng (json, diff…), lệnh shell, diff và trình xem file.
+- **Terminal mở rộng**: lệnh đầy đủ có `$`, tự xuống dòng khi dài; kẻ mảnh; output màu `FgMuted`, cùng luật giới hạn chiều cao và "Show full output".
+
+*Git ref (mở rộng được)*
+
+- Commit (hash), PR (`#123`, `owner/repo#123`, URL PR) và nhánh là một loại chip: commit là chữ mono gạch chân chấm có icon commit; PR và nhánh là badge có icon. Hash và PR nhận ra lúc vẽ (INV-09); nhánh chỉ khi dữ liệu của item có ghi.
+- **Rê chuột**: thẻ git ref nổi lên. Giai đoạn A chỉ hiện những gì item đã có (hash đầy đủ, tiêu đề commit). Đây là chỗ cắm cho module git sau này (tác giả, file đã đổi, CI, review).
+- **Bấm**: tra hành động theo loại ref trong một bảng đăng ký. Giai đoạn A: commit thì copy hash đầy đủ; PR thì hiện URL đầy đủ rồi mở trình duyệt, chỉ `https`. Module git sau này ghi đè (ví dụ mở diff của commit trong slot).
+- Thẻ commit ("Committed …", "View diff ↗") dùng chung cơ chế này.
+
 **Cuộn (v0.9)**
 
 Chủ dự án chọn mượn luật cuộn của shadcn Message Scroller (2026-11-21). Chỉ lấy ý, không lấy code. Nguyên tắc: **view chỉ di chuyển khi user muốn**.
@@ -343,6 +397,7 @@ Ngưỡng phát hành trên máy Ubuntu của chủ dự án: **60 fps** khi str
 | **DA-E13** | Tab Channel (v0.7): tin của đội hiện đúng thread với số `#n`, người gửi, người nhận và thẻ loại; `@agent` từ user tới đúng agent và người giao nhận một dòng; tin không `@` trong thread tới agent của task; chip `#n` nhảy tới tin; vị trí đã đọc của mỗi thread giữ qua lần mở lại; yêu cầu duyệt chỉ có dòng dẫn, trả lời ở hộp duyệt |
 | **DA-E14** | Thẻ account (v0.8): shot sáng và tối cho `ok`, gần ngưỡng, quá ngưỡng, `rejected`, `paused`, `needs_login` và quota không rõ; chip trạng thái chỉ hiện khi không ổn; đoạn cấp hai kết thúc đúng ở `quota_gate` do host cấp; giờ reset chỉ ở tooltip |
 | **DA-E15** | Cuộn và khối code (v0.9): stream 200 item khi user ở mép thì view bám theo; một lần cuộn bánh xe, bôi chữ hay bấm phím cuộn làm ngừng bám; nút "Mới nhất" hiện, có chấm khi lượt chạy ngoài màn hình, và bấm thì bám lại; gửi tin thì tin đó ở gần đỉnh với 64 dp của item trước; mở thẻ Output, diff hay ảnh tải xong và tải thêm lịch sử không đổi dòng đang nhìn; mở lại phiên thì đặt ở tin user của lượt cuối; nhóm việc user đã gập không tự mở lại; Copy không kèm số dòng hay dấu diff; dòng diff có cột `+`/`−` |
+| **DA-E16** | Bản tinh chỉnh transcript (v0.10): shot sáng và tối ở 90/100/125% cho một lượt có đủ các hàng tool ở bảng v0.10; nhóm việc có đường kẻ dọc và không có Divider ngang; hàng lỗi chỉ tô nền đúng hàng, không lồng thẻ; badge file giống nhau trong chữ, trong hàng tool và trong kết quả tìm; bấm badge mở trình xem ở pane phải đúng dòng, đường dẫn ngoài workspace root bị từ chối; khối code, terminal, Output và diff cùng header ở trên, có tô màu cú pháp; terminal mở rộng hiện lệnh đầy đủ và output; rê chuột git ref hiện thẻ, bấm chạy hành động đã đăng ký |
 | **DA-E08** | Vòng đời host theo app: mở app khi chưa có host thì host khởi động và app nối được; đóng cửa sổ cuối khi còn phiên chạy thì app hỏi; bật chạy nền thì host sống sau khi đóng cửa sổ; tắt chạy nền và không còn client thì host tắt sau 10 s |
 
 ## 11. Phụ thuộc
