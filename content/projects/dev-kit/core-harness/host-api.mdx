@@ -7,6 +7,8 @@ description: API duy nhất giữa lõi Go của DevKit và mọi UI — cách c
 
 Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-42 (gộp H-32 read model và H-35 host khác) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), ở phạm vi giai đoạn A. Kiểm kê logic ở frontend (H-43) và shell ngoài Wails (H-44) là mảng riêng. **v0.14 đề xuất (2026-11-07)**: HA-03 đổi, thêm HA-06, module của vendor runtime ở §5.1 và principal `session` ở §7. **v0.15 đề xuất (2026-11-11)**: client kind `guard` ở §7 và đọc diff theo lượt (`TurnDiffFile`) cho [git guard](/dev-kit/core-harness/git-guard).
 
+**v0.17 (2026-11-21), chủ dự án duyệt: channel của đội.** Thêm §5.3, `PageChannel`, `PostChannelMessage` và nội dung của topic `team:<id>` cho channel ([orchestration](/dev-kit/core-harness/orchestration) v0.3 §6.7), theo Q-175 A của F11.10; evidence HA-E08.
+
 **v0.16 (2026-11-20), chủ dự án duyệt: trạng thái của app.** Thêm §5.2, service `fugue.appstate.v1` lưu bố cục từng cửa sổ ([desktop app](/dev-kit/core-harness/desktop-app) v0.5, "Lưu bố cục") và tùy chọn của app; evidence HA-E07. Cần trước F10.20.
 
 Theo D-29, lõi Go của DevKit và harness là một bộ all-in-one; mọi UI là client của API này.
@@ -64,7 +66,7 @@ Tham khảo: RPC mode của pi (JSONL qua stdio: command có `id`, response, eve
 | --- | --- | --- |
 | `vendor` | `ProbeVendors`, `StartSession`, `Send`, `Interrupt`, `Steer`, `CloseSession`, `ResumeSession`, `ListSessions` | [vendor runtime](/dev-kit/core-harness/vendor-runtime) |
 | `transcript` | `TranscriptPage`, `TranscriptItem`; topic `transcript:<session>`, `transcript-delta:<session>` | [transcript](/dev-kit/core-harness/transcript) |
-| `tasks` | `DecideTeam`, `AmendTeam`, `TeamTree`, `IntegrateTeam`, `MessageAgent`, `StartTask`, `RetryTask`, `SendToTask`, `AnswerTask`, `CancelTask`, `AcceptTask`, `RejectTask`, `TaskResult`, `ListTasks`; topic `team:<id>` | [orchestration](/dev-kit/core-harness/orchestration) |
+| `tasks` | `DecideTeam`, `AmendTeam`, `TeamTree`, `IntegrateTeam`, `MessageAgent`, `StartTask`, `RetryTask`, `SendToTask`, `AnswerTask`, `CancelTask`, `AcceptTask`, `RejectTask`, `TaskResult`, `ListTasks`, `PageChannel`, `PostChannelMessage` (v0.17, §5.3); topic `team:<id>` | [orchestration](/dev-kit/core-harness/orchestration) |
 | `accounts` | `ListAccounts`, `StartLogin`, `PauseAccount`, `ResumeAccount`; topic `quota` | [orchestration §8](/dev-kit/core-harness/orchestration#8-quota-và-account) |
 | `scheduler` | `AcquireHeavy`, `ReleaseHeavy` (cho `fugue exclusive`) | [orchestration §7](/dev-kit/core-harness/orchestration#7-scheduler) |
 
@@ -102,6 +104,23 @@ Topic `appstate` (bền) phát `window_put`, `window_deleted` và `preferences_p
 - Tối đa 16 cửa sổ đã lưu.
 
 Mã lỗi công khai mới: `appstate.revision_conflict`, `appstate.invalid_document`, `appstate.too_large`, `appstate.too_many_windows`.
+
+### 5.3 Channel của đội (v0.17)
+
+Channel là phép chiếu của event đội ([orchestration](/dev-kit/core-harness/orchestration) §6.7); API này chỉ cho user đọc và gửi tin, agent đọc qua tool `fugue_team_read`, không subscribe.
+
+Service `fugue.tasks.v1` (`TaskService`), chỉ cho principal `local`; `session` và `guard` bị từ chối.
+
+| RPC | Input | Output | Ghi chú |
+| --- | --- | --- | --- |
+| `PageChannel` | `team_id`, `thread_task_id?`, `before?`, `since?`, `limit?` | Các tin, mới nhất trước: `#n`, loại, người gửi, người nhận, thread, lần thử, thời điểm, nội dung | Không có `thread_task_id` là channel chung. `limit` mặc định 100, tối đa 500. Vault khoá thì từ chối (fail closed) |
+| `PostChannelMessage` | `command_id`, `team_id`, `thread_task_id?`, `to_task_id?`, `text` | `#n` của tin mới | Nguồn `user`, đi ngay, không qua hàng chờ giãn nhịp (§6.1). Không có `to_task_id`: trong thread thì gửi agent của task, ở channel chung thì gửi lead. Người giao của agent nhận một dòng (§6.2). Chống trùng theo `command_id` |
+
+- Topic `team:<id>` (bền) phát một event cho mỗi tin mới của channel. Snapshot là 100 tin mới nhất. **Khi vault khoá, event chỉ mang metadata** (`#n`, loại, người gửi, người nhận, thread); nội dung không bao giờ đi khi vault khoá, giống transcript.
+- Tin do model viết hiện như dữ liệu, không bao giờ thành chỉ dẫn (OR-13). Yêu cầu duyệt trong channel chỉ là một dòng tham chiếu (`request_id`, tên tool) dẫn tới hộp duyệt; nội dung yêu cầu và câu trả lời chỉ ở hộp duyệt (VR-05).
+- Giới hạn: `text` tối đa 4 KiB.
+
+Mã lỗi công khai mới: `tasks.team_not_found`, `tasks.task_not_found`, `tasks.team_ended`, `tasks.post_too_large`.
 
 ## 6. Event stream
 
@@ -152,3 +171,4 @@ Mã lỗi công khai mới: `appstate.revision_conflict`, `appstate.invalid_docu
 | **HA-E05** | Version | `buf breaking` trong CI; client lệch version bị từ chối có hướng dẫn |
 | **HA-E06** | Ranh giới | `internal/arch` chặn domain import code proto |
 | **HA-E07** | Trạng thái của app (v0.16) | Đóng rồi mở lại app khôi phục đúng mọi cửa sổ khi vault còn khoá; `expected_revision` cũ bị từ chối có kiểu; JSON sai, thiếu `schema_version` hoặc quá lớn bị từ chối; principal `session` bị từ chối; bản lưu có `schema_version` cao hơn không bị ghi đè |
+| **HA-E08** | Channel của đội (v0.17): `PageChannel` phân trang lùi và tiến đúng thứ tự `#n`, theo thread và channel chung; vault khoá thì `PageChannel` bị từ chối và topic `team:<id>` chỉ mang metadata; `PostChannelMessage` gửi đúng người theo `to_task_id` và thread, người giao nhận một dòng, gửi lại cùng `command_id` không tạo tin thứ hai; principal `session` bị từ chối |
