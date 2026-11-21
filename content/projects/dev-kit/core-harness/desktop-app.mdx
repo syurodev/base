@@ -5,7 +5,7 @@ description: H-33 — client desktop của Fugue viết bằng Gio; binary riên
 
 # Desktop app
 
-Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). **v0.6 (2026-11-18), đã duyệt** (chủ dự án, base-doc PR #20): cách vẽ transcript theo phong cách DevKit (DA-11, §5.4, DA-E12). **v0.7 (2026-11-19), chờ duyệt**: bảng đội có tab Channel kiểu Slack, tab Thành viên và tab Cây (§5.2, [orchestration §6.7](/dev-kit/core-harness/orchestration#67-channel-của-đội-v03), DA-E13). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B. **v0.8 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #23): thẻ account và quota gọn hơn với Progress hai cấp (§5.5); DA-E14. **v0.9 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #25): luật cuộn transcript, thao tác của user thắng việc tự mở/gập, và luật của khối code và diff (§5.4), mượn ý từ shadcn AI Elements; DA-E15. **v0.10 (2026-11-21), đã duyệt** (chủ dự án, sau khi xem bản F10.4c đầu tiên "thô và xấu" và các mock): nhịp, nhóm việc, hàng tool theo loại, badge file, khối code và terminal chung một header, git ref mở rộng được, xem file và diff ở pane phải cho tới F10.20b (§5.4, Q-179 A); DA-E16.
+Trạng thái: **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5). **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). **v0.6 (2026-11-18), đã duyệt** (chủ dự án, base-doc PR #20): cách vẽ transcript theo phong cách DevKit (DA-11, §5.4, DA-E12). **v0.7 (2026-11-19), chờ duyệt**: bảng đội có tab Channel kiểu Slack, tab Thành viên và tab Cây (§5.2, [orchestration §6.7](/dev-kit/core-harness/orchestration#67-channel-của-đội-v03), DA-E13). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B. **v0.8 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #23): thẻ account và quota gọn hơn với Progress hai cấp (§5.5); DA-E14. **v0.9 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #25): luật cuộn transcript, thao tác của user thắng việc tự mở/gập, và luật của khối code và diff (§5.4), mượn ý từ shadcn AI Elements; DA-E15. **v0.10 (2026-11-21), đã duyệt** (chủ dự án, sau khi xem bản F10.4c đầu tiên "thô và xấu" và các mock): nhịp, nhóm việc, hàng tool theo loại, badge file, khối code và terminal chung một header, git ref mở rộng được, xem file và diff ở pane phải cho tới F10.20b (§5.4, Q-179 A); DA-E16. **v0.11 (2026-11-21), đã duyệt** (chủ dự án, khi PM tiếp quản F10.4c): khối và badge nền `SurfaceBase` có viền, chỉ gộp chuỗi từ 4 item cùng loại, subagent trong nhóm việc là một hàng tool, diff ba cột số dòng · dấu · code (§5.4).
 
 ## 1. Phạm vi
 
@@ -235,6 +235,7 @@ Chủ dự án thấy bản F10.4c đầu tiên "thô và xấu" và duyệt cá
 
 *Nhóm việc*
 
+- (v0.11) Chỉ gộp thành một dòng tóm tắt ("Edited 5 files ›") khi có **từ 4 item cùng loại liền nhau**; chuỗi ngắn hơn hiện từng hàng. Subagent trong nhóm việc là một hàng tool "Ran subagent" có icon, như các hàng khác.
 - Không còn Divider ngang dưới "Worked for…". Các hàng con thụt vào trong, có **một đường kẻ dọc mảnh** (`BorderSubtle`, 1 dp) bên trái.
 - Lỗi chỉ tô nền `DangerSoft` cho **đúng hàng đó**, kèm mã lỗi bên phải; không bọc thêm thẻ, không lồng thẻ Output trong thẻ lỗi.
 
@@ -260,13 +261,13 @@ Hai hàng cuối có nền tông cảnh báo, cùng tông với Tag `warning` (f
 
 *Badge file và thư mục*
 
-- Một cách vẽ duy nhất cho file ở mọi chỗ (trong chữ, trong hàng tool, trong kết quả tìm): viên `radius.full`, nền `SurfaceRaised`, viền `BorderSubtle`; icon theo ngôn ngữ (thư mục: icon folder); đường dẫn `type.codeSmall` màu `Fg`; khoảng dòng màu `FgSubtle`.
+- Một cách vẽ duy nhất cho file ở mọi chỗ (trong chữ, trong hàng tool, trong kết quả tìm): viên `radius.full`, nền `SurfaceBase` (v0.11), viền `BorderSubtle`; icon theo ngôn ngữ (thư mục: icon folder); đường dẫn `type.codeSmall` màu `Fg`; khoảng dòng màu `FgSubtle`.
 - Lệnh và chuỗi tìm kiếm không phải badge (chúng không mở ra được).
 - Bấm badge mở file (hoặc thư mục, hoặc diff với hàng Edited) trong **trình xem chỉ đọc**: có số dòng, tô màu cú pháp, nhảy tới dòng. **Cho tới khi có lưới slot (F10.20b), trình xem nằm ở pane bên phải** như hộp duyệt và accounts (Q-179 A); sau đó mở ở slot gần nhất (§5.3). App đọc file và thư mục qua `ReadWorkspaceFile` và `ListWorkspaceDir` ([host API §5.4](/dev-kit/core-harness/host-api#54-đọc-file-trong-workspace-v018)); host kiểm đường dẫn nằm trong workspace root của phiên, ngoài root thì từ chối có kiểu. Diff đầy đủ của hàng Edited lấy từ chính item `file_change`, không cần đọc file.
 
 *Khối code, terminal, Output và diff: một header chung*
 
-- Mọi khối kiểu code có cùng bố cục: nền `SurfaceRaised`, viền `BorderSubtle`, `radius.lg`; **header luôn ở trên**: bên trái icon và nhãn (tên ngôn ngữ; `shell` với terminal; `output` kèm định dạng; tên file với diff), bên phải trạng thái nếu có (terminal: `exit n` và thời gian) rồi nút wrap và Copy. Không có footer.
+- Mọi khối kiểu code có cùng bố cục: nền `SurfaceBase`, viền `Border` (v0.11: `SurfaceRaised` trông như một mảng xám nặng trên nền sáng), `radius.lg`; **header luôn ở trên**: bên trái icon và nhãn (tên ngôn ngữ; `shell` với terminal; `output` kèm định dạng; tên file với diff), bên phải trạng thái nếu có (terminal: `exit n` và thời gian) rồi nút wrap và Copy. Không có footer.
 - **Tô màu cú pháp** theo các role syntax của `theme` (chroma, DA-03) cho: khối code markdown có ngôn ngữ, Output theo định dạng (json, diff…), lệnh shell, diff và trình xem file.
 - **Terminal mở rộng**: lệnh đầy đủ có `$`, tự xuống dòng khi dài; kẻ mảnh; output màu `FgMuted`, cùng luật giới hạn chiều cao và "Show full output".
 
@@ -300,7 +301,7 @@ Chủ dự án chọn mượn luật cuộn của shadcn Message Scroller (2026-
 
 - **Copy không kèm số dòng** và không kèm dấu `+`/`−` của diff; Copy báo "Copied" ngắn tại chỗ.
 - **Không wrap mặc định**; dòng dài cuộn ngang trong khối. Đầu khối có nút bật wrap, nút nhớ trạng thái bật/tắt.
-- **Diff có dấu**: dòng thêm có `+`, dòng bớt có `−` ở cột riêng trước nội dung, ngoài màu nền; không chỉ dựa vào màu (người khó phân biệt đỏ/xanh vẫn đọc được).
+- **Diff có dấu**: dòng thêm có `+`, dòng bớt có `−` ở cột riêng trước nội dung, ngoài màu nền; (v0.11) số dòng, dấu và code là ba cột tách nhau bằng `space.md`, dấu nằm giữa cột của nó; không chỉ dựa vào màu (người khó phân biệt đỏ/xanh vẫn đọc được).
 - **Giới hạn chiều cao**: khối cao quá vài chục dòng thì cắt kèm "Show full output" (đã có); mở ra không làm view nhảy (luật cuộn ở trên).
 - Khối code cuộn được bằng bàn phím khi có focus; nút Copy và wrap hiện khi hover hoặc focus, không chỉ khi hover.
 
