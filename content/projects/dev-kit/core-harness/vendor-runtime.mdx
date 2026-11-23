@@ -5,7 +5,7 @@ description: H-47 — Fugue chạy CLI chính chủ của vendor (Claude Code, C
 
 # Vendor runtime
 
-Trạng thái: **v0.4, ngày 2026-11-23**. v0.1 được chủ dự án duyệt (base-doc PR #8); v0.2 đổi duyệt quyền của tool vendor thành **chuyển tiếp** (VR-05), thêm VR-13 cho tool của Fugue và VR-E13. v0.3 (2026-11-11) thêm VR-14 (diff theo lượt bằng shadow git, chi tiết ở [git guard](/dev-kit/core-harness/git-guard)) và biến `FUGUE_SESSION_ID` trong env (§8). **v0.4 (2026-11-23, Fugue FUG-47)**: chủ dự án duyệt VR-14 (turn snapshot, `turn_diff`, quét secret cuối lượt) cho giai đoạn A; `FUGUE_SESSION_ID` dành cho hook push nên chuyển sang **sau giai đoạn A** cùng hook. Trang này thay quyết định A-01 cũ ("chỉ native runtime") theo [activation](/dev-kit/core-harness/activation) v0.14. Mảng H-47 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). **v0.4 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.**
+Trạng thái: **v0.5, ngày 2026-11-23**. v0.1 được chủ dự án duyệt (base-doc PR #8); v0.2 đổi duyệt quyền của tool vendor thành **chuyển tiếp** (VR-05), thêm VR-13 cho tool của Fugue và VR-E13. v0.3 (2026-11-11) thêm VR-14 (diff theo lượt bằng shadow git, chi tiết ở [git guard](/dev-kit/core-harness/git-guard)) và biến `FUGUE_SESSION_ID` trong env (§8). **v0.4 (2026-11-23, Fugue FUG-47)**: chủ dự án duyệt VR-14 (turn snapshot, `turn_diff`, quét secret cuối lượt) cho giai đoạn A; `FUGUE_SESSION_ID` dành cho hook push nên chuyển sang **sau giai đoạn A** cùng hook. Trang này thay quyết định A-01 cũ ("chỉ native runtime") theo [activation](/dev-kit/core-harness/activation) v0.14. Mảng H-47 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). **v0.4 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.** **v0.5 (2026-11-23), chủ dự án quyết định, Fugue FUG-55:** ở giai đoạn A phiên vendor không bao giờ vào `waiting(quota)` hay `waiting(capacity)`: phiên do user mở vượt số phiên tối đa bị từ chối ngay (§10); phiên không còn quota thất bại theo §11; task đội vẫn xếp hàng. Lý do: phiên do user mở có người đang đợi, từ chối có hướng dẫn rõ hơn chờ vô hạn (cửa sổ quota có thể dài nhiều giờ); hàng đợi giữ cho task tự động của đội. Chờ ở cấp phiên có thể quay lại sau giai đoạn A.
 
 Tham khảo đã nghiên cứu: Agent Hub của DevKit (`internal/acp`, `internal/agenthub`, trang `agent-hub`) và các spike ngày 2026-11-07 trên máy chủ dự án (§12).
 
@@ -177,9 +177,11 @@ Phiên có state machine thuần trong `internal/vendor` (không clock, không I
 | `ready` | Chờ input |
 | `running` | Có lượt đang chạy |
 | `awaiting_approval` | Có yêu cầu duyệt chưa trả lời (lượt vẫn mở) |
-| `waiting(reason)` | `vault_locked`, `quota(account)`, `capacity` |
+| `waiting(reason)` | `vault_locked`; `quota(account)` và `capacity` (sau giai đoạn A; giai đoạn A không đưa phiên vào hai lý do này, xem dưới) |
 | `detached` | Host khởi động lại sau khi process đã dừng; resume được nếu vendor hỗ trợ |
 | `closed` | Đã đóng, có stop proof hoặc `unknown` ghi kèm |
+
+**Giai đoạn A không có chờ quota hay chờ capacity ở cấp phiên (Fugue FUG-55).** Phiên do user mở khi số phiên đang chạy đã bằng `max_sessions` bị host **từ chối** với `vendor.capacity` (Connect `ResourceExhausted`), message nói rõ đang chạy/giới hạn (ví dụ "6/6 phiên đang chạy") và cách xử lý: đóng một phiên hoặc tăng `max_sessions`. Phiên mà account vendor hết quota thì lượt `failed(quota)` và account `paused` kèm giờ reset (§11). Chỉ task đội xếp hàng sau cổng quota và các tầng scheduler ([orchestration §7](/dev-kit/core-harness/orchestration#7-scheduler)).
 
 Lượt kết thúc bằng `completed`, `interrupted`, `failed(code)` hoặc `unknown` (process chết giữa lượt, không có event kết thúc). Spike: không CLI nào phát event kết thúc khi bị kill.
 
@@ -193,7 +195,8 @@ Event domain (append-only, sequence theo phiên, projection trong cùng transact
 | Host crash | Process con nhận EOF trên stdin và tự thoát; khởi động lại, host tìm pid đã ghi (pid kèm thời điểm bắt đầu), kill cây còn sót, đánh dấu phiên `detached`, lượt dở `unknown` |
 | Vault bị khoá | Không ghi được payload: interrupt lượt đang chạy, phiên `waiting(vault_locked)`; mở vault rồi tiếp tục bằng lượt mới |
 | Yêu cầu duyệt khi không có client | Chờ (I-07); host headless thì từ chối có kiểu |
-| Hết quota giữa lượt | Lượt `failed(quota)`, account `paused`; [orchestration](/dev-kit/core-harness/orchestration) quyết định giao lại |
+| Phiên do user mở vượt số phiên tối đa (v0.5) | Bị từ chối `vendor.capacity` (`ResourceExhausted`) với message hành động được: đang chạy/giới hạn, đóng một phiên hoặc tăng `max_sessions`; không tạo phiên, không chờ (chờ capacity ở cấp phiên sau giai đoạn A) |
+| Hết quota giữa lượt, hoặc account không còn quota khi mở phiên | Lượt `failed(quota)`, account `paused` kèm giờ reset vendor báo; không chờ ở cấp phiên (chờ quota ở cấp phiên sau giai đoạn A); [orchestration](/dev-kit/core-harness/orchestration) quyết định giao lại |
 | Event lạ hoặc version chưa kiểm | Item `notice(unsupported_event)`, payload gốc giữ lại, bộ đếm hiện ở UI |
 | Chưa đăng nhập hoặc token hết hạn | Lượt `failed(auth)`; UI mở luồng login của chính CLI |
 
