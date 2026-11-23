@@ -31,7 +31,7 @@ Từ ổn định nhất tới hay đổi nhất. Thứ gì đổi giữa sessio
 | Tầng | Nội dung | Đổi khi nào |
 | --- | --- | --- |
 | L0 | Khai báo tool theo binding revision | Chỉ ở ranh giới step (`ToolBindingRevised`) |
-| L1 | System prompt lõi R0 của DevKit: có version, không chứa đường dẫn, giờ, tên máy | Khi nâng cấp DevKit |
+| L1 | System prompt lõi R0 của Fugue: có version, không chứa đường dẫn, giờ, tên máy | Khi nâng cấp Fugue |
 | L2 | Rule R1, R2, R3 đang luôn áp dụng | Hiếm; đổi thì gửi patch (§2.1) |
 | L3 | Context của session: thông tin workspace (tên, danh sách root với path thật và quyền), danh mục tool group, mô tả preset, **pinned block W**, **chỉ mục W** | Hiếm; đổi thì gửi patch |
 | L4 | Hội thoại: [bản tóm tắt compaction] + các message canonical giữ lại của epoch hiện tại | Mỗi step |
@@ -58,7 +58,7 @@ Nối từ rộng tới cụ thể; lớp sau đứng sau trong prompt.
 
 | Lớp | Nguồn | Ai sửa | Budget mặc định |
 | --- | --- | --- | --- |
-| R0 | System prompt lõi của DevKit | DevKit; user **xem được** (chỉ đọc) | — |
+| R0 | System prompt lõi của Fugue | Fugue; user **xem được** (chỉ đọc) | — |
 | R1 | Rule global của user, lưu trong preferences (**chỉ local** ở v1) | User, trong Settings | 8 KiB |
 | R2 | File của repo: chuỗi từ root xuống cwd, kể cả thư mục con khi agent đụng tới; mỗi root của workspace là một chuỗi riêng, kích hoạt theo path ([workspace §2](/dev-kit/core-harness/workspace#2-thư-mục-và-root)) | Team (git) | 32 KiB cho cả chuỗi |
 | R3 | Rule cá nhân theo workspace, không nằm trong repo | User, trong `~/Fugue/workspaces/<id>/AGENTS.md` | 8 KiB |
@@ -162,7 +162,7 @@ keepRecent = clamp(0,15 × (W − O), 6k, 30k)
 - Chỉ chạy **ở ranh giới step**: sau khi tool result đã vào, trước model request tiếp theo. Là model invocation có mục đích `compaction`: có attempt, budget, usage; không có side effect nên crash thì retry an toàn và tính vào retry budget.
 - **Điểm cắt**: đi ngược tới khi đủ `keepRecent`; chỉ cắt tại message user hoặc assistant; **không bao giờ** tách tool call khỏi tool result. Turn quá dài thì tóm tắt phần đầu của chính turn đó riêng rồi gộp.
 - **Input**: hội thoại được serialize thành text (không để model tưởng là hội thoại cần tiếp tục), tool result cắt còn 2.000 ký tự, bỏ thinking, kèm bản tóm tắt trước đó.
-- **Định dạng**: Goal, Constraints & Preferences, Progress (Done / In progress / Blocked), Key decisions, Next steps, Critical context, **W references**. Danh sách file đã đọc và đã sửa do DevKit lấy từ tool event, không để model tự liệt kê.
+- **Định dạng**: Goal, Constraints & Preferences, Progress (Done / In progress / Blocked), Key decisions, Next steps, Critical context, **W references**. Danh sách file đã đọc và đã sửa do Fugue lấy từ tool event, không để model tự liệt kê.
 - **Trích dẫn W**: bản tóm tắt dẫn entry W bằng nhãn và revision (ví dụ `[W:build-system r3]`) thay vì tóm tắt lại nội dung; sau compaction, L3 liệt kê các entry được trích dẫn.
 - Bản tóm tắt được đưa vào context trong envelope `source=summary` ([an toàn nội dung §4.4](/dev-kit/core-harness/content-safety#44-compaction-và-memory)).
 - Ghi bằng event `ContextCompacted`: payload bản tóm tắt, vị trí giữ nguyên đầu tiên, token trước và sau, model, usage. Transcript gốc giữ nguyên; compaction chỉ đổi view. Lần compact sau tóm tắt từ ranh giới giữ nguyên trước đó.

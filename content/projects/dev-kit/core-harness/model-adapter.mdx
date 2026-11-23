@@ -17,12 +17,12 @@ Tham khảo: module `accounts` và cơ chế failover account của Agent Hub, t
 | M-02 | Auth là **lớp pluggable**: API key, OAuth (chỉ cho provider mà điều khoản cho phép), credential của cloud provider |
 | M-03 | Native runtime **không dùng subscription Claude** (Free/Pro/Max). Điều khoản của Anthropic không cho ứng dụng bên thứ ba thu thập, lưu trữ hay dùng token Claude.ai. Subscription tiếp tục chạy qua vendor runtime (Claude Code nguyên bản) |
 | M-04 | **Failover giữa các account cùng provider và cùng model**; không tự chuyển sang model hoặc provider khác |
-| M-05 | **Ưu tiên SDK chính thức** khi SDK cho DevKit đủ quyền kiểm soát (§8); thiếu thì viết HTTP/SSE riêng cho phần đó |
+| M-05 | **Ưu tiên SDK chính thức** khi SDK cho Fugue đủ quyền kiểm soát (§8); thiếu thì viết HTTP/SSE riêng cho phần đó |
 | M-06 | Retry thuộc kernel; mỗi stream là đúng **một attempt** |
 | M-07 | Provider-hosted tools bị tắt ở v1 (đã chốt ở state machine §4) |
 | M-08 | **OpenAI cùng giai đoạn A**, qua Responses API; auth bằng API key hoặc **Sign in with ChatGPT** (dùng gói ChatGPT), vì OpenAI chính thức cho phép ứng dụng mã nguồn mở và chạy local dùng gói này ([§11](#11-openai-và-sign-in-with-chatgpt)) |
 | M-09 | Với gói ChatGPT, **không bao giờ tự chuyển sang đường tính tiền khác** (API key). Tự chuyển giữa các tài khoản ChatGPT của chính user được phép (v0.13, [budget và quota §3.1](/dev-kit/core-harness/budget#31-gói-chatgpt)) |
-| M-10 | Không dùng lại token, client ID hay home của Codex CLI; không gọi endpoint `backend-api` của ChatGPT. Chỉ dùng luồng đăng ký chính thức của DevKit |
+| M-10 | Không dùng lại token, client ID hay home của Codex CLI; không gọi endpoint `backend-api` của ChatGPT. Chỉ dùng luồng đăng ký chính thức của Fugue |
 | M-11 | **Fugue giai đoạn A đảo M-01** (A-02, 2026-11-03): adapter thật đầu tiên là OpenAI Responses với Sign in with ChatGPT, và đây là provider duy nhất của giai đoạn A. API key OpenAI, Anthropic và failover giữa account (M-04) sang giai đoạn B ([phát hành giai đoạn A](/dev-kit/core-harness/activation)) |
 | M-12 | **v0.14 đề xuất (2026-11-07)**: Fugue giai đoạn A không gọi model qua API; model chạy trong CLI chính chủ của vendor ([vendor runtime](/dev-kit/core-harness/vendor-runtime), A-01, A-02 v0.14). Tầng native của trang này sang B, với **OpenRouter** (API key) là provider đầu tiên; Sign in with ChatGPT (M-08) theo sau. M-11 chỉ còn là lịch sử |
 | M-13 | **Không dùng token gói sub ngoài CLI của hãng**, kể cả khi kỹ thuật cho phép: OAuth Claude trong app bên thứ ba chỉ trừ extra usage; Google khoá account dùng OAuth Antigravity hoặc Gemini CLI trong harness khác; gói GLM Coding Plan chỉ dùng trong tool được Z.ai hỗ trợ. Gói sub đi qua [vendor runtime](/dev-kit/core-harness/vendor-runtime) |
@@ -90,7 +90,7 @@ Circuit breaker theo provider và account để giai đoạn B.
 
 ## 5. Catalog và khả năng của model
 
-Catalog được đóng gói theo version DevKit, user override được, và có discovery cho endpoint local ở giai đoạn sau.
+Catalog được đóng gói theo version Fugue, user override được, và có discovery cho endpoint local ở giai đoạn sau.
 
 | Nhóm | Field |
 | --- | --- |
@@ -155,20 +155,20 @@ SDK nằm trong package adapter, không lọt vào package stdlib-only (`harness
 
 Nguồn: tài liệu [Sign in with ChatGPT cho ứng dụng mã nguồn mở](https://developers.openai.com/siwc/token-sharing-open-source) của OpenAI, gồm các trang Accounts and sessions, Models and inference, Errors and recovery, Preview limitations và [UI/UX guidelines](https://developers.openai.com/siwc/ui-ux-guidelines). Chương trình đang ở dạng preview; mọi chi tiết dưới đây được kiểm tra lại trong spike và khi OpenAI cập nhật.
 
-### 11.1 Hai đường dùng OpenAI trong DevKit
+### 11.1 Hai đường dùng OpenAI trong Fugue
 
 | | Vendor runtime (đã có) | Native runtime (mới) |
 | --- | --- | --- |
-| Vòng lặp | `codex app-server` (Codex sở hữu) | Kernel của DevKit |
+| Vòng lặp | `codex app-server` (Codex sở hữu) | Kernel của Fugue |
 | Gọi model | Codex tự gọi | Model adapter gọi `POST /v1/responses` |
-| Auth | Login của Codex trong Codex home | Credential của DevKit trong `internal/accounts` + vault (M-10) |
+| Auth | Login của Codex trong Codex home | Credential của Fugue trong `internal/accounts` + vault (M-10) |
 
 Với Fugue, chỉ cột native runtime áp dụng (A-01); gói ChatGPT là provider duy nhất của giai đoạn A (M-11, [phát hành giai đoạn A](/dev-kit/core-harness/activation)).
 
 ### 11.2 Đăng ký và token
 
-- **Agent host ID**: mỗi bản cài DevKit tạo một `urn:uuid:` (UUIDv4) ổn định, lưu trong data dir trước lần đăng nhập đầu. Không chứa email hay thông tin nhận dạng; không phải credential.
-- **Đăng ký lần đầu**: `client_id=dynamic_agent_client`, `ext_agent_host_id`, `agent_name_hint=DevKit`, PKCE, `state`, `nonce`. Callback trả `client_id` được cấp; lưu theo account và dùng lại cho mọi lần đăng nhập sau của account đó.
+- **Agent host ID**: mỗi bản cài Fugue tạo một `urn:uuid:` (UUIDv4) ổn định, lưu trong data dir trước lần đăng nhập đầu. Không chứa email hay thông tin nhận dạng; không phải credential.
+- **Đăng ký lần đầu**: `client_id=dynamic_agent_client`, `ext_agent_host_id`, `agent_name_hint=Fugue`, PKCE, `state`, `nonce`. Callback trả `client_id` được cấp; lưu theo account và dùng lại cho mọi lần đăng nhập sau của account đó.
 - **Scope**: `openid profile email offline_access resource.invoke chatgpt.tokens.use.direct`, `resource=https://api.openai.com/v1`. Sau khi đăng nhập phải **kiểm tra scope được cấp có `chatgpt.tokens.use.direct`**. Thiếu thì giữ đăng nhập nhưng tắt plan usage, đề nghị user bật lại hoặc dùng API key.
 - **Validate ID token**; chỉ gửi ID token tới endpoint authorize của OpenAI.
 - **Lưu token**: access, refresh và ID token nằm trong `internal/accounts` + vault; không vào log, journal, audit, URL hay báo cáo lỗi; URL authorize có ID token bị redact khỏi chẩn đoán.
@@ -186,7 +186,7 @@ Với Fugue, chỉ cột native runtime áp dụng (A-01); gói ChatGPT là prov
 | Không nhận `temperature`, `top_p`, `max_output_tokens`, `metadata`, `user`, `truncation`, `prompt` và vài field khác | Cờ khả năng tính theo cặp **(model, loại auth)**; `maxOutput` của contract bị bỏ qua khi dùng gói ChatGPT |
 | Tool: chỉ function và custom (theo namespace hoặc `additional_tools`) | Khớp M-07; `ToolBindingRevised` dùng `additional_tools` khi model hỗ trợ; không dùng `tool_search` của Responses |
 | Không có image generation, file search, Code Interpreter, computer use, hosted MCP/connectors | Đã cấm sẵn (M-07) |
-| Model hợp lệ lấy từ `GET /v1/models` với cùng token, chỉ giữ `visibility: "list"` | Danh sách model theo **account**, làm mới khi đổi account; catalog của DevKit chỉ bổ sung giá và khả năng |
+| Model hợp lệ lấy từ `GET /v1/models` với cùng token, chỉ giữ `visibility: "list"` | Danh sách model theo **account**, làm mới khi đổi account; catalog của Fugue chỉ bổ sung giá và khả năng |
 
 Với API key, các ràng buộc riêng của gói ChatGPT không áp dụng; converter vẫn dùng Responses API.
 
@@ -216,7 +216,7 @@ Account dùng gói ChatGPT chỉ failover sang **tài khoản ChatGPT khác củ
 - **Lần đầu** bật plan usage: một thông báo xác nhận, đóng được, nói rằng request AI đủ điều kiện sẽ dùng gói ChatGPT và có thể quản lý trong ChatGPT Settings. Không hiện lại ở các lần sau.
 - Khi request đang dùng gói ChatGPT: chỉ báo **"Using ChatGPT plan"** gần ô nhập hoặc chỗ chọn model, kèm link **"Manage usage"**.
 - Hết hạn mức: modal hoặc thông báo gọn với hành động chính "Manage usage", vẫn hiện danh tính ChatGPT.
-- DevKit không bán credit hay gói riêng, nên không có phần so sánh gói; vẫn ghi rõ gói ChatGPT là tách biệt với mọi chi phí khác (ví dụ API key của user).
+- Fugue không bán credit hay gói riêng, nên không có phần so sánh gói; vẫn ghi rõ gói ChatGPT là tách biệt với mọi chi phí khác (ví dụ API key của user).
 
 ### 11.7 Spike riêng cho OpenAI
 

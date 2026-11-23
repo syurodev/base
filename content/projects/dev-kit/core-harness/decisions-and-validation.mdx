@@ -11,7 +11,7 @@ Trạng thái: **v0.13 đề xuất, ngày 2026-11-23, chờ chủ dự án duy�
 
 **Lựa chọn:** Go sở hữu execution, policy integration, tool registry/schema/validation, domain services và persistence. Frontend/native shell chỉ là host adapter.
 
-**Lý do:** DevKit đã có service/gateway và permission boundaries trong Go. Chỉ giữ agent loop bằng Go nhưng để tool/policy logic trong TypeScript vẫn buộc viết lại khi đổi frontend. Độc lập UI là một thuộc tính dependency, không chỉ lựa chọn ngôn ngữ.
+**Lý do:** Fugue đã có service/gateway và permission boundaries trong Go. Chỉ giữ agent loop bằng Go nhưng để tool/policy logic trong TypeScript vẫn buộc viết lại khi đổi frontend. Độc lập UI là một thuộc tính dependency, không chỉ lựa chọn ngôn ngữ.
 
 **Không chọn:** viết lại tools trong runtime JavaScript của frontend, hoặc gọi provider SDK từ UI để tránh bridge. Hai cách đó làm identity, cancellation, recovery và secrets phụ thuộc shell.
 
@@ -26,7 +26,7 @@ Trạng thái: **v0.13 đề xuất, ngày 2026-11-23, chờ chủ dự án duy�
 | Flags + lifecycle events | Loop ít cấu trúc, linh hoạt | Recovery, quan hệ giữa các flags và transition legality phải bổ sung phân tán nếu không có contract khác |
 | Current state + diagnostic journal | Dễ triển khai/vận hành; thường đủ cho resume đơn giản | Journal không mặc định đầy đủ để tái dựng control state hoặc kiểm chứng mọi transition |
 | Event sourcing cho execution | History và current state có cùng semantics; phù hợp điều tra, recovery và harness experiments | Được chọn, với phạm vi và chi phí bảo trì được giới hạn |
-| Event sourcing toàn DevKit | Một mô hình persistence rộng | Buộc đổi nhiều domain ổn định, tăng schema/retention complexity mà không phục vụ trực tiếp core loop |
+| Event sourcing toàn Fugue | Một mô hình persistence rộng | Buộc đổi nhiều domain ổn định, tăng schema/retention complexity mà không phục vụ trực tiếp core loop |
 
 **Chi phí chấp nhận:** schema compatibility, projection rebuild, deletion và migration phải được thiết kế. Event sourcing không tự tạo exactly-once effects, tự chứng minh task đúng hoặc làm model reproducible.
 
@@ -36,23 +36,23 @@ Trade-offs về schema, concurrency và migration của pattern được mô t�
 
 ## D-03 — Kernel chuyển trạng thái thuần; không phụ thuộc framework FSM ở baseline
 
-**Lựa chọn:** typed commands/events và hàm `decide/evolve` do DevKit sở hữu. Không xây framework state machine tổng quát; chỉ đặc tả và triển khai transition rules cần cho execution domain.
+**Lựa chọn:** typed commands/events và hàm `decide/evolve` do Fugue sở hữu. Không xây framework state machine tổng quát; chỉ đặc tả và triển khai transition rules cần cho execution domain.
 
 **Lý do:** những vấn đề khó là semantics commit, current authority và ambiguous effects. Một DSL FSM không thay thế các phần này. Kernel thuần giúp replay không kích hoạt `OnEntry` effects và giữ stdlib-only boundaries hiện hữu.
 
 **Phương án thư viện:** [qmuntal/stateless](https://github.com/qmuntal/stateless) có hierarchical states, guards, external state storage và graph export. [looplab/fsm](https://github.com/looplab/fsm) cung cấp transition/callback API gọn. Có thể đánh giá chúng ở một spike riêng nếu bảng state phát triển đủ phức tạp; không chọn chỉ vì muốn “có framework từ đầu”.
 
-**Điều kiện nhận thư viện:** giảm độ phức tạp đo được của transition rules; replay không side effects; không tạo state owner thứ hai; vẫn giữ command/event/storage contracts của DevKit; đáp ứng architecture allowlists hoặc có ADR thay boundary. Không nhúng thư viện vào leaf đang yêu cầu stdlib-only.
+**Điều kiện nhận thư viện:** giảm độ phức tạp đo được của transition rules; replay không side effects; không tạo state owner thứ hai; vẫn giữ command/event/storage contracts của Fugue; đáp ứng architecture allowlists hoặc có ADR thay boundary. Không nhúng thư viện vào leaf đang yêu cầu stdlib-only.
 
 **Không chọn:** gọi model/tool trong entry/exit callbacks, serialize đối tượng nội bộ của thư viện làm persisted schema, hoặc để UI/plugins chỉnh graph thực thi tùy ý.
 
-**Chi phí chấp nhận:** DevKit phải tự viết transition validation và test bảng transitions; thư viện không giúp giảm trách nhiệm về domain semantics.
+**Chi phí chấp nhận:** Fugue phải tự viết transition validation và test bảng transitions; thư viện không giúp giảm trách nhiệm về domain semantics.
 
 ## D-04 — Chưa dùng durable workflow engine
 
 **Lựa chọn:** tận dụng session/service/store ownership trong ứng dụng hiện tại; chưa thêm một durable workflow engine bên ngoài hoặc một scheduler độc lập.
 
-**Lý do:** DevKit hiện là desktop local-first. Thêm workflow platform đưa vào yêu cầu service/worker lifecycle, vận hành và semantics replay riêng; không loại bỏ việc phải nối identity, gates, tasks và ambiguity của tools.
+**Lý do:** Fugue hiện là desktop local-first. Thêm workflow platform đưa vào yêu cầu service/worker lifecycle, vận hành và semantics replay riêng; không loại bỏ việc phải nối identity, gates, tasks và ambiguity của tools.
 
 **Khi xem xét lại:** có yêu cầu execution kéo dài xuyên nhiều máy, remote workers, failover host và distributed orchestration. Khi đó phải so sánh engine với chi phí tự mở rộng execution substrate, không mặc định giữ local design bằng mọi giá.
 
@@ -190,7 +190,7 @@ Lớp cải tiến tương lai có thể đề xuất cấu hình, chạy thử 
 
 ## D-20 — Rule là tầng chỉ dẫn riêng, bốn lớp
 
-**Lựa chọn:** R0 (DevKit, chỉ đọc), R1 (global của user, local), R2 (`AGENTS.md` thắng `CLAUDE.md`), R3 (cá nhân theo workspace); kích hoạt luôn áp dụng hoặc theo path; lint mỗi lần lưu, audit AI khi bấm.
+**Lựa chọn:** R0 (Fugue, chỉ đọc), R1 (global của user, local), R2 (`AGENTS.md` thắng `CLAUDE.md`), R3 (cá nhân theo workspace); kích hoạt luôn áp dụng hoặc theo path; lint mỗi lần lưu, audit AI khi bấm.
 
 **Lý do:** mỗi user có phong cách riêng; review tránh trùng với system prompt và lãng phí context.
 
@@ -214,7 +214,7 @@ Lớp cải tiến tương lai có thể đề xuất cấu hình, chạy thử 
 
 ## D-23 — Contract model trung lập, ưu tiên SDK
 
-**Lựa chọn:** request, stream event và phân loại lỗi do DevKit định nghĩa; mỗi stream là một attempt, retry thuộc kernel; adapter theo họ API với cờ khả năng theo model; Anthropic trước, qua `anthropic-sdk-go` khi SDK đáp ứng các điều kiện kiểm soát. Chi tiết ở [model adapter](/dev-kit/core-harness/model-adapter).
+**Lựa chọn:** request, stream event và phân loại lỗi do Fugue định nghĩa; mỗi stream là một attempt, retry thuộc kernel; adapter theo họ API với cờ khả năng theo model; Anthropic trước, qua `anthropic-sdk-go` khi SDK đáp ứng các điều kiện kiểm soát. Chi tiết ở [model adapter](/dev-kit/core-harness/model-adapter).
 
 **Lý do:** giữ attempt, retry và usage trong journal; khác biệt provider nằm ở adapter.
 
@@ -260,11 +260,11 @@ Lớp cải tiến tương lai có thể đề xuất cấu hình, chạy thử 
 
 **Chi phí chấp nhận:** báo cáo của child tới parent chậm hơn khi parent đang chạy.
 
-## D-29 — Lõi Go của DevKit và harness là một bộ all-in-one
+## D-29 — Lõi Go của Fugue và harness là một bộ all-in-one
 
-**Lựa chọn:** harness không tách repo; nó là một phần của lõi Go DevKit, dùng thẳng các owner service. Mọi logic nghiệp vụ, quyền, lưu trữ và runtime nằm trong lõi; mọi UI là client của một Host API có schema và version ([bản đồ thiết kế](/dev-kit/core-harness/design-map) H-42).
+**Lựa chọn:** harness không tách repo; nó là một phần của lõi Go của Fugue, dùng thẳng các owner service. Mọi logic nghiệp vụ, quyền, lưu trữ và runtime nằm trong lõi; mọi UI là client của một Host API có schema và version ([bản đồ thiết kế](/dev-kit/core-harness/design-map) H-42).
 
-**Lý do:** harness gắn chặt với quyền, lưu trữ, vault, account và các owner của DevKit; tách repo tốn hai PR cho mỗi thay đổi và mất kiểm soát của `internal/arch`. Hướng sản phẩm là làm UI quanh một lõi duy nhất.
+**Lý do:** harness gắn chặt với quyền, lưu trữ, vault, account và các owner của Fugue; tách repo tốn hai PR cho mỗi thay đổi và mất kiểm soát của `internal/arch`. Hướng sản phẩm là làm UI quanh một lõi duy nhất.
 
 **Chi phí chấp nhận:** phải thiết kế Host API đầy đủ trước khi làm thêm UI; phải chuyển logic nghiệp vụ còn nằm ở frontend về lõi. Vẫn giữ `kernel` chỉ dùng stdlib và SDK chỉ nằm trong `modeladapter`.
 
@@ -314,7 +314,7 @@ Phần này chỉ giữ các điểm thiết kế của Fugue rút ra khi đối
 
 Lifecycle của một lượt xử lý gồm cả prompt và continuation, không chỉ stream của provider; vì vậy state của Fugue không gói gọn trong một cờ "đang stream". Việc tách lớp cải tiến khỏi lớp chạy là điều học được; chính sách triển khai thì không nhập vào.
 
-Các pattern tham khảo chỉ để học cách làm. Ví dụ trong đó không thay contract hiện hữu, evidence test hoặc quyết định authorization của DevKit.
+Các pattern tham khảo chỉ để học cách làm. Ví dụ trong đó không thay contract hiện hữu, evidence test hoặc quyết định authorization của Fugue.
 
 ## Open decisions trước implementation
 

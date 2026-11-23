@@ -44,7 +44,7 @@ Kernel quyết định bằng một hàm xác định sau mỗi step; lý do đ�
 - Step chạm giới hạn vẫn chạy xong tool của nó (không bỏ dở tool đã dispatch). `StepCompleted` ghi `continuation=budget` (kind `steps`); run **chưa kết thúc** mà vào `Waiting(budget)` ([state machine §9](/dev-kit/core-harness/state-machine#9-budgets-và-transcript-ordering)). Thời gian chờ không bị tính vào time budget. Trạng thái chờ là facts bền nên còn sau restart.
 - User bấm **"Chạy thêm N step"** (mặc định N = 50): coordinator ghi `BudgetExtended(kind=steps, by=N, actor=user)`, run **chạy tiếp trong cùng run**, không đếm lại từ đầu. Steer gửi trong lúc chờ được gộp vào step kế tiếp. Chỉ user được gia hạn; peer, parent, model và chế độ goal thì không.
 - User bấm **"Kết thúc"**: run kết thúc `budget_exceeded(kind=steps)`, queue đứng như hết budget ([điều phối input §6](/dev-kit/core-harness/coordination#6-khi-run-kết-thúc)). Stop thường vẫn là ngắt (`cancelled`, tin chờ về ô soạn thảo); parent vẫn hủy được child.
-- Trong lúc chờ, run vẫn chiếm session: prompt mới vào queue và chờ. DevKit gửi thông báo, nhất là khi run là agent con hoặc vòng goal.
+- Trong lúc chờ, run vẫn chiếm session: prompt mới vào queue và chờ. Fugue gửi thông báo, nhất là khi run là agent con hoặc vòng goal.
 - Chỉ `maxSteps` có trạng thái chờ này. Hết token, cost, time, tool call hay retry vẫn dừng terminal như cũ.
 - **Không tính là step**: compaction, retry model trong cùng step, chờ duyệt, chờ input, chờ worker, chờ vault.
 
@@ -64,15 +64,15 @@ Goal là **một mục tiêu dài hạn** mà session tự chạy nhiều vòng 
 
 - Mỗi session có **tối đa một goal hiện hành**. Goal chưa xong phải được sửa, dừng, tiếp tục, đánh dấu bị chặn hoặc xóa trước khi tạo goal khác; goal đã hoàn thành thì có thể thay bằng goal mới.
 - Bốn trạng thái bền: `active`, `paused`, `blocked`, `complete`. Xóa goal (`clear`) bỏ goal hiện hành; lịch sử vẫn giữ.
-- Một cờ **chỉ trong memory**: `armed` (được tự chạy) hoặc `disarmed`. Sau restart, mọi goal `active` đều `disarmed` tới khi user bấm tiếp tục; DevKit không bao giờ tự chạy lại goal sau restart (cùng cơ chế với queue đứng sau restart).
+- Một cờ **chỉ trong memory**: `armed` (được tự chạy) hoặc `disarmed`. Sau restart, mọi goal `active` đều `disarmed` tới khi user bấm tiếp tục; Fugue không bao giờ tự chạy lại goal sau restart (cùng cơ chế với queue đứng sau restart).
 - Field: `id`, `revision` (mọi thay đổi kèm revision mong đợi), mục tiêu (protected payload), số vòng đã bắt đầu, `maxRounds`, mã và lời giải thích khi bị chặn.
 - `maxRounds` mặc định **20**, cấu hình theo workspace, đặt riêng được cho từng goal.
 
 ### 5.2 Một vòng goal
 
 - Coordinator bắt đầu một vòng khi **mọi** điều kiện sau đúng: session không có run active; queue không đứng; **không có input nào khác trong queue**; goal `active` và `armed`; còn vòng.
-- Mỗi vòng là **một run bình thường**: một `Prompt` với `origin=goal`, lớp ưu tiên **thấp nhất** (dưới peer message). Nội dung do DevKit tạo: mục tiêu (trích nguyên văn), số vòng hiện tại trên `maxRounds`, và chỉ dẫn coi trạng thái thật của workspace và kết quả tool là căn cứ, dùng tool goal để báo xong hoặc bị chặn.
-- Vòng chạy với **preset, grant và budget bình thường** của session, kể cả `maxSteps` mỗi run. Approval vẫn bắt buộc như mọi run; vòng phải chờ duyệt thì goal không chạy vòng mới cho tới khi có câu trả lời, và DevKit gửi thông báo cho user.
+- Mỗi vòng là **một run bình thường**: một `Prompt` với `origin=goal`, lớp ưu tiên **thấp nhất** (dưới peer message). Nội dung do Fugue tạo: mục tiêu (trích nguyên văn), số vòng hiện tại trên `maxRounds`, và chỉ dẫn coi trạng thái thật của workspace và kết quả tool là căn cứ, dùng tool goal để báo xong hoặc bị chặn.
+- Vòng chạy với **preset, grant và budget bình thường** của session, kể cả `maxSteps` mỗi run. Approval vẫn bắt buộc như mọi run; vòng phải chờ duyệt thì goal không chạy vòng mới cho tới khi có câu trả lời, và Fugue gửi thông báo cho user.
 
 ### 5.3 Khi vòng kết thúc
 

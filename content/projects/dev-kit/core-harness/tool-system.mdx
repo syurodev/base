@@ -139,7 +139,7 @@ Xin lại đúng mode hiện tại thì không hỏi; xin hẹp hơn là args kh
 - Mỗi lệnh chạy một lần, **bên trong jail sống theo session**: không tương tác (stdin đóng, `CI=1`, `PAGER=cat`), trả exit code, stdout và stderr tách riêng.
 - Output cho model có hai chế độ, `compact` (mặc định) và `full`; output gốc bị ẩn được giữ trong memory và đọc lại bằng `shell.output` mà không chạy lại lệnh ([shell và job §3](/dev-kit/core-harness/shell-job#3-output-compact-và-full)).
 - Policy áp theo từng lời gọi: grant mới có hiệu lực ngay từ lời gọi tiếp theo.
-- **cwd do DevKit giữ trong journal**: wrapper ghi cwd cuối ra kênh riêng, lưu trong result; lời gọi sau mặc định dùng cwd đó, chỉ trong workspace. Env không giữ giữa các lời gọi; model truyền qua tham số `env` theo allowlist.
+- **cwd do Fugue giữ trong journal**: wrapper ghi cwd cuối ra kênh riêng, lưu trong result; lời gọi sau mặc định dùng cwd đó, chỉ trong workspace. Env không giữ giữa các lời gọi; model truyền qua tham số `env` theo allowlist.
 - Khi lệnh xong, process group **của lệnh đó** bị kill. Daemon đã tự tách (Gradle, Kotlin, mvnd) sống tiếp trong jail của session, hiện trong session view, bị dừng khi session kết thúc. Daemon không phải attempt nên không cản `RunFinished`.
 - Daemon đang chạy giữ policy lúc nó khởi động (có thể hẹp hơn grant mới); user có thể restart daemon từ UI.
 
@@ -153,27 +153,27 @@ Xin lại đúng mode hiện tại thì không hỏi; xin hẹp hơn là args kh
 
 ### 7.3 Env của host
 
-- Khi session bắt đầu, chạy `$SHELL -l -i -c env` của user **một lần, ngoài sandbox**, có timeout; cache cho cả session, có nút refresh. Lỗi hoặc treo thì fallback về env hiện có của DevKit (`os.Environ` cộng các thư mục bin phổ biến) và báo cho user.
+- Khi session bắt đầu, chạy `$SHELL -l -i -c env` của user **một lần, ngoài sandbox**, có timeout; cache cho cả session, có nút refresh. Lỗi hoặc treo thì fallback về env hiện có của Fugue (`os.Environ` cộng các thư mục bin phổ biến) và báo cho user.
 - Giá trị env không bao giờ vào journal, log hay audit; journal chỉ ghi env snapshot revision.
 - Shared-home: `~/.m2`, `~/.gradle`, `~/.cache` đọc ghi trực tiếp để build dùng chung cache; `~/.ssh`, `~/.gnupg`, `~/.aws`, gcloud vẫn bị chặn đọc.
 - **Giới hạn đã chấp nhận:** Gradle client trong jail có thể kết nối tới daemon của host qua registry trong `~/.gradle` và loopback; khi đó build chạy ngoài sandbox với JDK và env của daemon host. Bazel và sbt có cùng kiểu vấn đề.
 
 ### 7.4 Platform
 
-- macOS: seatbelt gán profile theo từng process, daemon kế thừa profile. DevKit giữ registry process của session (PID kèm thời điểm start, ghi trong journal) và chạy reaper khi khởi động để dọn process mồ côi sau crash.
+- macOS: seatbelt gán profile theo từng process, daemon kế thừa profile. Fugue giữ registry process của session (PID kèm thời điểm start, ghi trong journal) và chạy reaper khi khởi động để dọn process mồ côi sau crash.
 - Linux: bwrap `--die-with-parent` cho bằng chứng dừng; daemon sống qua nhiều lời gọi trong cùng PID namespace nhờ supervisor theo session ([sandbox runtime](/dev-kit/core-harness/sandbox-runtime) §4).
 - Model attempt bị gián đoạn do host crash được tính vào retry budget để crash lặp có điểm dừng.
 
 ## 8. Network và Docker
 
 - Giai đoạn A: network `host` cho preset Workspace và Full access. Mức bảo vệ thực tế của giai đoạn A chủ yếu là chặn ghi ngoài workspace và chặn đọc thư mục nhạy cảm; **không chặn được dữ liệu bị gửi ra ngoài**. Activation UX phải nói rõ điều này.
-- Dài hạn: mode `egress-allowlist` qua proxy HTTP(S) CONNECT của DevKit (registry, VCS host, host do user khai báo), vẫn cho loopback tới dịch vụ local.
+- Dài hạn: mode `egress-allowlist` qua proxy HTTP(S) CONNECT của Fugue (registry, VCS host, host do user khai báo), vẫn cho loopback tới dịch vụ local.
 - Docker giai đoạn A (preset Full access):
   - Tìm endpoint bằng `docker context inspect --format '{{.Endpoints.docker.Host}}'` ngoài sandbox, dùng env snapshot, có timeout.
   - `unix://` thì resolve symlink rồi thêm vào `AllowUnixSockets`; `tcp://` đã có qua network `host`; `ssh://` không hỗ trợ ở v1.
   - Thư mục thật của CLI (resolve từ PATH) thêm vào `ReadOnlyPaths`.
   - Giới hạn: `credsStore` dùng Keychain có thể bị seatbelt chặn, nên pull image từ registry private có thể lỗi.
-- Dài hạn: **Docker proxy** do DevKit sở hữu (lọc API, chỉ cho bind mount trong workspace, cấm privileged và host namespaces, gắn label session cho container), ưu tiên hơn việc nhúng container runtime vào DevKit vì không ảnh hưởng setup Docker sẵn có của user.
+- Dài hạn: **Docker proxy** do Fugue sở hữu (lọc API, chỉ cho bind mount trong workspace, cấm privileged và host namespaces, gắn label session cho container), ưu tiên hơn việc nhúng container runtime vào Fugue vì không ảnh hưởng setup Docker sẵn có của user.
 
 ## 9. Snapshot
 

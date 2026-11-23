@@ -1,6 +1,6 @@
 ---
 title: Core harness
-description: Thiết kế kỹ thuật nền tảng cho runtime agent do DevKit sở hữu.
+description: Thiết kế kỹ thuật nền tảng cho runtime agent do Fugue sở hữu.
 ---
 
 # Core harness
@@ -13,7 +13,7 @@ description: Thiết kế kỹ thuật nền tảng cho runtime agent do DevKit 
 | Ngôn ngữ thực thi | Go cho runtime, application services và hệ thống tool; frontend là adapter |
 | Hướng kiến trúc | State machine tường minh + event sourcing giới hạn cho execution + thực thi tác động qua service/gateway hiện hữu |
 
-Tài liệu này đặc tả nền tảng để DevKit sở hữu vòng gọi model và điều khiển tool. Đây không phải mô tả tính năng đã có, hướng dẫn sử dụng, hoặc kế hoạch chuyển toàn bộ hệ thống sang event sourcing. Các trạng thái, event và port trong bộ tài liệu là hợp đồng logic đề xuất, chưa phải API, package hay schema SQL đã được phát hành.
+Tài liệu này đặc tả nền tảng để Fugue sở hữu vòng gọi model và điều khiển tool. Đây không phải mô tả tính năng đã có, hướng dẫn sử dụng, hoặc kế hoạch chuyển toàn bộ hệ thống sang event sourcing. Các trạng thái, event và port trong bộ tài liệu là hợp đồng logic đề xuất, chưa phải API, package hay schema SQL đã được phát hành.
 
 ## Cách đọc
 
@@ -76,7 +76,7 @@ Trong bộ tài liệu:
 - **Đề xuất** là lựa chọn kỹ thuật cần tiếp tục đối chiếu trước implementation.
 - **Open decision / gate** là vấn đề chưa được giải quyết; không được ngầm chọn bằng code.
 
-Hướng sản phẩm đã thống nhất: DevKit sở hữu runtime; backend và tools độc lập frontend; state machine cùng execution history được thiết kế ngay từ đầu. Việc ghi hướng này không xác nhận các chi tiết schema, số state, thư viện hoặc hành vi resume đã được chấp nhận để phát hành.
+Hướng sản phẩm đã thống nhất: Fugue sở hữu runtime; backend và tools độc lập frontend; state machine cùng execution history được thiết kế ngay từ đầu. Việc ghi hướng này không xác nhận các chi tiết schema, số state, thư viện hoặc hành vi resume đã được chấp nhận để phát hành.
 
 ## Bất biến nền tảng
 
