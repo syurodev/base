@@ -7,7 +7,7 @@ description: H-45 — client `fugue` của giai đoạn A: host dùng chung tự
 
 **v0.14 (2026-11-08): client CLI/TUI sang giai đoạn B.** Theo quyết định của chủ dự án, giai đoạn A chỉ có [desktop app Gio](/dev-kit/core-harness/desktop-app) (H-33). Binary `fugue` của giai đoạn A chỉ còn hai lệnh con hạ tầng: `fugue serve` (§2.1, chạy foreground, exit code ở §5.2) và `fugue mcp-bridge` ([vendor runtime §12](/dev-kit/core-harness/vendor-runtime#12-bảo-mật)). Quy tắc vòng đời host ở §2.2 (lease, 10 s ân hạn, tắt có trật tự) và version ở §2.3 vẫn áp dụng, với app là client tự khởi động host ([desktop app](/dev-kit/core-harness/desktop-app) DA-07). Phần còn lại của trang (TUI, lệnh con, đăng nhập ChatGPT) viết cho native v0.13 và cần một lượt sửa cho vendor runtime trước khi vào giai đoạn B.
 
-Trạng thái: v0.13, ngày 2026-11-04. **Thiết kế đã chốt** cho H-45 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Client nói chuyện với host qua [Host API](/dev-kit/core-harness/host-api); hiển thị failure theo [phát hành giai đoạn A §3](/dev-kit/core-harness/activation#3-failure-ux-bắt-buộc); trả lời interaction theo ràng buộc CLI-first ở [hỏi user và kế hoạch §5](/dev-kit/core-harness/ask-plan#5-ràng-buộc-cli-first).
+Trạng thái: v0.13, ngày 2026-11-04. **Thiết kế đã chốt** cho H-45 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Client nói chuyện với host qua [Host API](/dev-kit/core-harness/host-api); hiển thị failure theo [phát hành giai đoạn A §3](/dev-kit/core-harness/activation#3-failure-ux-bắt-buộc); trả lời interaction theo ràng buộc CLI-first ở [hỏi user và kế hoạch §5](/dev-kit/core-harness/ask-plan#5-ràng-buộc-cli-first). **v0.15 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: CL-E01 đến CL-E04 giữ ở giai đoạn A (host), CL-E05 đến CL-E12 đánh dấu giai đoạn B hoặc tách; yêu cầu không đổi.**
 
 ## 1. Quyết định
 
@@ -247,24 +247,24 @@ Preview chỉ hiện metadata cho phép theo INV-09; nội dung payload chỉ hi
 
 **Host**
 
-- **CL-E01** Tự khởi động khi chưa có host; hai client cùng khởi động chỉ ra một host.
-- **CL-E02** Lease: host tắt sau 10 s khi client cuối rời; client mới trong 10 s hủy việc tắt; `fugue serve` foreground không tự tắt.
-- **CL-E03** TUI cuối cùng thoát khi còn việc thì hỏi; tắt có trật tự (stop intent, job có proof, request bị bỏ); run chờ quota và budget còn sau khi host khởi động lại.
-- **CL-E04** Version: tương thích, host cũ rảnh (đề nghị khởi động lại), host cũ có việc, host mới hơn (exit 8).
+- **CL-E01** (A, phủ bởi DA-E08) Tự khởi động khi chưa có host; hai client cùng khởi động chỉ ra một host.
+- **CL-E02** (A, phủ bởi DA-E08) Lease: host tắt sau 10 s khi client cuối rời; client mới trong 10 s hủy việc tắt; `fugue serve` foreground không tự tắt.
+- **CL-E03** (tách) Giai đoạn A: phần tắt có trật tự của host (stop intent, job có proof, request bị bỏ; run chờ quota và budget còn sau restart), app hỏi khi đóng cửa sổ cuối còn việc theo DA-E08. Giai đoạn B: câu hỏi của TUI cuối cùng. Bản gốc: TUI cuối cùng thoát khi còn việc thì hỏi; tắt có trật tự (stop intent, job có proof, request bị bỏ); run chờ quota và budget còn sau khi host khởi động lại.
+- **CL-E04** (A, phủ bởi HA-E05) Version: tương thích, host cũ rảnh (đề nghị khởi động lại), host cũ có việc, host mới hơn (exit 8).
 
 **TUI**
 
-- **CL-E05** Golden test bằng teatest: mỗi loại mục scrollback, hộp `confirm`/escalation, `ask_user` nhiều câu, duyệt `plan`, dòng trạng thái ở 80 và 120 cột, terminal dưới 80 cột.
-- **CL-E06** Bảng phím: steer, xếp hàng, interject, dừng và gửi ngay, đổi mode.
-- **CL-E07** Mục chỉ được in khi đã xong; mục đang chạy chỉ ở vùng sống.
-- **CL-E08** Mọi chuỗi giao diện tiếng Anh: test quét chuỗi literal trong `internal/tui`.
+- **CL-E05** (B) Golden test bằng teatest: mỗi loại mục scrollback, hộp `confirm`/escalation, `ask_user` nhiều câu, duyệt `plan`, dòng trạng thái ở 80 và 120 cột, terminal dưới 80 cột.
+- **CL-E06** (B) Bảng phím: steer, xếp hàng, interject, dừng và gửi ngay, đổi mode.
+- **CL-E07** (B) Mục chỉ được in khi đã xong; mục đang chạy chỉ ở vùng sống.
+- **CL-E08** (B) Mọi chuỗi giao diện tiếng Anh: test quét chuỗi literal trong `internal/tui`.
 
 **Lệnh con**
 
-- **CL-E09** Mỗi lệnh chạy không TTY; `--json` khớp schema; exit code theo §5.2.
-- **CL-E10** `fugue run` với ba chế độ `--on-approval` và `--detach`.
-- **CL-E11** Password chỉ qua nhập ẩn hoặc `--password-stdin`.
-- **CL-E12** Mỗi dòng của §6 có hiển thị TUI và exit code hoặc mã lỗi.
+- **CL-E09** (tách) Giai đoạn A: exit code của `fugue serve` theo §5.2. Giai đoạn B: các lệnh còn lại và `--json`. Bản gốc: mỗi lệnh chạy không TTY; `--json` khớp schema; exit code theo §5.2.
+- **CL-E10** (B) `fugue run` với ba chế độ `--on-approval` và `--detach`.
+- **CL-E11** (B) Password chỉ qua nhập ẩn hoặc `--password-stdin`.
+- **CL-E12** (B) Mỗi dòng của §6 có hiển thị TUI và exit code hoặc mã lỗi.
 
 ## 10. Phụ thuộc
 

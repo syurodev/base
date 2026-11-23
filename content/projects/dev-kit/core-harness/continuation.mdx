@@ -5,9 +5,7 @@ description: Khi nào một run chạy tiếp hay kết thúc, giới hạn step
 
 # Continuation và điều kiện dừng
 
-Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-31 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), gồm cả chế độ goal (giai đoạn A).
-
-Tham khảo: vòng lặp của pi (`agent-loop.ts`: chạy tiếp khi còn tool call hoặc steer, đánh lỗi tool call khi `length`, cờ `terminate`; `pi-durable`: `maxTurns`, `turn_limit`, `onYield`), deepseek-harness (nhắc khi lặp ở lần 3/5/8, không có giới hạn turn dựng sẵn, chế độ goal với giới hạn vòng và luật bị chặn).
+Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-31 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), gồm cả chế độ goal (giai đoạn A). **v0.13 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.**
 
 ## 1. Quyết định
 
@@ -15,7 +13,7 @@ Tham khảo: vòng lặp của pi (`agent-loop.ts`: chạy tiếp khi còn tool 
 | --- | --- |
 | CN-01 | Mỗi run có `maxSteps` mặc định **100**, cấu hình được theo workspace; chạm giới hạn thì run **chờ** ở `Waiting(budget)`, user bấm **"Chạy thêm N step"** để chạy tiếp trong cùng run hoặc kết thúc run |
 | CN-02 | Câu trả lời bị cắt vì `length` mà không có tool call: **tự chạy tiếp một lần** |
-| CN-03 | Phát hiện lặp **giống deepseek-harness**: chỉ **nhắc** ở lần lặp thứ 3, 5 và 8; không dừng cứng |
+| CN-03 | Phát hiện lặp: chỉ **nhắc** ở lần lặp thứ 3, 5 và 8; không dừng cứng |
 | CN-04 | **Chế độ goal** (mục tiêu dài hạn tự chạy nhiều vòng) thuộc **giai đoạn A** |
 
 ## 2. Quyết định sau mỗi step

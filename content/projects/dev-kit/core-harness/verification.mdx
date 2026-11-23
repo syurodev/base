@@ -5,7 +5,7 @@ description: H-39 — một bộ kiểm chứng cho giai đoạn A: ID ổn đ�
 
 # Bộ kiểm chứng
 
-Trạng thái: **v0.17 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt**. v0.17 (đề xuất, Fugue FUG-37): A-E04 sang cổng B (số ID `A-E` ở §2, hàng Kernel property ở §3), `CL-E` đánh dấu cổng B, `FT-E14` sang cổng B (§3, §6, §8), ví dụ `covers` ở §6 là đường dẫn giai đoạn A. v0.16 (đề xuất, Fugue FUG-37): §3 viết lại theo giai đoạn A: end-to-end chạy `fugue serve` thật với vendor là CLI giả (và app Gio hoặc host headless), faux provider và E2E CLI native sang B cùng native runtime; §4, §6, §8 khớp theo. v0.15 (chủ dự án chốt 2026-11-23, Fugue FUG-34): hàng Probe ở §3 khớp bộ A-E03 gộp (invariant lõi theo code giai đoạn A cộng probe bảo mật), và số ID `A-E` ở §2 sửa từ 9 thành 10 (A-E09 thuộc cổng B). Thiết kế đã chốt từ v0.14 cho phần test của H-39 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Eval prompt và tool để giai đoạn B. Trang này nói **cách** kiểm chứng; **yêu cầu** nằm ở mục Evidence của từng trang thiết kế. Điều kiện phát hành ở [phát hành giai đoạn A §5](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a).
+Trạng thái: **v0.17 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt**. v0.17 (đề xuất, Fugue FUG-37): A-E04 sang cổng B (số ID `A-E` ở §2, hàng Kernel property ở §3), `CL-E` tách (host ở A, client CLI/TUI ở B), `FT-E14` sang cổng B (§3, §6, §8), ví dụ `covers` ở §6 là đường dẫn giai đoạn A. v0.16 (đề xuất, Fugue FUG-37): §3 viết lại theo giai đoạn A: end-to-end chạy `fugue serve` thật với vendor là CLI giả (và app Gio hoặc host headless), faux provider và E2E CLI native sang B cùng native runtime; §4, §6, §8 khớp theo. v0.15 (chủ dự án chốt 2026-11-23, Fugue FUG-34): hàng Probe ở §3 khớp bộ A-E03 gộp (invariant lõi theo code giai đoạn A cộng probe bảo mật), và số ID `A-E` ở §2 sửa từ 9 thành 10 (A-E09 thuộc cổng B). Thiết kế đã chốt từ v0.14 cho phần test của H-39 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Eval prompt và tool để giai đoạn B. Trang này nói **cách** kiểm chứng; **yêu cầu** nằm ở mục Evidence của từng trang thiết kế. Điều kiện phát hành ở [phát hành giai đoạn A §5](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a).
 
 ## 1. Quyết định
 
@@ -27,7 +27,7 @@ Trạng thái: **v0.17 đề xuất, ngày 2026-11-23, chờ chủ dự án duy�
 | `AP-E` | [Hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan) §7 | 6 |
 | `BG-E` | [Budget và quota](/dev-kit/core-harness/budget) §9 | 13 |
 | `C-E` | [Context engine](/dev-kit/core-harness/context-engine) §9 | 7 |
-| `CL-E` | [CLI và TUI](/dev-kit/core-harness/cli) §9 | 12 (cổng B) |
+| `CL-E` | [CLI và TUI](/dev-kit/core-harness/cli) §9 | 12 (CL-E01, CL-E02, CL-E04 và phần host của CL-E03, CL-E09 ở giai đoạn A; còn lại cổng B) |
 | `CN-E` | [Continuation](/dev-kit/core-harness/continuation) §8 | 5 |
 | `CS-E` | [An toàn nội dung](/dev-kit/core-harness/content-safety) §7 | 13 |
 | `DA-E` | [Desktop app](/dev-kit/core-harness/desktop-app) §10 | 8 |

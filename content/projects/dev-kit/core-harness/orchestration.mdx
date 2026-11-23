@@ -5,9 +5,9 @@ description: H-49 — agent tự quyết làm một mình hay đề xuất lập
 
 # Orchestration
 
-Trạng thái: **đề xuất v0.2, ngày 2026-11-07, chờ chủ dự án duyệt**. v0.2 thêm lập đội theo đề xuất (§5), đội nhiều tầng và luồng thông tin theo ngoại lệ (§6), tích hợp theo tầng (§9). **v0.3 (2026-11-19), chờ duyệt**: channel của đội kiểu Slack (§6.7): người xem và nhắn trong một channel có thread theo task; agent vẫn chỉ nhận thông tin của mình, cộng nhắn ngang trong nhóm có hạn mức và tool đọc channel. Mảng H-49 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-30 (team cho native) ở giai đoạn A. Chạy trên [vendor runtime](/dev-kit/core-harness/vendor-runtime) (H-47), hiển thị qua [transcript](/dev-kit/core-harness/transcript) (H-48) và [desktop app](/dev-kit/core-harness/desktop-app) (H-33). **v0.4 (2026-11-21), chủ dự án duyệt**: review chéo theo bundle với Open Code Review (§10.1, Q-192 của F11.5) và cách tích hợp task con được nhận lại sau khi huỷ trưởng nhóm (§10.2, Q-193); OR-E21, OR-E22.
+Trạng thái: **đề xuất v0.2, ngày 2026-11-07, chờ chủ dự án duyệt**. v0.2 thêm lập đội theo đề xuất (§5), đội nhiều tầng và luồng thông tin theo ngoại lệ (§6), tích hợp theo tầng (§9). **v0.3 (2026-11-19), chờ duyệt**: channel của đội kiểu Slack (§6.7): người xem và nhắn trong một channel có thread theo task; agent vẫn chỉ nhận thông tin của mình, cộng nhắn ngang trong nhóm có hạn mức và tool đọc channel. Mảng H-49 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-30 (team cho native) ở giai đoạn A. Chạy trên [vendor runtime](/dev-kit/core-harness/vendor-runtime) (H-47), hiển thị qua [transcript](/dev-kit/core-harness/transcript) (H-48) và [desktop app](/dev-kit/core-harness/desktop-app) (H-33). **v0.4 (2026-11-21), chủ dự án duyệt**: review chéo theo bundle với Open Code Review (§10.1, Q-192 của F11.5) và cách tích hợp task con được nhận lại sau khi huỷ trưởng nhóm (§10.2, Q-193); OR-E21, OR-E22. **v0.5 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.**
 
-Tham khảo đã nghiên cứu: orchestration của [Orca](https://github.com/stablyai/orca) (`worker-start`, mailbox, đánh thức coordinator, "silence never proves exit"), `delegate_task` và credential pool của [Hermes](https://github.com/nousresearch/hermes-agent) (`output_schema`, giao kết quả at-least-once, bảng xoay account theo lỗi), `PickAccount` của Agent Hub ([budget và quota §3](/dev-kit/core-harness/budget)), spike swarm ngày 2026-11-07 (§14), và mẫu giao diện cây agent do chủ dự án cung cấp (orchestrator, trưởng nhóm, thành viên; badge "cần bạn" và "thất bại"; chi phí theo từng nút; task thất bại được thay bằng lần chạy mới).
+Tham khảo đã nghiên cứu: `PickAccount` của Agent Hub ([budget và quota §3](/dev-kit/core-harness/budget)), spike swarm ngày 2026-11-07 (§14), và mẫu giao diện cây agent do chủ dự án cung cấp (orchestrator, trưởng nhóm, thành viên; badge "cần bạn" và "thất bại"; chi phí theo từng nút; task thất bại được thay bằng lần chạy mới).
 
 ## 1. Phạm vi
 
@@ -262,7 +262,7 @@ Mức dùng của một task là chênh lệch tín hiệu quota quanh task trê
 
 Chọn account cho task mới theo `PickAccount` ([budget §3](/dev-kit/core-harness/budget)): chiến lược `order` (mặc định), `best` hoặc `consumeFirst`; giữ account vừa dùng 5 phút để tận dụng cache; bỏ qua account vượt ngưỡng (OR-09) hoặc `paused`.
 
-Phân loại lỗi (theo credential pool của Hermes):
+Phân loại lỗi:
 
 | Tín hiệu | Hành động |
 | --- | --- |

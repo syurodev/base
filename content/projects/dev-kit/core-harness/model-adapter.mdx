@@ -5,9 +5,9 @@ description: Contract gọi model trung lập với provider — stream, phân l
 
 # Model adapter
 
-Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-07 (adapter và converter), H-08 (usage và cost) và H-09 (account, auth, chọn model) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Tên option của SDK được xác minh trong spike ([mục 10](#10-spike-và-evidence)).
+Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-07 (adapter và converter), H-08 (usage và cost) và H-09 (account, auth, chọn model) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Tên option của SDK được xác minh trong spike ([mục 10](#10-spike-và-evidence)). **v0.13 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.**
 
-Tham khảo: pi-ai (stream chuẩn hóa, auth, chuyển model, system message và tool giữa hội thoại), deepseek-harness (`llm`, `llm-retry`, `token-meter`), module `accounts` và cơ chế failover account của Agent Hub, tài liệu [Sign in with ChatGPT cho ứng dụng mã nguồn mở](https://developers.openai.com/siwc/token-sharing-open-source) của OpenAI.
+Tham khảo: module `accounts` và cơ chế failover account của Agent Hub, tài liệu [Sign in with ChatGPT cho ứng dụng mã nguồn mở](https://developers.openai.com/siwc/token-sharing-open-source) của OpenAI (quy tắc chương trình của nhà cung cấp, giữ lại vì là căn cứ tuân thủ).
 
 ## 1. Quyết định
 
