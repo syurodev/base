@@ -5,7 +5,7 @@ description: H-50 — mỗi lượt của phiên vendor có diff thật của th
 
 # Diff theo lượt và bảo vệ push
 
-Trạng thái: **v0.1, ngày 2026-11-11, chờ duyệt**. Mảng H-50 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Trang này dùng lại snapshot bằng shadow git của [tool system §9](/dev-kit/core-harness/tool-system#9-snapshot) cho [phiên vendor](/dev-kit/core-harness/vendor-runtime), và bộ nhận diện của [an toàn nội dung](/dev-kit/core-harness/content-safety) cho lịch sử git.
+Trạng thái: **v0.2, ngày 2026-11-23**. v0.1 (2026-11-11) đề xuất cả hai nửa. **v0.2 (2026-11-23, Fugue FUG-47)**: chủ dự án duyệt §3 (diff theo lượt và quét secret cuối lượt, GG-01 đến GG-04, GG-E01 đến GG-E05) cho giai đoạn A; §4 (pre-push hook, GG-05 đến GG-10, GG-E06 đến GG-E10) hoãn **sau giai đoạn A** và vẫn chờ duyệt. Mảng H-50 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Trang này dùng lại snapshot bằng shadow git của [tool system §9](/dev-kit/core-harness/tool-system#9-snapshot) cho [phiên vendor](/dev-kit/core-harness/vendor-runtime), và bộ nhận diện của [an toàn nội dung](/dev-kit/core-harness/content-safety) cho lịch sử git.
 
 ## 1. Phạm vi
 
@@ -13,8 +13,8 @@ Trạng thái: **v0.1, ngày 2026-11-11, chờ duyệt**. Mảng H-50 trong [b�
 | --- | --- |
 | Diff thật của thư mục làm việc cho mỗi lượt của phiên vendor, kể cả thay đổi do lệnh shell, formatter hay script tạo ra | Restore về đầu lượt (giai đoạn B, cùng snapshot của native, F6.2) |
 | Quét secret trong phần thêm vào của lượt, chỉ cảnh báo | Chặn ghi file chứa secret |
-| Pre-push hook bật theo từng repo: quét các commit sắp push, có kết quả thì hỏi user trong app | Cấm push; quét push từ máy khác hoặc trên CI |
-| Ngoại lệ theo từng repo, lưu trong data dir của Fugue | Đọc file cấu hình hay ngoại lệ nằm trong repo |
+| Pre-push hook bật theo từng repo: quét các commit sắp push, có kết quả thì hỏi user trong app (sau giai đoạn A, §4) | Cấm push; quét push từ máy khác hoặc trên CI |
+| Ngoại lệ theo từng repo, lưu trong data dir của Fugue (sau giai đoạn A, cùng §4) | Đọc file cấu hình hay ngoại lệ nằm trong repo |
 
 Đây là **lưới chống lỡ tay**, không phải ranh giới bảo mật. Agent có ý xấu vẫn lách được (`git push --no-verify`, gọi thẳng `/usr/bin/git`, gửi dữ liệu bằng `curl`). Chống đưa dữ liệu ra ngoài là việc của egress allowlist ([sandbox runtime §13](/dev-kit/core-harness/sandbox-runtime), giai đoạn B).
 
@@ -26,12 +26,12 @@ Trạng thái: **v0.1, ngày 2026-11-11, chờ duyệt**. Mảng H-50 trong [b�
 | GG-02 | Diff theo lượt là **một item `turn_diff`** trong transcript ([transcript](/dev-kit/core-harness/transcript) v0.3). Payload chỉ giữ danh sách file và số dòng; nội dung diff dựng lại từ shadow git khi client đọc, qua redact như mọi nội dung khác |
 | GG-03 | Snapshot **không bao giờ chặn lượt**: quá hạn hoặc lỗi thì `turn_diff` mang trạng thái `unavailable`, lượt vẫn chạy |
 | GG-04 | Cuối lượt, phần **thêm vào** của diff được quét bằng bộ nhận diện của content-safety (CS-08). Có kết quả thì thêm `notice(warning, possible_secret)`; không hỏi, không chặn |
-| GG-05 | Bảo vệ push là **pre-push hook do user bật cho từng repo** từ app. Fugue không bao giờ ghi đè hook có sẵn hay `core.hooksPath` của user |
-| GG-06 | Hook quét **từng commit** trong dải sắp push, không quét diff gộp: secret thêm rồi xoá trong cùng loạt commit vẫn nằm trong lịch sử được push |
-| GG-07 | Có kết quả thì hỏi user qua interaction owner; user chọn **vẫn push** hoặc **huỷ**. Không có cách trả lời nào ngoài user; host không chạy thì hook in kết quả đã che và dừng push, kèm cách push có chủ đích |
-| GG-08 | Không tin nội dung của repo: Fugue dùng bộ rule của chính nó, không đọc file cấu hình hay ngoại lệ trong repo, không chạy diff driver hay textconv của repo khi quét |
-| GG-09 | Ngoại lệ "bỏ qua trong repo này" lưu trong data dir, khoá theo repo và **fingerprint** (CS-08), không chứa giá trị thật |
-| GG-10 | Binary `fugue` không còn ở đường dẫn hook ghi: hook in cảnh báo rồi **cho push**. Hook sống lâu hơn bản cài của Fugue, và mục tiêu là xác nhận chứ không cấm |
+| GG-05 (sau giai đoạn A) | Bảo vệ push là **pre-push hook do user bật cho từng repo** từ app. Fugue không bao giờ ghi đè hook có sẵn hay `core.hooksPath` của user |
+| GG-06 (sau giai đoạn A) | Hook quét **từng commit** trong dải sắp push, không quét diff gộp: secret thêm rồi xoá trong cùng loạt commit vẫn nằm trong lịch sử được push |
+| GG-07 (sau giai đoạn A) | Có kết quả thì hỏi user qua interaction owner; user chọn **vẫn push** hoặc **huỷ**. Không có cách trả lời nào ngoài user; host không chạy thì hook in kết quả đã che và dừng push, kèm cách push có chủ đích |
+| GG-08 (sau giai đoạn A) | Không tin nội dung của repo: Fugue dùng bộ rule của chính nó, không đọc file cấu hình hay ngoại lệ trong repo, không chạy diff driver hay textconv của repo khi quét |
+| GG-09 (sau giai đoạn A) | Ngoại lệ "bỏ qua trong repo này" lưu trong data dir, khoá theo repo và **fingerprint** (CS-08), không chứa giá trị thật |
+| GG-10 (sau giai đoạn A) | Binary `fugue` không còn ở đường dẫn hook ghi: hook in cảnh báo rồi **cho push**. Hook sống lâu hơn bản cài của Fugue, và mục tiêu là xác nhận chứ không cấm |
 
 ## 3. Diff theo lượt
 
@@ -62,7 +62,9 @@ Trạng thái: **v0.1, ngày 2026-11-11, chờ duyệt**. Mảng H-50 trong [b�
 - Mỗi kết quả trong payload của notice gồm: rule, đường dẫn, số dòng, fingerprint, tối đa 4 ký tự đầu và 2 ký tự cuối của giá trị. Giá trị thật không vào payload, metadata hay log.
 - Kết quả không đổi state của phiên và không hỏi user.
 
-## 4. Bảo vệ push
+## 4. Bảo vệ push (sau giai đoạn A)
+
+Phần này **chưa được duyệt** và không thuộc giai đoạn A (v0.2, 2026-11-23). Nội dung giữ nguyên từ v0.1 để làm cơ sở khi mở lại. Không có client kind `guard`, không có yêu cầu xác nhận push và không có mục cài đặt bảo vệ push trong app ở giai đoạn A; biến `FUGUE_SESSION_ID` ở §4.3 cũng vào cùng lúc với hook.
 
 ### 4.1 Bật và tắt
 
@@ -120,9 +122,9 @@ Push do phiên vendor chạy vẫn đi qua yêu cầu duyệt của chính vendo
 | --- | --- |
 | Thời gian một lần chụp turn snapshot | 10 s |
 | Nội dung thêm vào được quét cuối lượt | 20 MB |
-| Commit được quét mỗi lần push | 1.000 |
-| Nội dung thêm vào được quét mỗi lần push | 50 MB |
-| Hook chờ user trả lời | 10 phút |
+| Commit được quét mỗi lần push (sau giai đoạn A) | 1.000 |
+| Nội dung thêm vào được quét mỗi lần push (sau giai đoạn A) | 50 MB |
+| Hook chờ user trả lời (sau giai đoạn A) | 10 phút |
 
 ## 7. Evidence
 
@@ -133,11 +135,11 @@ Push do phiên vendor chạy vẫn đi qua yêu cầu duyệt của chính vendo
 | **GG-E03** | Snapshot quá hạn hoặc lỗi: `turn_diff` là `unavailable`, lượt vẫn chạy và kết thúc bình thường; spike đo thời gian chụp trên repo khoảng 100 nghìn file |
 | **GG-E04** | Hai phiên chạy cùng lúc trên một thư mục: `turn_diff` của cả hai có `overlapped` |
 | **GG-E05** | Secret cài sẵn trong phần thêm vào tạo `notice(possible_secret)`; giá trị thật không có trong DB, log hay metadata (cách quét của CS-E06) |
-| **GG-E06** | Dải của hook: cập nhật ref, ref mới, force push, xoá ref, tag; secret thêm rồi xoá trong cùng loạt commit vẫn bị bắt |
-| **GG-E07** | Repo có file ngoại lệ, cấu hình rule và diff driver hay textconv ghi file đánh dấu: kết quả quét không đổi và file đánh dấu không được tạo |
-| **GG-E08** | Luồng xác nhận end-to-end: vẫn push thì push xong; huỷ, hết hạn, host không chạy thì push dừng với stderr đã che; binary bị gỡ thì cảnh báo và push xong |
-| **GG-E09** | Bật bảo vệ không ghi đè hook có sẵn hay `core.hooksPath`; tắt chỉ xoá hook của Fugue |
-| **GG-E10** | Ngoại lệ theo fingerprint vẫn đúng sau rebase; kho ngoại lệ không chứa giá trị thật |
+| **GG-E06** (sau giai đoạn A) | Dải của hook: cập nhật ref, ref mới, force push, xoá ref, tag; secret thêm rồi xoá trong cùng loạt commit vẫn bị bắt |
+| **GG-E07** (sau giai đoạn A) | Repo có file ngoại lệ, cấu hình rule và diff driver hay textconv ghi file đánh dấu: kết quả quét không đổi và file đánh dấu không được tạo |
+| **GG-E08** (sau giai đoạn A) | Luồng xác nhận end-to-end: vẫn push thì push xong; huỷ, hết hạn, host không chạy thì push dừng với stderr đã che; binary bị gỡ thì cảnh báo và push xong |
+| **GG-E09** (sau giai đoạn A) | Bật bảo vệ không ghi đè hook có sẵn hay `core.hooksPath`; tắt chỉ xoá hook của Fugue |
+| **GG-E10** (sau giai đoạn A) | Ngoại lệ theo fingerprint vẫn đúng sau rebase; kho ngoại lệ không chứa giá trị thật |
 
 ## 8. Phụ thuộc
 
