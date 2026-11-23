@@ -5,7 +5,7 @@ description: H-39 — một bộ kiểm chứng cho giai đoạn A: ID ổn đ�
 
 # Bộ kiểm chứng
 
-Trạng thái: **v0.18 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt**. v0.18 (chủ dự án chốt, Fugue FUG-46): A-E07 sang cổng B cùng sandbox jail (số ID `A-E` ở §2, hàng OS smoke ở §3). v0.17 (đề xuất, Fugue FUG-37): A-E04 sang cổng B (số ID `A-E` ở §2, hàng Kernel property ở §3), `CL-E` tách (host ở A, client CLI/TUI ở B), `FT-E14` sang cổng B (§3, §6, §8), ví dụ `covers` ở §6 là đường dẫn giai đoạn A. v0.16 (đề xuất, Fugue FUG-37): §3 viết lại theo giai đoạn A: end-to-end chạy `fugue serve` thật với vendor là CLI giả (và app Gio hoặc host headless), faux provider và E2E CLI native sang B cùng native runtime; §4, §6, §8 khớp theo. v0.15 (chủ dự án chốt 2026-11-23, Fugue FUG-34): hàng Probe ở §3 khớp bộ A-E03 gộp (invariant lõi theo code giai đoạn A cộng probe bảo mật), và số ID `A-E` ở §2 sửa từ 9 thành 10 (A-E09 thuộc cổng B). Thiết kế đã chốt từ v0.14 cho phần test của H-39 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Eval prompt và tool để giai đoạn B. Trang này nói **cách** kiểm chứng; **yêu cầu** nằm ở mục Evidence của từng trang thiết kế. Điều kiện phát hành ở [phát hành giai đoạn A §5](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a).
+Trạng thái: **v0.19 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt**. v0.19 (đề xuất, Fugue FUG-62): bảng số ID ở §2 đếm lại theo mục Evidence của từng trang (CS-E 13 thành 16, DA-E 8 thành 16, HA-E 6 thành 9, I-E 10 thành 11, OR-E 18 thành 22, VR-E 13 thành 14). v0.18 (chủ dự án chốt, Fugue FUG-46): A-E07 sang cổng B cùng sandbox jail (số ID `A-E` ở §2, hàng OS smoke ở §3). v0.17 (đề xuất, Fugue FUG-37): A-E04 sang cổng B (số ID `A-E` ở §2, hàng Kernel property ở §3), `CL-E` tách (host ở A, client CLI/TUI ở B), `FT-E14` sang cổng B (§3, §6, §8), ví dụ `covers` ở §6 là đường dẫn giai đoạn A. v0.16 (đề xuất, Fugue FUG-37): §3 viết lại theo giai đoạn A: end-to-end chạy `fugue serve` thật với vendor là CLI giả (và app Gio hoặc host headless), faux provider và E2E CLI native sang B cùng native runtime; §4, §6, §8 khớp theo. v0.15 (chủ dự án chốt 2026-11-23, Fugue FUG-34): hàng Probe ở §3 khớp bộ A-E03 gộp (invariant lõi theo code giai đoạn A cộng probe bảo mật), và số ID `A-E` ở §2 sửa từ 9 thành 10 (A-E09 thuộc cổng B). Thiết kế đã chốt từ v0.14 cho phần test của H-39 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Eval prompt và tool để giai đoạn B. Trang này nói **cách** kiểm chứng; **yêu cầu** nằm ở mục Evidence của từng trang thiết kế. Điều kiện phát hành ở [phát hành giai đoạn A §5](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a).
 
 ## 1. Quyết định
 
@@ -29,13 +29,13 @@ Trạng thái: **v0.18 đề xuất, ngày 2026-11-23, chờ chủ dự án duy�
 | `C-E` | [Context engine](/dev-kit/core-harness/context-engine) §9 | 7 |
 | `CL-E` | [CLI và TUI](/dev-kit/core-harness/cli) §9 | 12 (CL-E01, CL-E02, CL-E04 và phần host của CL-E03, CL-E09 ở giai đoạn A; còn lại cổng B) |
 | `CN-E` | [Continuation](/dev-kit/core-harness/continuation) §8 | 5 |
-| `CS-E` | [An toàn nội dung](/dev-kit/core-harness/content-safety) §7 | 13 |
-| `DA-E` | [Desktop app](/dev-kit/core-harness/desktop-app) §10 | 8 |
+| `CS-E` | [An toàn nội dung](/dev-kit/core-harness/content-safety) §7 | 16 |
+| `DA-E` | [Desktop app](/dev-kit/core-harness/desktop-app) §10 | 16 |
 | `FT-E` | [Tool file](/dev-kit/core-harness/file-tools) §11 | 14 |
-| `HA-E` | [Host API](/dev-kit/core-harness/host-api) §10 | 6 |
-| `I-E` | [Interaction](/dev-kit/core-harness/interaction) §11 | 10 |
+| `HA-E` | [Host API](/dev-kit/core-harness/host-api) §10 | 9 |
+| `I-E` | [Interaction](/dev-kit/core-harness/interaction) §11 | 11 |
 | `J-E` | [Sandbox runtime](/dev-kit/core-harness/sandbox-runtime) §12 | 9 |
-| `OR-E` | [Orchestration](/dev-kit/core-harness/orchestration) §15 | 18 |
+| `OR-E` | [Orchestration](/dev-kit/core-harness/orchestration) §15 | 22 |
 | `M-E` | [Model adapter](/dev-kit/core-harness/model-adapter) §11.7 (E01–E06), §10 (E07–E12, cổng B) | 12 |
 | `Q-E` | [Điều phối input](/dev-kit/core-harness/coordination) §10 | 7 |
 | `S-E` | [Storage và bảo mật](/dev-kit/core-harness/storage-security) §10 | 13 |
@@ -44,7 +44,7 @@ Trạng thái: **v0.18 đề xuất, ngày 2026-11-23, chờ chủ dự án duy�
 | `T-E` | [Tool system](/dev-kit/core-harness/tool-system) §12 | 8 |
 | `TK-E` | [Task và checklist](/dev-kit/core-harness/tasks) §12 | 12 |
 | `VC-` | [Tiêu chí kiểm chứng](/dev-kit/core-harness/decisions-and-validation#tiêu-chí-kiểm-chứng) | 33 |
-| `VR-E` | [Vendor runtime](/dev-kit/core-harness/vendor-runtime) §15 | 13 |
+| `VR-E` | [Vendor runtime](/dev-kit/core-harness/vendor-runtime) §15 | 14 |
 | `WS-E` | [Workspace](/dev-kit/core-harness/workspace) §9 | 13 |
 
 Số ID tính cả mục đã gạch. Thêm mục evidence vào một trang thì cấp số kế tiếp và sửa bảng này cùng PR; registry trong repo đổi theo ở PR roadmap đi kèm.
