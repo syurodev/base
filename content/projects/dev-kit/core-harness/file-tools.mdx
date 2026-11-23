@@ -5,7 +5,7 @@ description: H-17 — read, grep, glob, edit và write: một giao diện cho m�
 
 # Tool file
 
-Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-17 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Trang này cụ thể hóa [tool system §9](/dev-kit/core-harness/tool-system#9-snapshot) cho tool file; quyết định khi nào hỏi theo [interaction §3](/dev-kit/core-harness/interaction#3-policy); nội dung trả cho model đi qua [an toàn nội dung](/dev-kit/core-harness/content-safety) (redact và envelope).
+Trạng thái: **v0.14 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt** (Fugue FUG-37: FT-E14 sang cổng B vì benchmark đo tool `edit` native, nằm ngoài giai đoạn A của [activation §2](/dev-kit/core-harness/activation#2-phạm-vi-giai-đoạn-a)); v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-17 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Trang này cụ thể hóa [tool system §9](/dev-kit/core-harness/tool-system#9-snapshot) cho tool file; quyết định khi nào hỏi theo [interaction §3](/dev-kit/core-harness/interaction#3-policy); nội dung trả cho model đi qua [an toàn nội dung](/dev-kit/core-harness/content-safety) (redact và envelope).
 
 ## 1. Quyết định
 
@@ -225,7 +225,7 @@ Mã lỗi công khai: `file.not_found`, `file.is_directory`, `file.path_denied`,
 
 **Benchmark**
 
-- **FT-E14** (stable) `fugue bench edit` chạy được trên ít nhất hai repo Go của owner với model của giai đoạn A; báo cáo số đo theo biến thể và theo nhóm task; kết quả được ghi vào evidence trước khi "A stable".
+- **FT-E14** (B) `fugue bench edit` chạy được trên ít nhất hai repo Go của owner với model của giai đoạn A; báo cáo số đo theo biến thể và theo nhóm task; kết quả được ghi vào evidence trước khi tiêu chí ổn định của B (quyết định riêng) đóng. v0.14: chuyển sang cổng B cùng tool file native; ở giai đoạn A phiên vendor dùng tool sửa file của vendor.
 
 ## 12. Phụ thuộc
 

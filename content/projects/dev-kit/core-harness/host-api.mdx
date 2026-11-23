@@ -1,11 +1,11 @@
 ---
 title: Host API
-description: API duy nhất giữa lõi Go của DevKit và mọi UI — cách chạy process, contract Connect/protobuf, event stream, principal, version và lộ trình chuyển đổi.
+description: API duy nhất giữa lõi Go của Fugue và mọi UI — cách chạy process, contract Connect/protobuf, event stream, principal, version và lộ trình chuyển đổi.
 ---
 
 # Host API
 
-Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-42 (gộp H-32 read model và H-35 host khác) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), ở phạm vi giai đoạn A. Kiểm kê logic ở frontend (H-43) và shell ngoài Wails (H-44) là mảng riêng. **v0.14 đề xuất (2026-11-07)**: HA-03 đổi, thêm HA-06, module của vendor runtime ở §5.1 và principal `session` ở §7. **v0.15 đề xuất (2026-11-11)**: client kind `guard` ở §7 và đọc diff theo lượt (`TurnDiffFile`) cho [git guard](/dev-kit/core-harness/git-guard).
+Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-42 (gộp H-32 read model và H-35 host khác) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), ở phạm vi giai đoạn A. Kiểm kê logic ở frontend (H-43) và shell ngoài Wails (H-44) là mảng riêng. **v0.14 đề xuất (2026-11-07)**: HA-03 đổi, thêm HA-06, module của vendor runtime ở §5.1 và principal `session` ở §7. **v0.15 đề xuất (2026-11-11)**: client kind `guard` ở §7 và đọc diff theo lượt (`TurnDiffFile`) cho [git guard](/dev-kit/core-harness/git-guard). **v0.19 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.**
 
 **v0.18 (2026-11-21), chủ dự án duyệt: đọc file trong workspace.** Thêm §5.4, `ReadWorkspaceFile` cho trình xem file chỉ đọc của transcript ([desktop app](/dev-kit/core-harness/desktop-app) v0.10 §5.4, Q-179 A); evidence HA-E09.
 
@@ -13,9 +13,7 @@ Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-42 
 
 **v0.16 (2026-11-20), chủ dự án duyệt: trạng thái của app.** Thêm §5.2, service `fugue.appstate.v1` lưu bố cục từng cửa sổ ([desktop app](/dev-kit/core-harness/desktop-app) v0.5, "Lưu bố cục") và tùy chọn của app; evidence HA-E07. Cần trước F10.20.
 
-Theo D-29, lõi Go của DevKit và harness là một bộ all-in-one; mọi UI là client của API này.
-
-Tham khảo: RPC mode của pi (JSONL qua stdio: command có `id`, response, event stream, bản ghi yêu cầu UI), API Gateway và remote-access của deepseek-harness (contract có kiểu sinh cho Host và Client, stream qua WebSocket ghép kênh, principal và role theo resource).
+Theo D-29, lõi Go của Fugue và harness là một bộ all-in-one; mọi UI là client của API này.
 
 ## 1. Quyết định
 
@@ -160,10 +158,10 @@ Mã lỗi công khai mới: `workspace.path_outside_root`, `workspace.file_not_f
 | `local`, client kind `guard` (v0.15) | Như `local` | Hook bảo vệ push của [git guard](/dev-kit/core-harness/git-guard) (H-50): chỉ dùng service tạo và chờ yêu cầu xác nhận push của chính nó. Giới hạn theo client kind không phải ranh giới bảo mật, vì cùng UID |
 | `session` (v0.14) | Socket local như `local`, cộng **token theo phiên** do host cấp khi spawn phiên vendor, truyền cho `fugue mcp-bridge` qua env của đúng process | Chỉ tool MCP của Fugue cho phiên đó và vai trò đó (lead hoặc worker); không vault, không duyệt quyền, không đọc phiên khác |
 
-- Kiểm tra UID chứng minh "cùng user hệ điều hành", không chứng minh "đúng app DevKit". Một process khác của cùng user vốn đã đọc được data dir, nên đây là mô hình đe dọa chấp nhận được; tài liệu bảo mật ghi rõ điều này.
+- Kiểm tra UID chứng minh "cùng user hệ điều hành", không chứng minh "đúng app Fugue". Một process khác của cùng user vốn đã đọc được data dir, nên đây là mô hình đe dọa chấp nhận được; tài liệu bảo mật ghi rõ điều này.
 - (v0.12, Electron đã bỏ ở v0.14) Trong shell Electron, chỉ **main process** giữ kết nối tới host. Renderer không mở được socket; nó dùng client đã sinh thông qua preload (`contextBridge` hoặc `MessagePort`), với `contextIsolation` và `sandbox` bật, `nodeIntegration` tắt, có CSP.
 - Giai đoạn A **không mở HTTP loopback**. Server mode hiện tại giữ nguyên hành vi fail closed cho tới khi bị gỡ.
-- **Giai đoạn B**: ghép đôi bằng token cho CLI, web, Telegram và điện thoại; role theo resource (xem, steer, trả lời, duyệt, mở vault) theo kiểu remote-access của deepseek-harness. Server lọc danh sách theo role để client không thấy thứ nó không được dùng.
+- **Giai đoạn B**: ghép đôi bằng token cho CLI, web, Telegram và điện thoại; role theo resource (xem, steer, trả lời, duyệt, mở vault). Server lọc danh sách theo role để client không thấy thứ nó không được dùng.
 
 ## 8. Version
 

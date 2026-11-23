@@ -1,6 +1,6 @@
 ---
 title: Core harness
-description: Thiết kế kỹ thuật nền tảng cho runtime agent do DevKit sở hữu.
+description: Thiết kế kỹ thuật nền tảng cho runtime agent do Fugue sở hữu.
 ---
 
 # Core harness
@@ -13,7 +13,7 @@ description: Thiết kế kỹ thuật nền tảng cho runtime agent do DevKit 
 | Ngôn ngữ thực thi | Go cho runtime, application services và hệ thống tool; frontend là adapter |
 | Hướng kiến trúc | State machine tường minh + event sourcing giới hạn cho execution + thực thi tác động qua service/gateway hiện hữu |
 
-Tài liệu này đặc tả nền tảng để DevKit sở hữu vòng gọi model và điều khiển tool. Đây không phải mô tả tính năng đã có, hướng dẫn sử dụng, hoặc kế hoạch chuyển toàn bộ hệ thống sang event sourcing. Các trạng thái, event và port trong bộ tài liệu là hợp đồng logic đề xuất, chưa phải API, package hay schema SQL đã được phát hành.
+Tài liệu này đặc tả nền tảng để Fugue sở hữu vòng gọi model và điều khiển tool. Đây không phải mô tả tính năng đã có, hướng dẫn sử dụng, hoặc kế hoạch chuyển toàn bộ hệ thống sang event sourcing. Các trạng thái, event và port trong bộ tài liệu là hợp đồng logic đề xuất, chưa phải API, package hay schema SQL đã được phát hành.
 
 ## Cách đọc
 
@@ -45,7 +45,7 @@ Tài liệu này đặc tả nền tảng để DevKit sở hữu vòng gọi mo
 | [Desktop app](/dev-kit/core-harness/desktop-app) | H-33: client Gio, màn hình, renderer markdown, font, hiệu năng, IME tiếng Việt |
 | [CLI và TUI](/dev-kit/core-harness/cli) | H-45: client `fugue` — host dùng chung theo client, TUI inline, phím, lệnh `/`, lệnh con có `--json`, exit code, failure UX |
 | [Phát hành giai đoạn A và failure UX](/dev-kit/core-harness/activation) | G-07 và Q-02 của Fugue: phạm vi giai đoạn A, failure UX trên CLI, nâng cấp và hạ phiên bản, evidence phát hành |
-| [Quyết định và kiểm chứng](/dev-kit/core-harness/decisions-and-validation) | Phương án thay thế, so sánh Pi/Harness², rollout gates, failure scenarios và các điểm còn mở |
+| [Quyết định và kiểm chứng](/dev-kit/core-harness/decisions-and-validation) | Phương án thay thế, rollout gates, failure scenarios và các điểm còn mở |
 | [Bộ kiểm chứng](/dev-kit/core-harness/verification) | H-39: ID ổn định cho mọi mục evidence, loại harness, tầng chạy, registry trong repo, bản ghi live của owner, luồng phát hành |
 | [Phụ lục: bản đồ thiết kế](/dev-kit/core-harness/design-map) | Danh mục mọi mảng thiết kế (H-01–H-49), trạng thái, phụ thuộc và tiêu chí một trang thiết kế đầy đủ |
 | [Lộ trình triển khai](/dev-kit/core-harness/implementation-roadmap) | Bảng việc theo phase, trạng thái và evidence; agent triển khai cập nhật trang này |
@@ -76,7 +76,7 @@ Trong bộ tài liệu:
 - **Đề xuất** là lựa chọn kỹ thuật cần tiếp tục đối chiếu trước implementation.
 - **Open decision / gate** là vấn đề chưa được giải quyết; không được ngầm chọn bằng code.
 
-Hướng sản phẩm đã thống nhất: DevKit sở hữu runtime; backend và tools độc lập frontend; state machine cùng execution history được thiết kế ngay từ đầu. Việc ghi hướng này không xác nhận các chi tiết schema, số state, thư viện hoặc hành vi resume đã được chấp nhận để phát hành.
+Hướng sản phẩm đã thống nhất: Fugue sở hữu runtime; backend và tools độc lập frontend; state machine cùng execution history được thiết kế ngay từ đầu. Việc ghi hướng này không xác nhận các chi tiết schema, số state, thư viện hoặc hành vi resume đã được chấp nhận để phát hành.
 
 ## Bất biến nền tảng
 

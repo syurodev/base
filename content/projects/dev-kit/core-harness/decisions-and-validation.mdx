@@ -5,13 +5,13 @@ description: Lý do chọn kiến trúc, phương án thay thế và gates trư�
 
 # Quyết định và kiểm chứng
 
-Trạng thái: foundation decisions v0.12 để review. Hướng đã thống nhất không đồng nghĩa từng interface, schema và state đã được duyệt để phát hành. Các lựa chọn dưới đây phải được đối chiếu lại khi có implementation evidence.
+Trạng thái: **v0.13 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt** (Fugue FUG-37: dòng G-04, G-06, G-07 ở bảng open decisions khớp giai đoạn A của [activation](/dev-kit/core-harness/activation); bỏ đoạn dẫn nguồn ngoài); foundation decisions v0.12 để review. Hướng đã thống nhất không đồng nghĩa từng interface, schema và state đã được duyệt để phát hành. Các lựa chọn dưới đây phải được đối chiếu lại khi có implementation evidence.
 
 ## D-01 — Go cho runtime và hệ thống tools
 
 **Lựa chọn:** Go sở hữu execution, policy integration, tool registry/schema/validation, domain services và persistence. Frontend/native shell chỉ là host adapter.
 
-**Lý do:** DevKit đã có service/gateway và permission boundaries trong Go. Chỉ giữ agent loop bằng Go nhưng để tool/policy logic trong TypeScript vẫn buộc viết lại khi đổi frontend. Độc lập UI là một thuộc tính dependency, không chỉ lựa chọn ngôn ngữ.
+**Lý do:** Fugue đã có service/gateway và permission boundaries trong Go. Chỉ giữ agent loop bằng Go nhưng để tool/policy logic trong TypeScript vẫn buộc viết lại khi đổi frontend. Độc lập UI là một thuộc tính dependency, không chỉ lựa chọn ngôn ngữ.
 
 **Không chọn:** viết lại tools trong runtime JavaScript của frontend, hoặc gọi provider SDK từ UI để tránh bridge. Hai cách đó làm identity, cancellation, recovery và secrets phụ thuộc shell.
 
@@ -26,7 +26,7 @@ Trạng thái: foundation decisions v0.12 để review. Hướng đã thống nh
 | Flags + lifecycle events | Loop ít cấu trúc, linh hoạt | Recovery, quan hệ giữa các flags và transition legality phải bổ sung phân tán nếu không có contract khác |
 | Current state + diagnostic journal | Dễ triển khai/vận hành; thường đủ cho resume đơn giản | Journal không mặc định đầy đủ để tái dựng control state hoặc kiểm chứng mọi transition |
 | Event sourcing cho execution | History và current state có cùng semantics; phù hợp điều tra, recovery và harness experiments | Được chọn, với phạm vi và chi phí bảo trì được giới hạn |
-| Event sourcing toàn DevKit | Một mô hình persistence rộng | Buộc đổi nhiều domain ổn định, tăng schema/retention complexity mà không phục vụ trực tiếp core loop |
+| Event sourcing toàn Fugue | Một mô hình persistence rộng | Buộc đổi nhiều domain ổn định, tăng schema/retention complexity mà không phục vụ trực tiếp core loop |
 
 **Chi phí chấp nhận:** schema compatibility, projection rebuild, deletion và migration phải được thiết kế. Event sourcing không tự tạo exactly-once effects, tự chứng minh task đúng hoặc làm model reproducible.
 
@@ -36,27 +36,27 @@ Trade-offs về schema, concurrency và migration của pattern được mô t�
 
 ## D-03 — Kernel chuyển trạng thái thuần; không phụ thuộc framework FSM ở baseline
 
-**Lựa chọn:** typed commands/events và hàm `decide/evolve` do DevKit sở hữu. Không xây framework state machine tổng quát; chỉ đặc tả và triển khai transition rules cần cho execution domain.
+**Lựa chọn:** typed commands/events và hàm `decide/evolve` do Fugue sở hữu. Không xây framework state machine tổng quát; chỉ đặc tả và triển khai transition rules cần cho execution domain.
 
 **Lý do:** những vấn đề khó là semantics commit, current authority và ambiguous effects. Một DSL FSM không thay thế các phần này. Kernel thuần giúp replay không kích hoạt `OnEntry` effects và giữ stdlib-only boundaries hiện hữu.
 
 **Phương án thư viện:** [qmuntal/stateless](https://github.com/qmuntal/stateless) có hierarchical states, guards, external state storage và graph export. [looplab/fsm](https://github.com/looplab/fsm) cung cấp transition/callback API gọn. Có thể đánh giá chúng ở một spike riêng nếu bảng state phát triển đủ phức tạp; không chọn chỉ vì muốn “có framework từ đầu”.
 
-**Điều kiện nhận thư viện:** giảm độ phức tạp đo được của transition rules; replay không side effects; không tạo state owner thứ hai; vẫn giữ command/event/storage contracts của DevKit; đáp ứng architecture allowlists hoặc có ADR thay boundary. Không nhúng thư viện vào leaf đang yêu cầu stdlib-only.
+**Điều kiện nhận thư viện:** giảm độ phức tạp đo được của transition rules; replay không side effects; không tạo state owner thứ hai; vẫn giữ command/event/storage contracts của Fugue; đáp ứng architecture allowlists hoặc có ADR thay boundary. Không nhúng thư viện vào leaf đang yêu cầu stdlib-only.
 
 **Không chọn:** gọi model/tool trong entry/exit callbacks, serialize đối tượng nội bộ của thư viện làm persisted schema, hoặc để UI/plugins chỉnh graph thực thi tùy ý.
 
-**Chi phí chấp nhận:** DevKit phải tự viết transition validation và test bảng transitions; thư viện không giúp giảm trách nhiệm về domain semantics.
+**Chi phí chấp nhận:** Fugue phải tự viết transition validation và test bảng transitions; thư viện không giúp giảm trách nhiệm về domain semantics.
 
 ## D-04 — Chưa dùng durable workflow engine
 
-**Lựa chọn:** tận dụng session/service/store ownership trong ứng dụng hiện tại; chưa thêm Temporal hoặc một scheduler độc lập.
+**Lựa chọn:** tận dụng session/service/store ownership trong ứng dụng hiện tại; chưa thêm một durable workflow engine bên ngoài hoặc một scheduler độc lập.
 
-**Lý do:** DevKit hiện là desktop local-first. Thêm workflow platform đưa vào yêu cầu service/worker lifecycle, vận hành và semantics replay riêng; không loại bỏ việc phải nối identity, gates, tasks và ambiguity của tools.
+**Lý do:** Fugue hiện là desktop local-first. Thêm workflow platform đưa vào yêu cầu service/worker lifecycle, vận hành và semantics replay riêng; không loại bỏ việc phải nối identity, gates, tasks và ambiguity của tools.
 
 **Khi xem xét lại:** có yêu cầu execution kéo dài xuyên nhiều máy, remote workers, failover host và distributed orchestration. Khi đó phải so sánh engine với chi phí tự mở rộng execution substrate, không mặc định giữ local design bằng mọi giá.
 
-[Temporal](https://docs.temporal.io/workflow-execution) có durable workflow execution và replay event history. Đây là phương án kiến trúc có năng lực thực, không nên mô tả chỉ là thư viện FSM nặng hơn.
+Một durable workflow engine có execution bền và replay event history. Đây là phương án kiến trúc có năng lực thực, không nên mô tả chỉ là thư viện FSM nặng hơn.
 
 ## D-05 — Replay không dispatch; không có retry toàn cục
 
@@ -190,7 +190,7 @@ Lớp cải tiến tương lai có thể đề xuất cấu hình, chạy thử 
 
 ## D-20 — Rule là tầng chỉ dẫn riêng, bốn lớp
 
-**Lựa chọn:** R0 (DevKit, chỉ đọc), R1 (global của user, local), R2 (`AGENTS.md` thắng `CLAUDE.md`), R3 (cá nhân theo workspace); kích hoạt luôn áp dụng hoặc theo path; lint mỗi lần lưu, audit AI khi bấm.
+**Lựa chọn:** R0 (Fugue, chỉ đọc), R1 (global của user, local), R2 (`AGENTS.md` thắng `CLAUDE.md`), R3 (cá nhân theo workspace); kích hoạt luôn áp dụng hoặc theo path; lint mỗi lần lưu, audit AI khi bấm.
 
 **Lý do:** mỗi user có phong cách riêng; review tránh trùng với system prompt và lãng phí context.
 
@@ -200,7 +200,7 @@ Lớp cải tiến tương lai có thể đề xuất cấu hình, chạy thử 
 
 **Lựa chọn:** W trong `workspacememory` (plaintext, redact), pinned block và chỉ mục chia 10 KiB; anchor hash; job nền đề xuất ADD/UPDATE/INVALIDATE/NOOP và thay đổi rule; user duyệt.
 
-**Lý do:** sau compaction và ở session mới, agent không phải dựng lại hiểu biết; nghiên cứu (Mem0, Letta, Graphiti, LangMem) cho thấy tự áp dụng có rủi ro mất dữ liệu và bị đầu độc, còn đồ thị tri thức chưa đáng ở v1.
+**Lý do:** sau compaction và ở session mới, agent không phải dựng lại hiểu biết; các hệ thống bộ nhớ tự áp dụng có rủi ro mất dữ liệu và bị đầu độc, còn đồ thị tri thức chưa đáng ở v1.
 
 **Chi phí chấp nhận:** user phải duyệt gợi ý; W là plaintext nên phải redact.
 
@@ -214,7 +214,7 @@ Lớp cải tiến tương lai có thể đề xuất cấu hình, chạy thử 
 
 ## D-23 — Contract model trung lập, ưu tiên SDK
 
-**Lựa chọn:** request, stream event và phân loại lỗi do DevKit định nghĩa; mỗi stream là một attempt, retry thuộc kernel; adapter theo họ API với cờ khả năng theo model; Anthropic trước, qua `anthropic-sdk-go` khi SDK đáp ứng các điều kiện kiểm soát. Chi tiết ở [model adapter](/dev-kit/core-harness/model-adapter).
+**Lựa chọn:** request, stream event và phân loại lỗi do Fugue định nghĩa; mỗi stream là một attempt, retry thuộc kernel; adapter theo họ API với cờ khả năng theo model; Anthropic trước, qua `anthropic-sdk-go` khi SDK đáp ứng các điều kiện kiểm soát. Chi tiết ở [model adapter](/dev-kit/core-harness/model-adapter).
 
 **Lý do:** giữ attempt, retry và usage trong journal; khác biệt provider nằm ở adapter.
 
@@ -260,11 +260,11 @@ Lớp cải tiến tương lai có thể đề xuất cấu hình, chạy thử 
 
 **Chi phí chấp nhận:** báo cáo của child tới parent chậm hơn khi parent đang chạy.
 
-## D-29 — Lõi Go của DevKit và harness là một bộ all-in-one
+## D-29 — Lõi Go của Fugue và harness là một bộ all-in-one
 
-**Lựa chọn:** harness không tách repo; nó là một phần của lõi Go DevKit, dùng thẳng các owner service. Mọi logic nghiệp vụ, quyền, lưu trữ và runtime nằm trong lõi; mọi UI là client của một Host API có schema và version ([bản đồ thiết kế](/dev-kit/core-harness/design-map) H-42).
+**Lựa chọn:** harness không tách repo; nó là một phần của lõi Go của Fugue, dùng thẳng các owner service. Mọi logic nghiệp vụ, quyền, lưu trữ và runtime nằm trong lõi; mọi UI là client của một Host API có schema và version ([bản đồ thiết kế](/dev-kit/core-harness/design-map) H-42).
 
-**Lý do:** harness gắn chặt với quyền, lưu trữ, vault, account và các owner của DevKit; tách repo tốn hai PR cho mỗi thay đổi và mất kiểm soát của `internal/arch`. Hướng sản phẩm là làm UI quanh một lõi duy nhất.
+**Lý do:** harness gắn chặt với quyền, lưu trữ, vault, account và các owner của Fugue; tách repo tốn hai PR cho mỗi thay đổi và mất kiểm soát của `internal/arch`. Hướng sản phẩm là làm UI quanh một lõi duy nhất.
 
 **Chi phí chấp nhận:** phải thiết kế Host API đầy đủ trước khi làm thêm UI; phải chuyển logic nghiệp vụ còn nằm ở frontend về lõi. Vẫn giữ `kernel` chỉ dùng stdlib và SDK chỉ nằm trong `modeladapter`.
 
@@ -300,23 +300,21 @@ Lớp cải tiến tương lai có thể đề xuất cấu hình, chạy thử 
 
 **Chi phí chấp nhận:** vòng tự động tốn chi phí model; approval vẫn có thể làm goal dừng chờ khi user vắng mặt.
 
-## So sánh với Pi và Harness²
+## So sánh với các harness bên ngoài
 
-Các nhận xét dưới đây dựa trên nguồn được đọc ngày 2026-10-30, tập trung vào Pi agent core và mô hình Harness²; không phải đánh giá toàn bộ hệ sinh thái hoặc benchmark cho DevKit.
+Phần này chỉ giữ các điểm thiết kế của Fugue rút ra khi đối chiếu với cách làm phổ biến của harness agent; không phải đánh giá hệ sinh thái nào.
 
-| Khía cạnh | Pi agent core | Harness² | DevKit foundation đề xuất |
-| --- | --- | --- | --- |
-| Trọng tâm | Loop model/tool nhỏ, state và lifecycle events, extension hooks | Cải tiến harness qua Propose–Probe–Compose và tích lũy bài học | Kiểm soát execution, quyền và recovery trong backend sở hữu bởi DevKit |
-| Điều học | Ranh giới gọi model, tool execution và continuation rõ | Tách lớp chạy tác vụ và lớp cải tiến cấu hình | Kernel ổn định, strategy có version, evidence có provenance |
-| Điều bổ sung | Không suy ra bộ năm state chuẩn từ event API của Pi | Không suy ra cần viết loop native mới có thể cải tiến harness | Explicit lifecycle, commit protocol, ambiguous outcome và integration với owners |
-| Mặc định tool execution | Có sequential/parallel modes | Phụ thuộc executor được dùng | Sequential v1; parallel là gate riêng |
-| Authority | Ứng dụng phải thiết kế theo integration của mình | Không thay policy của DevKit | Go owning service/gateway là nơi cưỡng chế |
+| Khía cạnh | Hướng của Fugue |
+| --- | --- |
+| Trọng tâm | Kiểm soát execution, quyền và recovery trong backend do Fugue sở hữu |
+| Điều giữ lại | Ranh giới rõ giữa gọi model, thực thi tool và continuation; tách lớp chạy tác vụ khỏi lớp cải tiến cấu hình; kernel ổn định, strategy có version, evidence có provenance |
+| Điều bổ sung | Explicit lifecycle, commit protocol, ambiguous outcome và tích hợp với các owner; không suy ra bộ năm state chuẩn từ một event API bên ngoài, và không suy ra cần một loop native mới mới cải tiến được harness |
+| Mặc định tool execution | Sequential ở v1; parallel là gate riêng |
+| Authority | Go owning service/gateway là nơi cưỡng chế; không nhập deployment policy hay giả định benchmark từ bên ngoài |
 
-Pi khai báo `AgentState` với các trường như `isStreaming`, `streamingMessage`, `pendingToolCalls` và `errorMessage`, cùng lifecycle events; đây không phải enum năm state. `isStreaming` bao phủ quá trình xử lý prompt/continuation, không chỉ provider stream. Xem [types](https://github.com/earendil-works/pi/blob/main/packages/agent/src/types.ts), [loop](https://github.com/earendil-works/pi/blob/main/packages/agent/src/agent-loop.ts) và [Agent wrapper](https://github.com/earendil-works/pi/blob/main/packages/agent/src/agent.ts).
+Lifecycle của một lượt xử lý gồm cả prompt và continuation, không chỉ stream của provider; vì vậy state của Fugue không gói gọn trong một cờ "đang stream". Việc tách lớp cải tiến khỏi lớp chạy là điều học được; chính sách triển khai thì không nhập vào.
 
-Harness² kết nối task-level refinement với persistent improvement harness, giữ model weights cố định và hỗ trợ các executor hiện hữu. DevKit học cách tách lớp cải tiến; không nhập deployment policy hoặc giả định benchmark của nghiên cứu sẽ áp dụng cho mình. Xem [repository Harness²](https://github.com/google-research/harness2).
-
-Tài liệu [Agent Harness Engineering Patterns](https://ashishpatel26.github.io/agent-harness-engineering-pattern/) là nguồn học pattern. Ví dụ trong tài liệu không thay contract hiện hữu, evidence test hoặc quyết định authorization của DevKit.
+Các pattern tham khảo chỉ để học cách làm. Ví dụ trong đó không thay contract hiện hữu, evidence test hoặc quyết định authorization của Fugue.
 
 ## Open decisions trước implementation
 
@@ -325,10 +323,10 @@ Tài liệu [Agent Harness Engineering Patterns](https://ashishpatel26.github.io
 | G-01 Package và owner | Kernel/execution store đặt ở đâu; dependencies nào được phép | Dependency diagram đối chiếu architecture tests; không thêm resolver/managed ledger/outbox cạnh tranh |
 | G-02 Transition protocol | Catalog v0.14, derived phase, admission/fences và host incarnation; **review đã chốt** ở [state machine §10](/dev-kit/core-harness/state-machine#10-review-g-02-h-05) (H-05) | Evidence ở state machine §10 (F2.1, F2.2, F2.11, **VC-01**–**VC-32**); review transitions/SM-01–SM-12, metadata-only close và fresh context, uniform check reset/generation, active-time windows/crash accounting, traces; chứng minh host thứ hai không lấy incarnation/token khi exclusive data-directory lock còn giữ |
 | G-03 Storage/security | **Thiết kế đã chốt (v0.12)** ở [storage và bảo mật payload](/dev-kit/core-harness/storage-security): devkit.db, logical DDL, session key/crypto-shred, retention, codec v1, giới hạn kích thước, vault observation API, data-directory lock | Đóng khi [evidence G-03](/dev-kit/core-harness/storage-security#10-evidence-để-đóng-g-03) đạt kèm revision |
-| G-04 Model/tool integration | Thiết kế model adapter đã chốt ở [model adapter](/dev-kit/core-harness/model-adapter); Thiết kế tool cấp hệ thống đã chốt ở [tool system](/dev-kit/core-harness/tool-system); còn lại: provider/account path của gói ChatGPT và canonical tool execution path cho bộ tool giai đoạn A ([activation §2](/dev-kit/core-harness/activation#2-phạm-vi-giai-đoạn-a)) | Thiết kế cùng gateway check → request approval → execute(one-use receipt), current-authority revalidation không hỏi đôi hoặc bypass; chốt reserve/consume/release scoped use tại effect boundary và crash read-back; mọi prompt path (confirmation và selection) của tool đi qua interaction owner; chỉ advertise/dispatch tool versions có `nativeCompatible`, mặc định deny tool chưa đạt; cấm provider-hosted tools v1; chứng minh identity, budgets, result/error contracts |
-| G-05 Interaction semantics | **Thiết kế đã chốt (v0.13)** ở [interaction](/dev-kit/core-harness/interaction): approval mode, policy, grant scope, kind `question`, vòng đời request, Host API; request trong memory theo incarnation ([tool system §5](/dev-kit/core-harness/tool-system#5-interaction-approval-và-preset)) | Confirmation và selection (active profile, remote account, tool-group scope, group request) cùng dùng request trong memory theo incarnation (D-16) và receipt dùng một lần; owner-issued receipt bind exact args/identity/attempt/check-generation/revisions/expiry/incarnation; ensure/read-back request kể cả Checking crash; claim/consume một lần, invalidate sau restart/vault lock; prod/unknown tag hỏi mỗi execution, bỏ allow-always/scoped; host headless fail closed, request chờ khi không có client (interaction I-07); owner vault lifecycle → shared interaction/coordinator hoạt động không qua bridge, lock-vs-consume fail closed |
-| G-06 Compatibility | **Thiết kế đã chốt (v0.13)** ở [activation §4](/dev-kit/core-harness/activation#4-nâng-cấp-và-hạ-phiên-bản-g-06): tương thích giữa các phiên bản Fugue; không có vendor (A-01) | Đọc được lịch sử sau nâng cấp; hạ phiên bản không append; lệch version client và host bị từ chối ở `Hello`; upgrade và downgrade drill đạt |
-| G-07 Activation | **Thiết kế đã chốt (v0.13)** ở [phát hành giai đoạn A](/dev-kit/core-harness/activation): phạm vi A, failure UX trên CLI, evidence phát hành, A ổn định | Đóng khi G-01–G-06 đã đóng và [evidence giai đoạn A](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a) đạt |
+| G-04 Model/tool integration | Thiết kế model adapter đã chốt ở [model adapter](/dev-kit/core-harness/model-adapter); Thiết kế tool cấp hệ thống đã chốt ở [tool system](/dev-kit/core-harness/tool-system); còn lại: provider/account path của gói ChatGPT và canonical tool execution path cho bộ tool native, **giai đoạn B** ([activation §2](/dev-kit/core-harness/activation#2-phạm-vi-giai-đoạn-a)); giai đoạn A (v0.14) vào model bằng CLI vendor và login của user, tool của Fugue là tool MCP qua `fugue mcp-bridge`, evidence ở [activation A-E01](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a) | Điều kiện cho native runtime (giai đoạn B): thiết kế cùng gateway check → request approval → execute(one-use receipt), current-authority revalidation không hỏi đôi hoặc bypass; chốt reserve/consume/release scoped use tại effect boundary và crash read-back; mọi prompt path (confirmation và selection) của tool đi qua interaction owner; chỉ advertise/dispatch tool versions có `nativeCompatible`, mặc định deny tool chưa đạt; cấm provider-hosted tools v1; chứng minh identity, budgets, result/error contracts |
+| G-05 Interaction semantics | **Thiết kế đã chốt (v0.13)** ở [interaction](/dev-kit/core-harness/interaction): approval mode, policy, grant scope, kind `question`, vòng đời request, Host API; request trong memory theo incarnation ([tool system §5](/dev-kit/core-harness/tool-system#5-interaction-approval-và-preset)) | Giai đoạn A (interaction §11, phần giai đoạn A): policy của Fugue áp cho tool MCP mà Fugue phục vụ phiên vendor qua `fugue mcp-bridge` và lệnh `checks`, cùng yêu cầu duyệt chuyển tiếp từ vendor; host headless fail closed, request chờ khi không có client (I-07), vault lock fail closed. Receipt, attempt và check-generation của kernel native, `ToolCheckReset` và tool native là giai đoạn B. Điều kiện đầy đủ (native): confirmation và selection (active profile, remote account, tool-group scope, group request) cùng dùng request trong memory theo incarnation (D-16) và receipt dùng một lần; owner-issued receipt bind exact args/identity/attempt/check-generation/revisions/expiry/incarnation; ensure/read-back request kể cả Checking crash; claim/consume một lần, invalidate sau restart/vault lock; prod/unknown tag hỏi mỗi execution, bỏ allow-always/scoped; host headless fail closed, request chờ khi không có client (interaction I-07); owner vault lifecycle → shared interaction/coordinator hoạt động không qua bridge, lock-vs-consume fail closed |
+| G-06 Compatibility | **Thiết kế đã chốt (v0.13)** ở [activation §4](/dev-kit/core-harness/activation#4-nâng-cấp-và-hạ-phiên-bản-g-06): tương thích giữa các phiên bản của chính Fugue, không liên quan DevKit (A-01 v0.14); version CLI của vendor xử lý ở [vendor runtime §11](/dev-kit/core-harness/vendor-runtime#11-failure-và-recovery), không thuộc G-06 | Đọc được lịch sử sau nâng cấp; hạ phiên bản không append; lệch version client và host bị từ chối ở `Hello`; upgrade và downgrade drill đạt |
+| G-07 Activation | **Thiết kế đã chốt (v0.13)** ở [phát hành giai đoạn A](/dev-kit/core-harness/activation): phạm vi A, failure UX trên app Gio và host headless (v0.14: thay "trên CLI"), evidence phát hành, A ổn định | Đóng khi G-01–G-06 đã đóng và [evidence giai đoạn A](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a) đạt |
 
 Thứ tự đóng gate (sửa v0.12, khớp với [lộ trình triển khai](/dev-kit/core-harness/implementation-roadmap)): **G-01** (đặt package) và quy tắc đặt tên (R0.0) phải được duyệt **trước khi viết production code của core**. **G-02 và G-03** chỉ cần thiết kế đã chốt để bắt đầu code; evidence của chúng được tạo ra chính từ P1 và P2, và hai gate phải đóng **trước khi native runtime chạy với provider thật hoặc dữ liệu thật của user**. G-04 đến G-06 phải đóng trước tích hợp thực thi tương ứng. G-07 phải đóng trước bật tính năng cho người dùng. Spike dùng dữ liệu giả không tự đóng gate hoặc cho phép activation.
 

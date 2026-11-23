@@ -5,9 +5,9 @@ description: Queue, steer, chen ngang, ngắt, peer message và input khi đang 
 
 # Điều phối input
 
-Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-29 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Continuation và điều kiện dừng (H-31) là mảng riêng.
+Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-29 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Continuation và điều kiện dừng (H-31) là mảng riêng. **v0.13 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.**
 
-Tham khảo: pi (`pi-durable` inbox với follow-up, steer, write, continue; `coding-agent` với Enter/Alt+Enter/Esc), deepseek-harness (inbox bền `nextTurn`/`nextStep`, `inject`, `cancel` có `keepInbox`), và cơ chế hiện có của Agent Hub cho vendor session (queue ở window, `shouldSteer`, peer delivery `started`/`steered`/`queued`/`refused`). Harness² của Google không có phần tương tác lúc run nên không áp dụng ở đây.
+Tham khảo: cơ chế hiện có của Agent Hub cho vendor session (queue ở window, `shouldSteer`, peer delivery `started`/`steered`/`queued`/`refused`).
 
 ## 1. Quyết định
 
@@ -26,12 +26,12 @@ Tham khảo: pi (`pi-durable` inbox với follow-up, steer, write, continue; `co
 
 | Lệnh | Tác dụng | Ai được dùng |
 | --- | --- | --- |
-| `Prompt` | Vào queue; session rảnh và queue không đứng thì được admit thành run mới | User, peer, DevKit |
+| `Prompt` | Vào queue; session rảnh và queue không đứng thì được admit thành run mới | User, peer, Fugue |
 | `Steer` | Chuyển một tin trong queue thành chỉ dẫn cho run đang chạy, chèn ở ranh giới step kế tiếp | User (thao tác trên queue); parent đối với child |
 | `Interject` | Chuyển một tin trong queue thành input **có hiệu lực ngay** trong run đang chạy (§5) | **Chỉ user** |
 | `InterruptAndPrompt` | Dừng run hiện tại và đưa prompt lên đầu queue, trong **một** transaction | Chỉ user |
 | `Answer` | Trả lời approval hoặc câu hỏi đang chờ; không bao giờ là prompt | User (và parent theo luật interaction hiện có) |
-| `Inject` | Thông tin cho agent biết, **không mở run mới**; vào `ContextInjected` ở ranh giới step kế tiếp, hoặc ở run sau nếu session đang rảnh | DevKit (job xong, preset đổi, env refresh) |
+| `Inject` | Thông tin cho agent biết, **không mở run mới**; vào `ContextInjected` ở ranh giới step kế tiếp, hoặc ở run sau nếu session đang rảnh | Fugue (job xong, preset đổi, env refresh) |
 | `Continue` | Chạy tiếp run đã dừng vì lỗi hoặc gián đoạn trên context hiện có, kèm steer còn chờ; không cần tin mới | User |
 
 - Mỗi input mang `origin` do host xác lập (user, parent_session, session, devkit…) và một **lớp ưu tiên** (§3).
@@ -43,7 +43,7 @@ Tham khảo: pi (`pi-durable` inbox với follow-up, steer, write, continue; `co
 - Queue là danh sách các run `Queued` của session (mỗi tin là một `RunAccepted`), cộng thứ tự, lớp ưu tiên và trạng thái **đứng/chạy**. Thứ tự và trạng thái đứng là control state của session host, lưu trong bảng `exec_queue` cùng revision, giống admission row; nó không phải execution history.
 - **Lớp ưu tiên khi admit**, cao tới thấp:
   1. Input của user.
-  2. Thông báo của DevKit cần agent hành động.
+  2. Thông báo của Fugue cần agent hành động.
   3. Peer message (child báo về parent, session anh em, session khác).
   4. Vòng goal tự động ([continuation](/dev-kit/core-harness/continuation) §5); chỉ được admit khi queue không còn input nào khác.
 
@@ -95,7 +95,7 @@ Peer và agent **không bao giờ** chen ngang.
 | Parent → child | `Steer` | `Prompt` (mở run nếu queue không đứng) |
 | Child → parent | `Prompt` vào queue, **xếp sau input của user** | `Prompt` |
 | Anh em và session khác | `Prompt` vào queue, sau input của user | `Prompt` |
-| Thông báo của DevKit | `Inject`; hoặc `Prompt` nếu cần agent hành động | Như bên trái |
+| Thông báo của Fugue | `Inject`; hoặc `Prompt` nếu cần agent hành động | Như bên trái |
 
 - Peer outbox hiện có vẫn là owner của việc giao tin. Native coordinator nhận mỗi tin như một command có `command ID = outbox item ID`; receipt chống trùng bảo đảm giao **đúng một lần**, kể cả khi crash giữa chừng. Outbox đánh dấu đã giao sau khi có receipt.
 - Giữ nguyên giới hạn hiện có: số bước theo cặp (6; anh em 4), 5 tin/phút mỗi cặp, 20 tin/phút mỗi đích, độ dài tối đa, và yêu cầu user duyệt khi khác workspace.
