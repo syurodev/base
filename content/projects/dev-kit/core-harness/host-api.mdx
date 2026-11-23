@@ -5,7 +5,7 @@ description: API duy nhất giữa lõi Go của Fugue và mọi UI — cách ch
 
 # Host API
 
-Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-42 (gộp H-32 read model và H-35 host khác) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), ở phạm vi giai đoạn A. Kiểm kê logic ở frontend (H-43) và shell ngoài Wails (H-44) là mảng riêng. **v0.14 đề xuất (2026-11-07)**: HA-03 đổi, thêm HA-06, module của vendor runtime ở §5.1 và principal `session` ở §7. **v0.15 đề xuất (2026-11-11)**: client kind `guard` ở §7 và đọc diff theo lượt (`TurnDiffFile`) cho [git guard](/dev-kit/core-harness/git-guard). **v0.19 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.** **v0.20 (2026-11-23), đề xuất, Fugue FUG-47:** client kind `guard` (§7) thuộc hook push của git guard nên hoãn **sau giai đoạn A**; đọc diff theo lượt (`TurnDiffFile`) vẫn ở giai đoạn A.
+Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-42 (gộp H-32 read model và H-35 host khác) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), ở phạm vi giai đoạn A. Kiểm kê logic ở frontend (H-43) và shell ngoài Wails (H-44) là mảng riêng. **v0.14 đề xuất (2026-11-07)**: HA-03 đổi, thêm HA-06, module của vendor runtime ở §5.1 và principal `session` ở §7. **v0.15 đề xuất (2026-11-11)**: client kind `guard` ở §7 và đọc diff theo lượt (`TurnDiffFile`) cho [git guard](/dev-kit/core-harness/git-guard). **v0.19 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.** **v0.21 (2026-11-23), chủ dự án quyết định, Fugue FUG-55:** `StartSession` vượt số phiên tối đa bị từ chối `vendor.capacity` (xem mục Lỗi), không chờ. **v0.20 (2026-11-23), đề xuất, Fugue FUG-47:** client kind `guard` (§7) thuộc hook push của git guard nên hoãn **sau giai đoạn A**; đọc diff theo lượt (`TurnDiffFile`) vẫn ở giai đoạn A.
 
 **v0.18 (2026-11-21), chủ dự án duyệt: đọc file trong workspace.** Thêm §5.4, `ReadWorkspaceFile` cho trình xem file chỉ đọc của transcript ([desktop app](/dev-kit/core-harness/desktop-app) v0.10 §5.4, Q-179 A); evidence HA-E09.
 
@@ -52,7 +52,7 @@ Theo D-29, lõi Go của Fugue và harness là một bộ all-in-one; mọi UI l
 - Domain package **không import** code sinh từ proto; luật này vào `internal/arch`.
 - Một service cho mỗi module: session (native và vendor dùng chung read model), queue, interaction, vault, account, workspace, settings, notes, tasks, git, database…
 - **Unary** cho command và query. **Server streaming** cho đăng ký event. **Bidi streaming** chỉ cho terminal (input và output của PTY), cần HTTP/2; unix socket dùng h2c.
-- **Lỗi**: mã lỗi của Connect, kèm detail có kiểu chứa public error code của DevKit (giữ contract `bridge.keptCodes` / `redactedOnPurpose`). Không đưa nguyên nhân nội bộ hay secret vào message.
+- **Lỗi**: mã lỗi của Connect, kèm detail có kiểu chứa public error code của DevKit (giữ contract `bridge.keptCodes` / `redactedOnPurpose`). Không đưa nguyên nhân nội bộ hay secret vào message. `StartSession` vượt số phiên tối đa trả `ResourceExhausted` với code `vendor.capacity` và message hành động được (đang chạy/giới hạn, đóng một phiên hoặc tăng `max_sessions`); host không xếp hàng phiên ở giai đoạn A (Fugue FUG-55).
 
 ## 5. Command
 
