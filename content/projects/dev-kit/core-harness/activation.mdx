@@ -5,7 +5,7 @@ description: Quyết định Q-02 và G-07 cho Fugue — phạm vi giai đoạn 
 
 # Phát hành giai đoạn A và failure UX (G-07)
 
-Trạng thái: **v0.14 đề xuất, ngày 2026-11-07, chờ chủ dự án duyệt**. v0.13 (2026-11-03) chốt giai đoạn A là native runtime với gói ChatGPT. v0.14 đổi hướng theo quyết định của chủ dự án ngày 2026-11-07: giai đoạn A dùng **CLI chính chủ của vendor** chạy bằng gói sub của user ([vendor runtime](/dev-kit/core-harness/vendor-runtime)), có lead giao việc cho worker ([orchestration](/dev-kit/core-harness/orchestration)) và **desktop app viết bằng Gio** ([desktop app](/dev-kit/core-harness/desktop-app)). Native runtime giữ thiết kế đã chốt và sang giai đoạn B qua OpenRouter (M-12). Sửa 2026-11-08: CLI/TUI `fugue` sang giai đoạn B, client duy nhất của giai đoạn A là app Gio (A-06). G-07 chỉ đóng khi evidence ở [mục 5](#5-evidence-để-phát-hành-giai-đoạn-a) đạt.
+Trạng thái: **v0.15 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt**. v0.13 (2026-11-03) chốt giai đoạn A là native runtime với gói ChatGPT. v0.14 đổi hướng theo quyết định của chủ dự án ngày 2026-11-07: giai đoạn A dùng **CLI chính chủ của vendor** chạy bằng gói sub của user ([vendor runtime](/dev-kit/core-harness/vendor-runtime)), có lead giao việc cho worker ([orchestration](/dev-kit/core-harness/orchestration)) và **desktop app viết bằng Gio** ([desktop app](/dev-kit/core-harness/desktop-app)). Native runtime giữ thiết kế đã chốt và sang giai đoạn B qua OpenRouter (M-12). Sửa 2026-11-08: CLI/TUI `fugue` sang giai đoạn B, client duy nhất của giai đoạn A là app Gio (A-06). Sửa 2026-11-23 (v0.15, chủ dự án chốt, Fugue FUG-34): A-E03 là bộ probe gộp gồm invariant lõi theo code chạy ở giai đoạn A và sáu probe bảo mật; bản native của probe lõi sang B cùng native runtime. G-07 chỉ đóng khi evidence ở [mục 5](#5-evidence-để-phát-hành-giai-đoạn-a) đạt.
 
 ## 1. Quyết định của người dùng
 
@@ -76,7 +76,14 @@ Mọi mục kèm revision cụ thể; spike dùng dữ liệu giả không tính
 
 - **A-E01** G-01 đến G-06 đã đóng; [evidence G-03](/dev-kit/core-harness/storage-security#10-evidence-để-đóng-g-03) đạt. G-04 tính trên adapter ChatGPT và bộ tool ở [mục 2](#2-phạm-vi-giai-đoạn-a).
 - **A-E02** Toàn bộ nhóm trong [tiêu chí kiểm chứng](/dev-kit/core-harness/decisions-and-validation#tiêu-chí-kiểm-chứng) đạt bằng test headless, với deterministic clock và fault injection.
-- **A-E03** Mutation probes ở cùng trang đều làm test fail: bỏ CAS, bỏ current-authority check, dispatch khi replay, retry unknown, coi cancellation là stop proof.
+- **A-E03** (v0.15, chủ dự án chốt 2026-11-23) Bộ mutation probe gộp; mỗi probe làm đúng các test khai báo fail ([bộ kiểm chứng §3](/dev-kit/core-harness/verification#3-harness)). Invariant lõi của thiết kế được ánh xạ sang code chạy thật ở giai đoạn A (vendor runtime, app Gio, team):
+  - CAS: bỏ CAS ở sequence event của session vendor, sequence event của team, revision của tài liệu state app.
+  - Current authority: trả lời interaction của incarnation cũ không bị từ chối; delegator hành động ngoài subtree của chính nó.
+  - Không dispatch khi replay hoặc khôi phục sau restart: restart host đưa task team đang chạy về `unknown` rồi chạy lại chúng; restart host để lượt vendor đang mở không được đóng thành `unknown`.
+  - Không retry `unknown`: task `unknown` rời trạng thái này bằng retry thay vì quyết định recovery tường minh.
+  - Cancellation không phải stop proof: đóng session được ghi là đã chứng minh dù không có stop proof; stop chưa chứng minh vẫn nhả owner của peer; kết quả signal một mình được coi là stop proof.
+  - Bảo mật (sáu probe đã có): vault fail-open, nâng quyền principal của session, vendor auto-approve lách duyệt, `decide` lách luật cứng, team ghi ngoài write scope, workspace path traversal.
+  - Bản native của các probe lõi (admission fence và queue của `execstore`, lease và current authority của `coordinator`, replay và unknown tool attempt của `kernel`) **sang giai đoạn B cùng native runtime**, vì `execstore`, `kernel`, `coordinator` chưa có caller production ở giai đoạn A (cùng hướng với A-01 và v0.14 ở trên). Bỏ so khớp `grantScopeKey` vẫn là yêu cầu của [I-E10](/dev-kit/core-harness/interaction), chưa có probe ở giai đoạn A.
 - **A-E04** Invariant checker SM-01 đến SM-12 chạy sau mỗi batch trong build test và build dogfood. Ở build dogfood, vi phạm dừng run đó và ghi chẩn đoán; không có vi phạm nào trong evidence.
 - **A-E05** Mỗi hàng ở [mục 3](#3-failure-ux-bắt-buộc) có test e2e: app (hoặc client thử dùng `pkg/client`) chạy với `fugue serve` thật, vendor là CLI giả phát lại fixture; kể cả host headless fail closed. (v0.14: model faux đổi thành vendor giả.)
 - **A-E06** Fault injection kill host ở các điểm: lượt vendor đang stream, chờ duyệt, commit unknown, task đang chạy, merge queue. Chạy trên Linux và macOS trong CI. (v0.14: điểm kill của native chuyển sang B.)
