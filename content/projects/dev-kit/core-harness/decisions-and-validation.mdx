@@ -5,7 +5,7 @@ description: Lý do chọn kiến trúc, phương án thay thế và gates trư�
 
 # Quyết định và kiểm chứng
 
-Trạng thái: **v0.13 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt** (Fugue FUG-37: dòng G-04, G-06, G-07 ở bảng open decisions khớp giai đoạn A của [activation](/dev-kit/core-harness/activation); bỏ đoạn dẫn nguồn ngoài); foundation decisions v0.12 để review. Hướng đã thống nhất không đồng nghĩa từng interface, schema và state đã được duyệt để phát hành. Các lựa chọn dưới đây phải được đối chiếu lại khi có implementation evidence.
+Trạng thái: **v0.14 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt** (Fugue FUG-39: thêm [phân giai đoạn các nhóm VC](#phân-giai-đoạn-các-nhóm-vc)). v0.13 (Fugue FUG-37: dòng G-04, G-06, G-07 ở bảng open decisions khớp giai đoạn A của [activation](/dev-kit/core-harness/activation); bỏ đoạn dẫn nguồn ngoài); foundation decisions v0.12 để review. Hướng đã thống nhất không đồng nghĩa từng interface, schema và state đã được duyệt để phát hành. Các lựa chọn dưới đây phải được đối chiếu lại khi có implementation evidence.
 
 ## D-01 — Go cho runtime và hệ thống tools
 
@@ -373,6 +373,46 @@ Parallel tools, remote workers, configurable transition graph, runtime self-modi
 | **VC-33** | ~~Team boundary~~ | Bỏ: child session và team nằm ngoài v1 (H-30) | — |
 
 Ưu tiên tests bằng deterministic clock, barriers và fault injection; không dùng sleep để tạo race. Cần mutation/probe cho các guard quan trọng: bỏ CAS, bỏ current-authority check, dispatch khi replay, retry unknown và coi cancellation là stop proof.
+
+### Phân giai đoạn các nhóm VC
+
+Đề xuất v0.14 (Fugue FUG-39), chờ chủ dự án duyệt. Mỗi nhóm VC được xếp theo đường code mà `fugue serve` giai đoạn A thật sự chạy. Ở giai đoạn A, `execstore`, `kernel` và `coordinator` không có production caller (cùng cách xếp như A-E03). **A**: nhóm áp dụng trọn cho giai đoạn A. **B**: nhóm chỉ có nghĩa với kernel native và sang B cùng native runtime. **Tách**: phần ghi ở cột giữa là giai đoạn A, phần còn lại sang B. Evidence là ID trong registry của Fugue (`docs/verification.md`).
+
+| ID | Giai đoạn | Phần giai đoạn A và evidence |
+| --- | --- | --- |
+| **VC-01** | B | Replay thuần của kernel. Giai đoạn A không replay history để dispatch; rebuild projection thuộc VC-30 |
+| **VC-02** | B | SM-01–SM-12 là bất biến của state machine native |
+| **VC-03** | B | Vòng đời model của provider (A-E02 v0.16) |
+| **VC-04** | B | Primary/secondary stop reason của run native; budget của đội ở VC-28 |
+| **VC-05** | Tách | Lệnh sai trạng thái trên vendor session và task đội bị từ chối có kiểu: VR-E05, OR-E16. Completion sai attempt là B |
+| **VC-06** | Tách | Vendor store và team store: S-E01. Intent write là B |
+| **VC-07** | Tách | Commit đã có mà caller không biết, cho task đội: A-E06 (`TestCrashPointTeamTaskCommittedRecovery`). Read-back command của execstore là B |
+| **VC-08** | Tách | Khóa data directory, path alias, host chết: S-E08, HA-E01. Admission token là B |
+| **VC-09** | Tách | Command ID trùng trả cùng kết quả: I-E07. Model/tool call không lặp là B |
+| **VC-10** | Tách | Xác nhận theo tag môi trường và receipt cho tool của Fugue: I-E02, I-E04, I-E06. Reservation và consume của gateway native là B |
+| **VC-11** | Tách | Task đội chờ worker theo scheduler tiers; phiên user mở vượt `max_sessions` bị từ chối `vendor.capacity` (activation §3, FUG-55): OR-E07, A-E05. `Waiting(worker_capacity)` và generation fence là B |
+| **VC-12** | B | Provider tool (A-E02 v0.16) |
+| **VC-13** | A | Revoke, policy đổi, session đóng trong lúc chờ: I-E05, I-E06, I-E09 |
+| **VC-14** | Tách | Chết khi turn vendor đang chạy, khi có thẻ duyệt, khi task chạy, khi merge: A-E06, VR-E06, OR-E09. `recovery_admission` và CheckReset là B |
+| **VC-15** | Tách | Turn vendor mất kết quả giữ `unknown`, không tự chạy lại: VR-E06, DA-E05. Phân loại pure_read/idempotent/side_effecting là B |
+| **VC-16** | B | Metadata-only close và admission của run native |
+| **VC-17** | Tách | Chờ deadline của đội qua restart: CL-E03. Timer bền, monotonic window và conservative charge của run native là B |
+| **VC-18** | Tách | Mở khóa sau recovery và khóa giữa các bước consume: S-E07, VR-E11. Boundary check khi dispatch native là B |
+| **VC-19** | A | Prompt của tool Fugue đi qua interaction owner: VR-E13, I-E01 |
+| **VC-20** | B | Canonical equality trong protected store của execstore |
+| **VC-21** | B | Transcript native (A-E02 v0.16) |
+| **VC-22** | Tách | Dừng turn vendor theo thứ tự và không báo đã dừng khi chưa có bằng chứng: VR-E05, A-E05 (stop chưa chứng minh). Cancel tool native là B |
+| **VC-23** | A | Không nhả writer khi process chưa được chứng minh đã dừng: VR-E05, A-E05 |
+| **VC-24** | B | Context epoch và fresh/continue của run native |
+| **VC-25** | A | Owner API của vault trên host headless: S-E07, VR-E11 |
+| **VC-26** | Tách | Worker treo và stop chưa chứng minh báo cần restart: A-E05. Unknown recovery của tool native là B |
+| **VC-27** | B | Partial tool JSON của model (A-E02 v0.16) |
+| **VC-28** | Tách | Budget của đội (deadline, đề xuất quá cỡ): CL-E03, A-E05. Reservation model/tool của kernel là B |
+| **VC-29** | A | Catch-up theo sequence, client chậm không chặn core: HA-E03 |
+| **VC-30** | A | Schema tương lai và protocol không hỗ trợ: HA-E05, CL-E04, A-E05 |
+| **VC-31** | A | Host headless, khóa vault giữa stream: S-E07, VR-E11, I-E06 |
+| **VC-32** | B | Kernel và coordinator không import `hostapi`; ở giai đoạn A, ranh giới core/UI là DA-E06 |
+| **VC-33** | — | Đã bỏ |
 
 ## Trình tự triển khai sau khi chốt thiết kế
 
