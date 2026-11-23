@@ -7,7 +7,7 @@ description: H-45 — client `fugue` của giai đoạn A: host dùng chung tự
 
 **v0.14 (2026-11-08): client CLI/TUI sang giai đoạn B.** Theo quyết định của chủ dự án, giai đoạn A chỉ có [desktop app Gio](/dev-kit/core-harness/desktop-app) (H-33). Binary `fugue` của giai đoạn A chỉ còn hai lệnh con hạ tầng: `fugue serve` (§2.1, chạy foreground, exit code ở §5.2) và `fugue mcp-bridge` ([vendor runtime §12](/dev-kit/core-harness/vendor-runtime#12-bảo-mật)). Quy tắc vòng đời host ở §2.2 (lease, 10 s ân hạn, tắt có trật tự) và version ở §2.3 vẫn áp dụng, với app là client tự khởi động host ([desktop app](/dev-kit/core-harness/desktop-app) DA-07). Phần còn lại của trang (TUI, lệnh con, đăng nhập ChatGPT) viết cho native v0.13 và cần một lượt sửa cho vendor runtime trước khi vào giai đoạn B.
 
-Trạng thái: v0.13, ngày 2026-11-04. **Thiết kế đã chốt** cho H-45 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Client nói chuyện với host qua [Host API](/dev-kit/core-harness/host-api); hiển thị failure theo [phát hành giai đoạn A §3](/dev-kit/core-harness/activation#3-failure-ux-bắt-buộc); trả lời interaction theo ràng buộc CLI-first ở [hỏi user và kế hoạch §5](/dev-kit/core-harness/ask-plan#5-ràng-buộc-cli-first). **v0.15 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: CL-E01 đến CL-E04 giữ ở giai đoạn A (host), CL-E05 đến CL-E12 đánh dấu giai đoạn B hoặc tách; yêu cầu không đổi.**
+Trạng thái: v0.13, ngày 2026-11-04. **Thiết kế đã chốt** cho H-45 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Client nói chuyện với host qua [Host API](/dev-kit/core-harness/host-api); hiển thị failure theo [phát hành giai đoạn A §3](/dev-kit/core-harness/activation#3-failure-ux-bắt-buộc); trả lời interaction theo ràng buộc CLI-first ở [hỏi user và kế hoạch §5](/dev-kit/core-harness/ask-plan#5-ràng-buộc-cli-first). **v0.15 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: CL-E01 đến CL-E04 giữ ở giai đoạn A (host), CL-E05 đến CL-E12 đánh dấu giai đoạn B hoặc tách; yêu cầu không đổi.** **v0.16 (2026-11-23, chủ dự án chốt, Fugue FUG-51): thêm exit code 9 của `fugue serve` cho store có schema mới hơn bản build hiểu (§5.2, §6), tách khỏi exit 8 (data directory đang bị process khác giữ, version không tương thích, không nối được host).**
 
 ## 1. Quyết định
 
@@ -199,7 +199,8 @@ Mọi lệnh con chạy không cần TTY và có `--json`.
 | 5 | Run kết thúc `failed` hoặc `refused` |
 | 6 | Bị từ chối duyệt, hoặc có approval khi `--on-approval=fail` |
 | 7 | Hết budget (user chọn kết thúc) hoặc đang chờ quota |
-| 8 | Không nối được host hoặc version không tương thích |
+| 8 | Không nối được host, version không tương thích, hoặc data directory đang bị process khác giữ (§6) |
+| 9 | Store có schema mới hơn bản build này hiểu (store không được hỗ trợ): `fugue serve` từ chối mở store; user nâng cấp Fugue |
 | 130 | Ctrl+C |
 
 Với `--json`, lỗi có dạng `{"error": {"code": "vault.locked", "message": "…"}}` trên stdout và exit code theo bảng.
@@ -222,6 +223,7 @@ Với `--json`, lỗi có dạng `{"error": {"code": "vault.locked", "message": 
 | Chờ worker | `Waiting for a worker` | — |
 | Data dir đang bị process khác giữ | `Data directory in use: <path>` | Exit 8 |
 | Version không hỗ trợ | §2.3 | Exit 8 |
+| Store có schema mới hơn bản build hiểu | `Unsupported store: schema newer than this Fugue build · upgrade Fugue`; `fugue serve` không mở store và không ghi gì | Exit 9 |
 
 Preview chỉ hiện metadata cho phép theo INV-09; nội dung payload chỉ hiện khi vault mở.
 
