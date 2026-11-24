@@ -7,6 +7,8 @@ description: API duy nhất giữa lõi Go của Fugue và mọi UI — cách ch
 
 Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-42 (gộp H-32 read model và H-35 host khác) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), ở phạm vi giai đoạn A. Kiểm kê logic ở frontend (H-43) và shell ngoài Wails (H-44) là mảng riêng. **v0.14 đề xuất (2026-11-07)**: HA-03 đổi, thêm HA-06, module của vendor runtime ở §5.1 và principal `session` ở §7. **v0.15 đề xuất (2026-11-11)**: client kind `guard` ở §7 và đọc diff theo lượt (`TurnDiffFile`) cho [git guard](/dev-kit/core-harness/git-guard). **v0.19 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.** **v0.21 (2026-11-23), chủ dự án quyết định, Fugue FUG-55:** `StartSession` vượt số phiên tối đa bị từ chối `vendor.capacity` (xem mục Lỗi), không chờ. **v0.20 (2026-11-23), đề xuất, Fugue FUG-47:** client kind `guard` (§7) thuộc hook push của git guard nên hoãn **sau giai đoạn A**; đọc diff theo lượt (`TurnDiffFile`) vẫn ở giai đoạn A.
 
+**v0.22 (2026-11-24), đề xuất, chờ chủ dự án duyệt, Fugue FUG-66:** thêm §5.5 `SubmitLoginCode` cho `fugue.accounts.v1` để chuyển tiếp code đăng nhập dán từ trình duyệt vào stdin của CLI đang chạy (sửa Q-112); evidence `HA-E10`.
+
 **v0.18 (2026-11-21), chủ dự án duyệt: đọc file trong workspace.** Thêm §5.4, `ReadWorkspaceFile` cho trình xem file chỉ đọc của transcript ([desktop app](/dev-kit/core-harness/desktop-app) v0.10 §5.4, Q-179 A); evidence HA-E09.
 
 **v0.17 (2026-11-21), chủ dự án duyệt: channel của đội.** Thêm §5.3, `PageChannel`, `PostChannelMessage` và nội dung của topic `team:<id>` cho channel ([orchestration](/dev-kit/core-harness/orchestration) v0.3 §6.7), theo Q-175 A của F11.10; evidence HA-E08.
@@ -67,7 +69,7 @@ Theo D-29, lõi Go của Fugue và harness là một bộ all-in-one; mọi UI l
 | `vendor` | `ProbeVendors`, `StartSession`, `Send`, `Interrupt`, `Steer`, `CloseSession`, `ResumeSession`, `ListSessions` | [vendor runtime](/dev-kit/core-harness/vendor-runtime) |
 | `transcript` | `TranscriptPage`, `TranscriptItem`; topic `transcript:<session>`, `transcript-delta:<session>` | [transcript](/dev-kit/core-harness/transcript) |
 | `tasks` | `DecideTeam`, `AmendTeam`, `TeamTree`, `IntegrateTeam`, `MessageAgent`, `StartTask`, `RetryTask`, `SendToTask`, `AnswerTask`, `CancelTask`, `AcceptTask`, `RejectTask`, `TaskResult`, `ListTasks`, `PageChannel`, `PostChannelMessage` (v0.17, §5.3); topic `team:<id>` | [orchestration](/dev-kit/core-harness/orchestration) |
-| `accounts` | `ListAccounts`, `StartLogin`, `PauseAccount`, `ResumeAccount`; topic `quota` | [orchestration §8](/dev-kit/core-harness/orchestration#8-quota-và-account) |
+| `accounts` | `ListAccounts`, `StartLogin`, `SubmitLoginCode` (v0.22, §5.5), `CancelLogin`, `PauseAccount`, `ResumeAccount`; topic `quota`, `login` | [orchestration §8](/dev-kit/core-harness/orchestration#8-quota-và-account) |
 | `scheduler` | `AcquireHeavy`, `ReleaseHeavy` (cho `fugue exclusive`) | [orchestration §7](/dev-kit/core-harness/orchestration#7-scheduler) |
 
 Duyệt quyền của phiên vendor dùng module interaction hiện có.
@@ -139,6 +141,18 @@ Thêm vào service `fugue.workspace.v1`, chỉ cho principal `local` với clien
 
 Mã lỗi công khai mới: `workspace.path_outside_root`, `workspace.file_not_found`, `workspace.file_too_large`, `workspace.not_text`.
 
+### 5.5 Gửi code đăng nhập CLI (v0.22, chờ duyệt)
+
+Thêm vào service `fugue.accounts.v1` (`AccountService`) để chuyển tiếp code đăng nhập mà user dán từ trang trình duyệt vào stdin của CLI đang chạy (sửa Q-112, FUG-66; spike xác nhận `claude auth login` nhận code qua pipe stdin thường, không cần PTY).
+
+| RPC | Input | Output | Ghi chú |
+| --- | --- | --- | --- |
+| `SubmitLoginCode` | `login_id`, `code` | — (rỗng) | Chỉ cho principal đã mở đúng phiên login đó (`local`), chỉ khi `login_id` đang chạy và vendor khai báo `AcceptsCode` |
+
+- **Bảo vệ secret (`code`)**: `code` là secret (`redact.Secret`). Không bao giờ ghi log, lưu trữ, echo lại, đưa vào thông báo lỗi, đưa vào audit metadata hay trả về cho client; buffer chứa `code` phải được **zero** ngay sau khi ghi vào stdin.
+- **Phân quyền và vòng đời**: chỉ principal đã khởi tạo phiên login (`StartLogin`) mới được gọi `SubmitLoginCode`, và chỉ trong lúc phiên `login_id` đó còn đang chạy. Gọi sau khi phiên đã kết thúc (hoặc sai `login_id`) bị từ chối bằng lỗi có kiểu; principal `session` hoặc `guard` bị từ chối.
+- **Kiểm tra và ghi stdin**: mỗi lần gọi ghi đúng **một dòng** qua pipe stdin (tuần tự hoá dưới mutex); kiểm tra độ dài tối đa (tối đa 1 KiB) và **chỉ chứa printable ASCII** (từ chối chuỗi rỗng, ký tự điều khiển, `\r`, `\n`, byte NUL và ngoài ASCII bằng `InvalidArgument` trước khi chạm tới stdin).
+
 ## 6. Event stream
 
 - `Subscribe(topic, since_sequence?)`: không có `since_sequence`, hoặc sequence đã quá cũ, thì host gửi **snapshot** rồi các event tiếp theo; có `since_sequence` hợp lệ thì gửi bù từ đó. Snapshot và luồng event nhất quán, không có khoảng hở ([event storage §9](/dev-kit/core-harness/event-storage-recovery#9-payload-security-compatibility-và-client-delivery)).
@@ -190,3 +204,4 @@ Mã lỗi công khai mới: `workspace.path_outside_root`, `workspace.file_not_f
 | **HA-E07** | Trạng thái của app (v0.16) | Đóng rồi mở lại app khôi phục đúng mọi cửa sổ khi vault còn khoá; `expected_revision` cũ bị từ chối có kiểu; JSON sai, thiếu `schema_version` hoặc quá lớn bị từ chối; principal `session` bị từ chối; bản lưu có `schema_version` cao hơn không bị ghi đè |
 | **HA-E08** | Channel của đội (v0.17): `PageChannel` phân trang lùi và tiến đúng thứ tự `#n`, theo thread và channel chung; vault khoá thì `PageChannel` bị từ chối và topic `team:<id>` chỉ mang metadata; `PostChannelMessage` gửi đúng người theo `to_task_id` và thread, người giao nhận một dòng, gửi lại cùng `command_id` không tạo tin thứ hai; principal `session` bị từ chối |
 | **HA-E09** | Đọc file (v0.18): `ReadWorkspaceFile` trả đúng khoảng dòng và `total_lines`; `..`, đường dẫn tuyệt đối và symlink trỏ ra ngoài root bị từ chối `workspace.path_outside_root`; file quá 1 MiB và file nhị phân bị từ chối có kiểu; `ListWorkspaceDir` liệt kê có giới hạn; principal `session` bị từ chối |
+| **HA-E10** | Gửi code đăng nhập (v0.22, chờ duyệt): `SubmitLoginCode` chỉ nhận từ principal đã mở `login_id` và chỉ khi phiên đang chạy (kết thúc rồi trả lỗi có kiểu); từ chối chuỗi rỗng, quá 1 KiB hoặc chứa ký tự điều khiển / ngoài printable ASCII; ghi đúng một lần vào pipe stdin và zero buffer sau khi ghi; `secretlog` xác nhận `code` không bao giờ có trong log, lỗi, audit metadata hay event |
