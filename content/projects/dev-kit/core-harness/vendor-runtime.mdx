@@ -77,7 +77,7 @@ Agent Hub chạy vendor qua ACP và không ổn định. Mỗi nguyên nhân có
 - Quota: `rate_limit_event` mang cửa sổ `five_hour`, `seven_day`, `utilization`, `resetsAt`.
 - Slash command: `init.slash_commands`; ẩn các lệnh trong `init.terminal_slash_commands` (lệnh chỉ chạy trong TUI).
 - Version và danh tính: `init.claude_code_version`, `session_id`, `model`, `permissionMode`.
-- Đăng nhập (`claude auth login`, v0.6 chờ duyệt): spike trên `claude` 2.1.331 xác nhận stdin dạng pipe hoạt động trực tiếp (không cần PTY, không thêm module mới). Dòng nhắc `Paste code here if prompted > ` không có `\n` cuối dòng; lỗi thiếu `#` (`That doesn't look like the full code...`) ra stderr và CLI tiếp tục chờ nhập lại, còn code sai có `#` (`Couldn't log in: That code wasn't accepted...`) ra stderr và thoát mã `1`. Host vẫn chỉ công nhận đã đăng nhập sau khi `claude auth status --json` báo `loggedIn: true` (VR-03).
+- Đăng nhập (`claude auth login`, v0.6 chờ duyệt): spike trên `claude` 2.1.331 xác nhận stdin dạng pipe hoạt động trực tiếp (không cần PTY, không thêm module mới). Dòng nhắc `Paste code here if prompted > ` không có `\n` cuối dòng; lỗi thiếu `#` (`That doesn't look like the full code...`) ra stderr và CLI tiếp tục chờ nhập lại, còn code sai có `#` (`Couldn't log in: That code wasn't accepted...`) ra stderr và thoát mã `1`. `LoginProcess` chuyển tiếp cả `stderr` vào cùng luồng chữ thường không tin cậy của CLI; host không bao giờ parse chữ CLI để suy ra trạng thái (còn chạy thì vẫn cho dán lại, thoát khác `0` là thất bại). Host vẫn chỉ công nhận đã đăng nhập sau khi `claude auth status --json` báo `loggedIn: true` (VR-03).
 
 ### 5.2 Codex
 
@@ -245,7 +245,7 @@ Event domain (append-only, sequence theo phiên, projection trong cùng transact
 | **VR-E12** (B) | GLM qua Claude Code trỏ endpoint Z.ai với key từ vault |
 | **VR-E13** | Tool của Fugue gọi từ phiên vendor đi qua `Decide`: target có tag yêu cầu xác nhận luôn hỏi ở mọi mode và bỏ qua grant; đổi mode của phiên không làm Fugue trả lời thay cho yêu cầu của tool vendor |
 | **VR-E14** | Diff theo lượt: GG-E01 đến GG-E05 của [git guard](/dev-kit/core-harness/git-guard#7-evidence) |
-| **VR-E15** | Đăng nhập bằng code qua stdin (v0.6, chờ duyệt): fake CLI đọc code từ stdin qua pipe — đúng code thì probe báo `logged_in`; code sai hiện lỗi và giữ chạy hoặc kết thúc đúng hành vi CLI; gửi code sau khi phiên login kết thúc trả lỗi có kiểu; kiểm `secretlog` bảo đảm code không bao giờ lọt vào log, lỗi, event hay output test |
+| **VR-E15** | Đăng nhập bằng code qua stdin (v0.6, chờ duyệt): fake CLI đọc code từ stdin qua pipe — `stderr` được chuyển tiếp vào cùng luồng chữ thường không tin cậy của CLI và host không parse chữ CLI để suy ra trạng thái; đúng code thì probe báo `logged_in`; code sai hiện lỗi và giữ chạy hoặc kết thúc đúng hành vi CLI; gửi code sau khi phiên login kết thúc trả lỗi có kiểu; kiểm `secretlog` bảo đảm code không bao giờ lọt vào log, lỗi, event hay output test |
 
 ## 16. Phụ thuộc
 
