@@ -173,7 +173,7 @@ Cửa sổ rộng ra thì các cột mở lại đúng chỗ cũ. Bố cục đ�
 
 **Lưu bố cục**
 
-- Bố cục thuộc về từng cửa sổ: các cột và dòng, nội dung mỗi slot (tham chiếu tới đối tượng, không chứa dữ liệu), tỉ lệ chia, slot nào đang lấp đầy, vị trí và kích thước cửa sổ.
+- Bố cục thuộc về từng cửa sổ: các cột và dòng, nội dung mỗi slot (tham chiếu tới đối tượng, không chứa dữ liệu), tỉ lệ chia, slot nào đang lấp đầy, vị trí và kích thước cửa sổ. (Fugue FUG-83) Kích thước là kích thước thường gần nhất, đo bằng dp hệ thống, không nhân UI scale, kèm cờ phóng to; đang phóng to thì không ghi đè kích thước thường. Mặc định là 1280 × 800 dp. Lúc mở, cửa sổ chính chờ bản ghi bố cục tối đa 500 ms để hiện đúng kích thước ngay frame đầu. Bản ghi tới sau khi user đã tự đổi kích thước thì không áp.
 - Host lưu bố cục qua Host API ([host API §5.2](/dev-kit/core-harness/host-api#52-trạng-thái-của-app-v016), `fugue.appstate.v1`) và khôi phục mọi cửa sổ khi mở lại app, kể cả khi vault còn khoá; vì vậy bố cục chỉ chứa loại và ID của đối tượng, không chứa nội dung.
 - Slot trỏ tới đối tượng không còn tồn tại (phiên đã xoá, module đã gỡ) hiện EmptyState có nút đóng, không tự biến mất.
 
