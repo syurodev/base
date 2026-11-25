@@ -5,7 +5,7 @@ description: Quyết định G-03 cho execution store, protected payload, khóa,
 
 # Storage và bảo mật payload (G-03)
 
-Trạng thái: **v0.13 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt** (Fugue FUG-37: §10 đánh dấu mục S-E chạy ở giai đoạn A và mục chỉ của native sang B, theo caller production hiện có); foundation decision v0.12. **Thiết kế G-03 đã chốt**; evidence (migration, tests, fault injection) còn chờ implementation và được liệt kê ở [mục 10](#10-evidence-để-đóng-g-03). Semantics của stream, admission và recovery ở [event storage và recovery](/dev-kit/core-harness/event-storage-recovery); trang này chốt cách lưu và bảo vệ chúng.
+Trạng thái: **v0.13 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt** (Fugue FUG-37: §10 đánh dấu mục S-E chạy ở giai đoạn A và mục chỉ của native sang C, theo caller production hiện có); foundation decision v0.12. **Thiết kế G-03 đã chốt**; evidence (migration, tests, fault injection) còn chờ implementation và được liệt kê ở [mục 10](#10-evidence-để-đóng-g-03). Semantics của stream, admission và recovery ở [event storage và recovery](/dev-kit/core-harness/event-storage-recovery); trang này chốt cách lưu và bảo vệ chúng.
 
 ## 1. Quyết định của người dùng
 
@@ -118,21 +118,21 @@ Commit unknown (lỗi driver hoặc I/O sau khi gửi `COMMIT`): coordinator d�
 
 Thiết kế ở trên không cần quyết định thêm. G-03 chỉ **đóng** khi các bằng chứng sau có kèm revision cụ thể.
 
-Từ v0.13 (đề xuất): ở giai đoạn A, phiên vendor và team lưu qua `vendor_*` của vendor store (cùng cơ chế sealing, trigger append-only, crypto-shred, giới hạn và kiểm pragma) và `exec_host` của storage; execution store `exec_*` cùng kernel và coordinator chưa có caller production, nên sang B cùng native runtime ([activation A-E03](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a)). Mục ghi **(B)** là cổng B; mục ghi "Giai đoạn A" và "Giai đoạn B" tách phần của mình theo hai bảng đó; mục không ghi gì chạy ở giai đoạn A.
+Từ v0.13 (đề xuất): ở giai đoạn A, phiên vendor và team lưu qua `vendor_*` của vendor store (cùng cơ chế sealing, trigger append-only, crypto-shred, giới hạn và kiểm pragma) và `exec_host` của storage; execution store `exec_*` cùng kernel và coordinator chưa có caller production, nên sang C cùng native runtime ([activation A-E03](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a)). Mục ghi **(C)** là cổng C; mục ghi "Giai đoạn A" và "Giai đoạn C" tách phần của mình theo hai bảng đó; mục không ghi gì chạy ở giai đoạn A.
 
 
 | ID | Evidence | Cách chứng minh |
 | --- | --- | --- |
-| **S-E01** | Atomicity | Fault injection giữa từng bước trong transaction (payload, event, projection, receipt, admission); sau mở lại không có trạng thái commit một phần. Giai đoạn A: transaction của vendor store (event, payload, projection). Giai đoạn B: receipt và admission của `exec_*` |
-| **S-E02** (B) | Read-back | Driver trả lỗi sau COMMIT thành công và sau COMMIT thất bại; read-back phân biệt đúng, không dispatch trùng |
+| **S-E01** | Atomicity | Fault injection giữa từng bước trong transaction (payload, event, projection, receipt, admission); sau mở lại không có trạng thái commit một phần. Giai đoạn A: transaction của vendor store (event, payload, projection). Giai đoạn C: receipt và admission của `exec_*` |
+| **S-E02** (C) | Read-back | Driver trả lỗi sau COMMIT thành công và sau COMMIT thất bại; read-back phân biệt đúng, không dispatch trùng |
 | **S-E03** | Durability pragmas | Test mở store với `synchronous` hoặc `journal_mode` khác bị từ chối |
-| **S-E04** | Append-only | UPDATE/DELETE ngoài purge bị trigger chặn; purge xóa đúng session. Giai đoạn A: bảng `vendor_*`. Giai đoạn B: bảng `exec_*` |
-| **S-E05** | Crypto-shred | Sau purge, file DB không chứa bytes của wrapped key; payload không mở được kể cả khi vault mở. Giai đoạn A: `vendor_session_keys`. Giai đoạn B: `exec_session_keys` |
-| **S-E06** (B) | Codec | Duplicate key, unknown field, field order, codec version khác: đúng conflict/receipt |
+| **S-E04** | Append-only | UPDATE/DELETE ngoài purge bị trigger chặn; purge xóa đúng session. Giai đoạn A: bảng `vendor_*`. Giai đoạn C: bảng `exec_*` |
+| **S-E05** | Crypto-shred | Sau purge, file DB không chứa bytes của wrapped key; payload không mở được kể cả khi vault mở. Giai đoạn A: `vendor_session_keys`. Giai đoạn C: `exec_session_keys` |
+| **S-E06** (C) | Codec | Duplicate key, unknown field, field order, codec version khác: đúng conflict/receipt |
 | **S-E07** | Vault observation | Unlock trước recovery, lock giữa read/subscribe/commit/consume, subscriber chậm; chạy trên host headless không có bridge |
 | **S-E08** | Data-directory lock | Hai process, symlink alias, owner crash rồi acquire, network FS bị từ chối |
-| **S-E09** | Giới hạn | Payload 1 MiB, run 64 MiB, session 1 GiB cho đúng typed failure. Giai đoạn A: payload 1 MiB và session 1 GiB (vendor store). Giai đoạn B: run 64 MiB (chỉ có ở execution store) |
-| **S-E10** (B) | Active-time tranche | Run dài nhiều tranche, crash giữa tranche, resume charge ≤ 60 s, không charge downtime |
-| **S-E11** (B) | Metadata-only path | Dedup cancel và `CloseRunWithoutPayload` khi vault khóa; clear đúng admission |
-| **S-E12** (B) | Context chain | Rebuild `exec_context_decisions` sau xóa projection; gap/conflict bị phát hiện |
-| **S-E13** | Ownership | `tableOwners` có prefix `exec_`; architecture tests xanh. Giai đoạn A: bảng của vendor store và `exec_host` có owner, architecture tests xanh. Giai đoạn B: prefix `exec_` của execution store |
+| **S-E09** | Giới hạn | Payload 1 MiB, run 64 MiB, session 1 GiB cho đúng typed failure. Giai đoạn A: payload 1 MiB và session 1 GiB (vendor store). Giai đoạn C: run 64 MiB (chỉ có ở execution store) |
+| **S-E10** (C) | Active-time tranche | Run dài nhiều tranche, crash giữa tranche, resume charge ≤ 60 s, không charge downtime |
+| **S-E11** (C) | Metadata-only path | Dedup cancel và `CloseRunWithoutPayload` khi vault khóa; clear đúng admission |
+| **S-E12** (C) | Context chain | Rebuild `exec_context_decisions` sau xóa projection; gap/conflict bị phát hiện |
+| **S-E13** | Ownership | `tableOwners` có prefix `exec_`; architecture tests xanh. Giai đoạn A: bảng của vendor store và `exec_host` có owner, architecture tests xanh. Giai đoạn C: prefix `exec_` của execution store |

@@ -5,7 +5,7 @@ description: H-39 — một bộ kiểm chứng cho giai đoạn A: ID ổn đ�
 
 # Bộ kiểm chứng
 
-Trạng thái: **v0.19 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt**. v0.19 (đề xuất, Fugue FUG-62): bảng số ID ở §2 đếm lại theo mục Evidence của từng trang (CS-E 13 thành 16, DA-E 8 thành 16, HA-E 6 thành 9, I-E 10 thành 11, OR-E 18 thành 22, VR-E 13 thành 14). v0.18 (chủ dự án chốt, Fugue FUG-46): A-E07 sang cổng B cùng sandbox jail (số ID `A-E` ở §2, hàng OS smoke ở §3). v0.17 (đề xuất, Fugue FUG-37): A-E04 sang cổng B (số ID `A-E` ở §2, hàng Kernel property ở §3), `CL-E` tách (host ở A, client CLI/TUI ở B), `FT-E14` sang cổng B (§3, §6, §8), ví dụ `covers` ở §6 là đường dẫn giai đoạn A. v0.16 (đề xuất, Fugue FUG-37): §3 viết lại theo giai đoạn A: end-to-end chạy `fugue serve` thật với vendor là CLI giả (và app Gio hoặc host headless), faux provider và E2E CLI native sang B cùng native runtime; §4, §6, §8 khớp theo. v0.15 (chủ dự án chốt 2026-11-23, Fugue FUG-34): hàng Probe ở §3 khớp bộ A-E03 gộp (invariant lõi theo code giai đoạn A cộng probe bảo mật), và số ID `A-E` ở §2 sửa từ 9 thành 10 (A-E09 thuộc cổng B). Thiết kế đã chốt từ v0.14 cho phần test của H-39 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Eval prompt và tool để giai đoạn B. Trang này nói **cách** kiểm chứng; **yêu cầu** nằm ở mục Evidence của từng trang thiết kế. Điều kiện phát hành ở [phát hành giai đoạn A §5](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a).
+Trạng thái: **v0.19 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt**. v0.19 (đề xuất, Fugue FUG-62): bảng số ID ở §2 đếm lại theo mục Evidence của từng trang (CS-E 13 thành 16, DA-E 8 thành 16, HA-E 6 thành 9, I-E 10 thành 11, OR-E 18 thành 22, VR-E 13 thành 14). v0.18 (chủ dự án chốt, Fugue FUG-46): A-E07 sang cổng C cùng sandbox jail (số ID `A-E` ở §2, hàng OS smoke ở §3). v0.17 (đề xuất, Fugue FUG-37): A-E04 sang cổng C (số ID `A-E` ở §2, hàng Kernel property ở §3), `CL-E` tách (host ở A, client CLI/TUI ở C), `FT-E14` sang cổng C (§3, §6, §8), ví dụ `covers` ở §6 là đường dẫn giai đoạn A. v0.16 (đề xuất, Fugue FUG-37): §3 viết lại theo giai đoạn A: end-to-end chạy `fugue serve` thật với vendor là CLI giả (và app Gio hoặc host headless), faux provider và E2E CLI native sang C cùng native runtime; §4, §6, §8 khớp theo. v0.15 (chủ dự án chốt 2026-11-23, Fugue FUG-34): hàng Probe ở §3 khớp bộ A-E03 gộp (invariant lõi theo code giai đoạn A cộng probe bảo mật), và số ID `A-E` ở §2 sửa từ 9 thành 10 (A-E09 thuộc cổng C). Thiết kế đã chốt từ v0.14 cho phần test của H-39 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map), phạm vi giai đoạn A của Fugue. Eval prompt và tool để giai đoạn C. Trang này nói **cách** kiểm chứng; **yêu cầu** nằm ở mục Evidence của từng trang thiết kế. Điều kiện phát hành ở [phát hành giai đoạn A §5](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a).
 
 ## 1. Quyết định
 
@@ -23,11 +23,11 @@ Trạng thái: **v0.19 đề xuất, ngày 2026-11-23, chờ chủ dự án duy�
 
 | Tiền tố | Trang | Số ID |
 | --- | --- | --- |
-| `A-E`, `A-S` | [Phát hành giai đoạn A](/dev-kit/core-harness/activation) §5, §6 | 10 (A-E04, A-E07 và A-E09 cổng B), 3 |
+| `A-E`, `A-S` | [Phát hành giai đoạn A](/dev-kit/core-harness/activation) §5, §6 | 10 (A-E04, A-E07 và A-E09 cổng C), 3 |
 | `AP-E` | [Hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan) §7 | 6 |
 | `BG-E` | [Budget và quota](/dev-kit/core-harness/budget) §9 | 13 |
 | `C-E` | [Context engine](/dev-kit/core-harness/context-engine) §9 | 7 |
-| `CL-E` | [CLI và TUI](/dev-kit/core-harness/cli) §9 | 12 (CL-E01, CL-E02, CL-E04 và phần host của CL-E03, CL-E09 ở giai đoạn A; còn lại cổng B) |
+| `CL-E` | [CLI và TUI](/dev-kit/core-harness/cli) §9 | 12 (CL-E01, CL-E02, CL-E04 và phần host của CL-E03, CL-E09 ở giai đoạn A; còn lại cổng C) |
 | `CN-E` | [Continuation](/dev-kit/core-harness/continuation) §8 | 5 |
 | `CS-E` | [An toàn nội dung](/dev-kit/core-harness/content-safety) §7 | 16 |
 | `DA-E` | [Desktop app](/dev-kit/core-harness/desktop-app) §10 | 16 |
@@ -36,7 +36,7 @@ Trạng thái: **v0.19 đề xuất, ngày 2026-11-23, chờ chủ dự án duy�
 | `I-E` | [Interaction](/dev-kit/core-harness/interaction) §11 | 11 |
 | `J-E` | [Sandbox runtime](/dev-kit/core-harness/sandbox-runtime) §12 | 9 |
 | `OR-E` | [Orchestration](/dev-kit/core-harness/orchestration) §15 | 22 |
-| `M-E` | [Model adapter](/dev-kit/core-harness/model-adapter) §11.7 (E01–E06), §10 (E07–E12, cổng B) | 12 |
+| `M-E` | [Model adapter](/dev-kit/core-harness/model-adapter) §11.7 (E01–E06), §10 (E07–E12, cổng C) | 12 |
 | `Q-E` | [Điều phối input](/dev-kit/core-harness/coordination) §10 | 7 |
 | `S-E` | [Storage và bảo mật](/dev-kit/core-harness/storage-security) §10 | 13 |
 | `SH-E` | [Shell và job](/dev-kit/core-harness/shell-job) §8 | 19 |
@@ -53,23 +53,23 @@ Số ID tính cả mục đã gạch. Thêm mục evidence vào một trang thì
 
 | Harness | Dùng cho | Cách chạy |
 | --- | --- | --- |
-| Kernel property | SM-01 đến SM-12, replay, guard của kernel. Sang B cùng kernel native (A-E04, [A-E03](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a)) | `rapid` sinh chuỗi command ngẫu nhiên; invariant checker chạy sau mỗi batch; replay hai lần cho cùng state |
-| Conformance headless | Giai đoạn A: normalizer của vendor và transcript (VR-E01 đến VR-E03, TR-E01), phần `VC-` và evidence của interaction, budget, quota chạy trên code giai đoạn A ([A-E02](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a)). Bản trên kernel native (`VC-` của kernel, trace A, B, C) ở B | Fixture ghi từ CLI thật (đã redact) phát lại qua adapter; vendor giả, fake clock, SQLite tạm. Mỗi scenario là script cùng kỳ vọng về event, projection và số lần dispatch; golden file. Bản B: coordinator và execstore thật, faux provider, tool giả |
-| Crash point | Fault injection, recovery, atomicity; giai đoạn A là các điểm kill của [A-E06](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a) (điểm của native ở B) | Điểm crash có tên trong store và vòng đời chạy thật, armed qua `internal/config` cho một process. Test chạy `fugue serve` thành subprocess, process chết đúng tại điểm đó, rồi test khởi động lại và kiểm tra |
+| Kernel property | SM-01 đến SM-12, replay, guard của kernel. Sang C cùng kernel native (A-E04, [A-E03](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a)) | `rapid` sinh chuỗi command ngẫu nhiên; invariant checker chạy sau mỗi batch; replay hai lần cho cùng state |
+| Conformance headless | Giai đoạn A: normalizer của vendor và transcript (VR-E01 đến VR-E03, TR-E01), phần `VC-` và evidence của interaction, budget, quota chạy trên code giai đoạn A ([A-E02](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a)). Bản trên kernel native (`VC-` của kernel, trace A, B, C) ở C | Fixture ghi từ CLI thật (đã redact) phát lại qua adapter; vendor giả, fake clock, SQLite tạm. Mỗi scenario là script cùng kỳ vọng về event, projection và số lần dispatch; golden file. Bản B: coordinator và execstore thật, faux provider, tool giả |
+| Crash point | Fault injection, recovery, atomicity; giai đoạn A là các điểm kill của [A-E06](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a) (điểm của native ở C) | Điểm crash có tên trong store và vòng đời chạy thật, armed qua `internal/config` cho một process. Test chạy `fugue serve` thành subprocess, process chết đúng tại điểm đó, rồi test khởi động lại và kiểm tra |
 | E2E host | Mọi hàng failure UX ([activation §3](/dev-kit/core-harness/activation#3-failure-ux-bắt-buộc)), exit code của `fugue serve`, lease và tắt host (A-E05, DA-E05, DA-E08) | `fugue serve` thật; vendor là CLI giả phát lại fixture; client là app Gio hoặc client thử dùng `pkg/client`; chạy cả host headless fail closed |
-| E2E CLI (B) | Failure UX, exit code, lease và tắt host của client `fugue` CLI/TUI trên native runtime | Binary `fugue` CLI/TUI nối `fugue serve` thật; model là faux provider đọc file script; chạy cả host headless. Sang B cùng CLI/TUI (H-45) và native runtime |
-| OS smoke | Sandbox ba preset (A-E07, sang B cùng sandbox jail), stop proof, reaper, filter shell trên binary thật | Runner Linux và macOS |
-| Probe | Mutation probe mà các trang yêu cầu. Giai đoạn A ([A-E03](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a)): invariant lõi trên store và vòng đời session đang chạy (CAS sequence của session vendor và team, CAS revision state app, interaction của incarnation cũ, delegator ngoài subtree, restart không chạy lại task `unknown` và đóng lượt vendor mở, không retry `unknown`, không coi cancellation là stop proof) cùng sáu probe bảo mật (vault fail-open, nâng quyền principal, vendor auto-approve, hard-rule của `decide`, write scope của team, path traversal). Bản native (`execstore`, `coordinator`, `kernel`) ở cổng B | Mutant viết tay ở `quality/probes/NN-<name>.patch`, mỗi patch kèm danh sách test phải fail. Job `probes` chạy mỗi đêm (§4), áp từng patch và đòi đúng các test đó fail |
+| E2E CLI (C) | Failure UX, exit code, lease và tắt host của client `fugue` CLI/TUI trên native runtime | Binary `fugue` CLI/TUI nối `fugue serve` thật; model là faux provider đọc file script; chạy cả host headless. Sang C cùng CLI/TUI (H-45) và native runtime |
+| OS smoke | Sandbox ba preset (A-E07, sang C cùng sandbox jail), stop proof, reaper, filter shell trên binary thật | Runner Linux và macOS |
+| Probe | Mutation probe mà các trang yêu cầu. Giai đoạn A ([A-E03](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a)): invariant lõi trên store và vòng đời session đang chạy (CAS sequence của session vendor và team, CAS revision state app, interaction của incarnation cũ, delegator ngoài subtree, restart không chạy lại task `unknown` và đóng lượt vendor mở, không retry `unknown`, không coi cancellation là stop proof) cùng sáu probe bảo mật (vault fail-open, nâng quyền principal, vendor auto-approve, hard-rule của `decide`, write scope của team, path traversal). Bản native (`execstore`, `coordinator`, `kernel`) ở cổng C | Mutant viết tay ở `quality/probes/NN-<name>.patch`, mỗi patch kèm danh sách test phải fail. Job `probes` chạy mỗi đêm (§4), áp từng patch và đòi đúng các test đó fail |
 | Drill | Nâng cấp và hạ phiên bản ([activation §4](/dev-kit/core-harness/activation#4-nâng-cấp-và-hạ-phiên-bản-g-06)) | Build hai binary từ merge-base và HEAD khi migration hoặc proto đổi; dừng host giữa run, đổi binary, resume; build cũ mở data directory mới thì không append |
-| Live | Mục cần account thật: duyệt quyền với CLI vendor thật (VR-E04), recovery drill với CLI vendor thật (A-S01), độ trễ (A-S03). Spike ChatGPT §11.7 và đăng nhập ChatGPT (A-E09) và `fugue bench edit` (FT-E14) ở B | `fugue verify live <check>` trên máy owner (§6) |
+| Live | Mục cần account thật: duyệt quyền với CLI vendor thật (VR-E04), recovery drill với CLI vendor thật (A-S01), độ trễ (A-S03). Spike ChatGPT §11.7 và đăng nhập ChatGPT (A-E09) và `fugue bench edit` (FT-E14) ở C | `fugue verify live <check>` trên máy owner (§6) |
 
-Crash point có trong mọi build; armed chỉ làm process tự chết tại điểm đó, không mở thêm quyền nào. Tool giả (và faux provider ở B) chỉ đăng ký được khi host chạy với cấu hình test; host thường từ chối chúng.
+Crash point có trong mọi build; armed chỉ làm process tự chết tại điểm đó, không mở thêm quyền nào. Tool giả (và faux provider ở C) chỉ đăng ký được khi host chạy với cấu hình test; host thường từ chối chúng.
 
 ## 4. Tầng chạy
 
 | Tầng | Khi nào | Chứa gì |
 | --- | --- | --- |
-| `pr` | Mọi PR, trong `task check` và CI | Kernel property, conformance, crash point, E2E host, OS smoke (E2E CLI ở B) |
+| `pr` | Mọi PR, trong `task check` và CI | Kernel property, conformance, crash point, E2E host, OS smoke (E2E CLI ở C) |
 | `nightly` | Mỗi đêm | `-count=5`, fuzz dài, mutation toàn bộ, probe, drill |
 | `release` | Một lần trên commit ứng viên (RC), cả Linux và macOS | Toàn bộ `pr` và `nightly` chạy lại trên RC, cộng `TestReleaseEvidence` (§7) |
 | `live` | Owner chạy tay | Mục cần account thật (§6) |
@@ -145,12 +145,12 @@ Bản ghi là file `quality/records/<ID>/<date>-<os>.json`:
 3. Xuất `release-evidence.md`: từng ID, test hoặc bản ghi, run CI và revision. File này đi kèm tag phát hành.
 4. Cổng `stable` dùng cùng cơ chế với ID cổng `stable`, cộng quyết định của owner ghi kèm ngày và revision ([activation §6](/dev-kit/core-harness/activation#6-a-ổn-định)).
 
-## 8. Hoãn sang B
+## 8. Hoãn sang C
 
 - Harness gắn với native runtime: faux provider, E2E CLI (client `fugue` CLI/TUI), kernel property và conformance trên coordinator và execstore native (§3).
 - Eval prompt và eval tool: model dùng tool có tốt không, chất lượng câu trả lời theo bộ task.
 - Evidence của Anthropic (**M-E07**–**M-E12**) và các spike sandbox ở cổng `B`.
-- `fugue bench edit` (**FT-E14**, FT-08) đo tool file native (H-17) nên sang B cùng native runtime; lệnh `fugue verify live` ở giai đoạn A không có check này.
+- `fugue bench edit` (**FT-E14**, FT-08) đo tool file native (H-17) nên sang C cùng native runtime; lệnh `fugue verify live` ở giai đoạn A không có check này.
 
 ## 9. Phụ thuộc
 

@@ -11,12 +11,12 @@ Trạng thái: **v0.2, ngày 2026-11-23**. v0.1 (2026-11-11) đề xuất cả h
 
 | Trong phạm vi | Ngoài phạm vi |
 | --- | --- |
-| Diff thật của thư mục làm việc cho mỗi lượt của phiên vendor, kể cả thay đổi do lệnh shell, formatter hay script tạo ra | Restore về đầu lượt (giai đoạn B, cùng snapshot của native, F6.2) |
+| Diff thật của thư mục làm việc cho mỗi lượt của phiên vendor, kể cả thay đổi do lệnh shell, formatter hay script tạo ra | Restore về đầu lượt (giai đoạn C, cùng snapshot của native, F6.2) |
 | Quét secret trong phần thêm vào của lượt, chỉ cảnh báo | Chặn ghi file chứa secret |
 | Pre-push hook bật theo từng repo: quét các commit sắp push, có kết quả thì hỏi user trong app (sau giai đoạn A, §4) | Cấm push; quét push từ máy khác hoặc trên CI |
 | Ngoại lệ theo từng repo, lưu trong data dir của Fugue (sau giai đoạn A, cùng §4) | Đọc file cấu hình hay ngoại lệ nằm trong repo |
 
-Đây là **lưới chống lỡ tay**, không phải ranh giới bảo mật. Agent có ý xấu vẫn lách được (`git push --no-verify`, gọi thẳng `/usr/bin/git`, gửi dữ liệu bằng `curl`). Chống đưa dữ liệu ra ngoài là việc của egress allowlist ([sandbox runtime §13](/dev-kit/core-harness/sandbox-runtime), giai đoạn B).
+Đây là **lưới chống lỡ tay**, không phải ranh giới bảo mật. Agent có ý xấu vẫn lách được (`git push --no-verify`, gọi thẳng `/usr/bin/git`, gửi dữ liệu bằng `curl`). Chống đưa dữ liệu ra ngoài là việc của egress allowlist ([sandbox runtime §13](/dev-kit/core-harness/sandbox-runtime), giai đoạn C).
 
 ## 2. Quyết định
 

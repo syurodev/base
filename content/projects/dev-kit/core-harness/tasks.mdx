@@ -49,7 +49,7 @@ Session S2 (chưa claim task)
 | `in_progress`, `review` | active |
 | `done`, `wont_do` | terminal |
 
-Mọi luật đọc **category**, không đọc tên trạng thái, để giai đoạn B thêm workflow tùy biến mà không đổi luật.
+Mọi luật đọc **category**, không đọc tên trạng thái, để giai đoạn C thêm workflow tùy biến mà không đổi luật.
 
 ## 3. Owner và dữ liệu
 
@@ -64,7 +64,7 @@ Owner là package `internal/tasks`, đường ghi duy nhất cho board, task, st
 | `task_verify_runs` | PK `run_id`; `item_id`, `state`, `exit_code`, `requested_by`, thời gian | `state` ∈ `queued`, `running`, `passed`, `failed`, `cancelled`, `lost`, `stale` |
 
 - `sealed` dùng `vault.SealRecord` với `RecordBinding{RecordType: "tasks.item" | "tasks.comment", RecordID, KeyID: "v1"}`: title, description, labels, nội dung step, thân comment. Liệt kê task khi vault khóa chỉ thấy key, trạng thái và thời gian.
-- Key hiển thị là `key_prefix-number` (ví dụ `FUG-12`), `number` tăng dần trong board. Giai đoạn B có sync thì cách đánh số được xem lại.
+- Key hiển thị là `key_prefix-number` (ví dụ `FUG-12`), `number` tăng dần trong board. Giai đoạn C có sync thì cách đánh số được xem lại.
 - Thua race (`revision` lệch) thì từ chối có kiểu, không ghi đè.
 
 ## 4. Tool `todo`
@@ -212,11 +212,11 @@ Checklist của session đang chạy hiện trong view của session. Kanban the
 - **TK-E11** Nội dung không có trong metadata; liệt kê khi vault khóa chỉ có key, trạng thái, thời gian.
 - **TK-E12** Mọi lệnh `fugue tasks` chạy không cần TTY; `--json` có đủ field để script dùng.
 
-## 13. Để sang giai đoạn B
+## 13. Để sang giai đoạn C
 
 Nhiều board mỗi workspace, workflow tùy biến, sync giữa thiết bị, liên kết với đọc code (H-19), giao task cho session khác, user sửa checklist, Kanban theo cột trong TUI.
 
 ## 14. Phụ thuộc
 
 - Cần trước: [interaction](/dev-kit/core-harness/interaction) (H-24), [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (H-25), [an toàn nội dung](/dev-kit/core-harness/content-safety) (H-26, H-27), vault record (`internal/vault`).
-- Mảng liên quan: [hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan) (H-20), [context engine](/dev-kit/core-harness/context-engine), [workspace](/dev-kit/core-harness/workspace) (H-34: lệnh verify, `key_prefix`), H-45 (lệnh `fugue tasks`, view session), [continuation](/dev-kit/core-harness/continuation) (goal có thể trỏ tới task ở giai đoạn B).
+- Mảng liên quan: [hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan) (H-20), [context engine](/dev-kit/core-harness/context-engine), [workspace](/dev-kit/core-harness/workspace) (H-34: lệnh verify, `key_prefix`), H-45 (lệnh `fugue tasks`, view session), [continuation](/dev-kit/core-harness/continuation) (goal có thể trỏ tới task ở giai đoạn C).

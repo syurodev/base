@@ -19,7 +19,7 @@ Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-18 tr
 | SH-06 | Kênh Model của `shell` có hai chế độ: `compact` (mặc định) và `full`. Chế độ chỉ đổi cách dựng result, không đổi `risk`, `grantScope` hay quyết định hỏi |
 | SH-07 | Output gốc bị ẩn khỏi kênh Model được giữ trong memory và đọc lại bằng `shell.output`; **không cần chạy lại lệnh** để xem output đầy đủ |
 | SH-08 | Fugue **không sửa lệnh** để lấy output dễ lọc: lệnh chạy đúng là lệnh đã hiện trong request duyệt |
-| SH-09 | Filter là code Go trong binary, tất định; giai đoạn A không có filter do user hay workspace định nghĩa, vì đó là logic không tin cậy chạy trên output và cần cơ chế trust riêng (giai đoạn B) |
+| SH-09 | Filter là code Go trong binary, tất định; giai đoạn A không có filter do user hay workspace định nghĩa, vì đó là logic không tin cậy chạy trên output và cần cơ chế trust riêng (giai đoạn C) |
 | SH-10 | Filter chỉ được làm output nhỏ đi và không được làm mất tín hiệu lỗi; khi không chắc thì trả output chưa lọc theo program (§3.4) |
 
 ## 2. Tool `shell`
@@ -228,7 +228,7 @@ CLI (H-45) hiện hai số đo này theo session và theo filter. `unrecognized`
 Không lọc ở giai đoạn A:
 
 - **`cat`, `head`, `tail`.** Model đọc file bằng tool file (H-17), có kiểm soát riêng.
-- **`docker`, `kubectl`, `npm` và các ecosystem khác.** Đã có grammar (§2.6) nhưng chưa có filter; để sang B, ưu tiên theo số đo `generic` có `raw_bytes` lớn.
+- **`docker`, `kubectl`, `npm` và các ecosystem khác.** Đã có grammar (§2.6) nhưng chưa có filter; để sang C, ưu tiên theo số đo `generic` có `raw_bytes` lớn.
 - **Lọc code nguồn** (bỏ comment, bỏ thân hàm). Không thuộc tool shell.
 
 ## 4. Tool `shell.output` và `job.*`
@@ -306,4 +306,4 @@ Mã lỗi công khai: `shell.cwd_outside_workspace`, `shell.cwd_missing`, `shell
   - H-26, H-27: redact và envelope cho output, cả compact lẫn full ([an toàn nội dung](/dev-kit/core-harness/content-safety)).
   - [workspace](/dev-kit/core-harness/workspace) (H-34): timeout, giới hạn job, danh sách chỉ đọc bổ sung, allowlist override env, chế độ `output` mặc định, cap, dung lượng giữ output mỗi session, program loại trừ khỏi filter.
   - H-45: hiển thị job và daemon; số đo tiết kiệm và tỉ lệ đọc lại.
-- Giai đoạn B: filter cho thêm ecosystem; filter do workspace định nghĩa kèm cơ chế trust.
+- Giai đoạn C: filter cho thêm ecosystem; filter do workspace định nghĩa kèm cơ chế trust.

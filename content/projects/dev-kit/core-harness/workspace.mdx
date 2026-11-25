@@ -154,7 +154,7 @@ Lệnh CLI kiểm tra `config_hash` trước khi ghi; file đã bị sửa ở c
 | `policy.approval_mode` | `auto` | Mode của session mới ([interaction §2](/dev-kit/core-harness/interaction#2-hai-trục-sandbox-profile-và-approval-mode)) | Có |
 | `policy.sandbox_profile` | `workspace-write` | Profile của session mới | Có |
 | `policy.shell_ask`, `policy.shell_allow` (+ `_add`) | `[]` | Luật shell theo tiền tố ([interaction §3.3](/dev-kit/core-harness/interaction#33-luật-tĩnh-cho-shell)); `allow` không thắng luật cứng | Có |
-| `policy.env_tags` | `[]` | `{ match, tag }`; contract, tool có target mang tag ở giai đoạn B | Có |
+| `policy.env_tags` | `[]` | `{ match, tag }`; contract, tool có target mang tag ở giai đoạn C | Có |
 | `env.keep` (+ `_add`) | `[]` | Tên giữ lại dù khớp denylist (J-04) | Có |
 | `env.override_allow` (+ `_add`) | `[]` | Tên model được ghi đè qua arg `env` của shell | Có |
 | `shell.timeout`, `shell.timeout_cap` | `10m`, `60m` (trần 60m) | [Shell và job §2](/dev-kit/core-harness/shell-job#2-tool-shell) | Không |
