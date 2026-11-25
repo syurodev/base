@@ -13,7 +13,7 @@ Trạng thái: foundation decision v0.12. **Thiết kế cấp hệ thống đã
 | --- | --- |
 | T-01 | Native runtime **tự sở hữu** tool file, tìm kiếm, shell và job; không dựa vào tool có sẵn của vendor |
 | T-02 | Trong phạm vi đã cấp quyền thì **tự chạy**; [việc quan trọng](#53-việc-quan-trọng-luôn-hỏi) luôn hỏi |
-| T-03 | Tool native gọi thẳng owner service; **refactor MCP handler về contract chung để sau**, nhưng phải xong trước giai đoạn B |
+| T-03 | Tool native gọi thẳng owner service; **refactor MCP handler về contract chung để sau**, nhưng phải xong trước giai đoạn C |
 | T-04 | Bộ tool cơ bản luôn bật; user **chọn thêm group khi tạo session**; giữa session xin nạp thêm |
 | T-05 | Shell: **lệnh chạy một lần, trong jail sống theo session** |
 | T-06 | Env lấy từ **snapshot login shell** mỗi session; Gradle có thể dùng daemon của host (chấp nhận, ghi rõ) |
@@ -237,10 +237,10 @@ Tool file không bao giờ ghi lên nội dung mà model chưa thấy: `edit` ph
 | --- | --- | --- |
 | — | ~~Daemon trên Linux~~ | Thành evidence của [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) §12 |
 | **T-E01** | Tách registry daemon | Gradle dùng cache chung nhưng registry daemon riêng của session |
-| **T-E02** (B) | Egress allowlist | Proxy CONNECT trên macOS (seatbelt) và Linux (forwarder trong jail) |
-| **T-E03** (B) | Docker proxy | Lọc API kể cả BuildKit và compose; label và cleanup container |
-| **T-E04** (B) | Keychain trong seatbelt | Docker `credsStore` cho registry private |
+| **T-E02** (C) | Egress allowlist | Proxy CONNECT trên macOS (seatbelt) và Linux (forwarder trong jail) |
+| **T-E03** (C) | Docker proxy | Lọc API kể cả BuildKit và compose; label và cleanup container |
+| **T-E04** (C) | Keychain trong seatbelt | Docker `credsStore` cho registry private |
 | **T-E05** | Binding revision | Đo chi phí mất prompt cache khi nạp group |
-| **T-E06** (B) | Nạp schema trễ | Adapter nào có cơ chế provider tương ứng |
-| **T-E07** (B) | Store snapshot thuần Go | Hiệu năng chụp tăng dần tương đương shadow git |
+| **T-E06** (C) | Nạp schema trễ | Adapter nào có cơ chế provider tương ứng |
+| **T-E07** (C) | Store snapshot thuần Go | Hiệu năng chụp tăng dần tương đương shadow git |
 | **T-E08** | ~~Tách prompt~~ | Bỏ: Fugue chỉ có tool native, không có prompt site cần tách (A-01) |

@@ -17,13 +17,13 @@ Trạng thái: **v0.2, ngày 2026-11-08, thiết kế đã chốt khi chủ dự
 
 **v0.3 (2026-11-11), chờ duyệt**: thêm kind `turn_diff` (§3) cho diff theo lượt của [git guard](/dev-kit/core-harness/git-guard) (H-50) và mã notice `possible_secret`.
 
-Mảng H-48 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Nguồn event: [vendor runtime](/dev-kit/core-harness/vendor-runtime) (giai đoạn A) và native run (giai đoạn B). Client đọc: [desktop app](/dev-kit/core-harness/desktop-app) và [CLI](/dev-kit/core-harness/cli).
+Mảng H-48 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Nguồn event: [vendor runtime](/dev-kit/core-harness/vendor-runtime) (giai đoạn A) và native run (giai đoạn C). Client đọc: [desktop app](/dev-kit/core-harness/desktop-app) và [CLI](/dev-kit/core-harness/cli).
 
 ## 1. Phạm vi
 
 Transcript là **read model** mà mọi UI đọc để hiện một phiên: tin nhắn, suy nghĩ, tool call, thay đổi file, yêu cầu duyệt, task được giao, usage. Mọi vendor và tầng native đều được chuẩn hoá về cùng một tập item, nên UI không biết gì về wire format của từng vendor.
 
-Ngoài phạm vi: tìm kiếm toàn văn (B), export (B), rewind và fork (H-15), xem giá trị thật của secret đã redact (H-45, B).
+Ngoài phạm vi: tìm kiếm toàn văn (C), export (C), rewind và fork (H-15), xem giá trị thật của secret đã redact (H-45, C).
 
 ## 2. Quyết định
 

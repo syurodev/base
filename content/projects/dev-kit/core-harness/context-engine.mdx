@@ -5,7 +5,7 @@ description: Lắp prompt cho mỗi model request — bố cục cho prompt cach
 
 # Context engine
 
-Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-10, H-11, H-12 và tầng context bền của workspace (H-13) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Tham chiếu session cũ (H-15) để giai đoạn B. Các con số mặc định đều cấu hình được và sẽ được tinh chỉnh khi dogfood. **v0.13 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.**
+Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-10, H-11, H-12 và tầng context bền của workspace (H-13) trong [bản đồ thiết kế](/dev-kit/core-harness/design-map). Tham chiếu session cũ (H-15) để giai đoạn C. Các con số mặc định đều cấu hình được và sẽ được tinh chỉnh khi dogfood. **v0.13 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.**
 
 ## 1. Quyết định của người dùng
 
@@ -22,7 +22,7 @@ Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-10,
 | C-09 | Rule: R1 chỉ local ở v1; có R3; kích hoạt **luôn áp dụng** và **theo path**; lint mỗi lần lưu, audit AI khi bấm; `AGENTS.md` thắng `CLAUDE.md` |
 | C-10 | Compaction **tự động mặc định**; phần giữ nguyên **co giãn theo context window**; model tóm tắt cấu hình được, mặc định là model của session |
 | C-11 | System prompt **không chứa giá trị cụ thể**; thứ đổi giữa session gắn vào cuối |
-| C-12 | View "model đã thấy gì" để giai đoạn B |
+| C-12 | View "model đã thấy gì" để giai đoạn C |
 
 ## 2. Bố cục prompt
 
@@ -48,7 +48,7 @@ Model adapter đặt điểm cache sau L3 và ở cuối prompt. Request tóm t�
 
 ### 2.2 Lắp context là hàm xác định
 
-View của một model request là hàm thuần từ: transcript đã commit của epoch, cấu hình đã ghim, binding revision, **snapshot của rule và instruction file** (lưu thành payload qua `InstructionsLoaded`), trạng thái W đã đọc, và các event compaction/pruning. Mọi đầu vào ngoài đều có trong journal, nên dựng lại được "model đã thấy gì" để debug (UI ở giai đoạn B).
+View của một model request là hàm thuần từ: transcript đã commit của epoch, cấu hình đã ghim, binding revision, **snapshot của rule và instruction file** (lưu thành payload qua `InstructionsLoaded`), trạng thái W đã đọc, và các event compaction/pruning. Mọi đầu vào ngoài đều có trong journal, nên dựng lại được "model đã thấy gì" để debug (UI ở giai đoạn C).
 
 ## 3. Tầng rule
 
@@ -75,7 +75,7 @@ Nối từ rộng tới cụ thể; lớp sau đứng sau trong prompt.
 | Luôn áp dụng | Mặc định | L2, mọi request |
 | Theo path | Frontmatter `paths:` (glob) | Khi agent đọc hoặc ghi file khớp: gắn vào L5 qua `ContextInjected`; sau compaction được gắn lại nếu file khớp vẫn nằm trong phần giữ nguyên |
 
-Kiểu "agent tự quyết dựa trên description" để giai đoạn B.
+Kiểu "agent tự quyết dựa trên description" để giai đoạn C.
 
 ### 3.3 Review rule
 
@@ -188,20 +188,20 @@ Tỷ lệ và độ dài tối thiểu cấu hình được. Không bao giờ t�
 ## 7. UX
 
 - Giai đoạn A: thanh đo context (token đang dùng so với window); compaction và pruning hiện trong timeline; hàng chờ gợi ý W và rule; Settings có R0 chỉ đọc, R1, R3, kết quả lint và nút audit.
-- Giai đoạn B: view "model đã thấy gì" dựng lại từ journal.
+- Giai đoạn C: view "model đã thấy gì" dựng lại từ journal.
 
 ## 8. Để sau
 
 | Hạng mục | Giai đoạn |
 | --- | --- |
-| Tham chiếu session cũ do user chủ động (episodic) | B |
-| Rule kiểu agent tự quyết theo description | B |
-| Repo map từ codegraph trong L3 (~1k token) | B |
-| Compaction chạy nền trước khi chạm ngưỡng | B |
-| Cache warmer | B |
-| Thay ảnh cũ bằng placeholder | B |
-| Tìm kiếm W theo ngữ nghĩa (vector) | B |
-| Sync R1 giữa các máy | B |
+| Tham chiếu session cũ do user chủ động (episodic) | C |
+| Rule kiểu agent tự quyết theo description | C |
+| Repo map từ codegraph trong L3 (~1k token) | C |
+| Compaction chạy nền trước khi chạm ngưỡng | C |
+| Cache warmer | C |
+| Thay ảnh cũ bằng placeholder | C |
+| Tìm kiếm W theo ngữ nghĩa (vector) | C |
+| Sync R1 giữa các máy | C |
 
 ## 9. Evidence cần có
 

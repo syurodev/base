@@ -5,7 +5,7 @@ description: H-49 — agent tự quyết làm một mình hay đề xuất lập
 
 # Orchestration
 
-Trạng thái: **đề xuất v0.2, ngày 2026-11-07, chờ chủ dự án duyệt**. v0.2 thêm lập đội theo đề xuất (§5), đội nhiều tầng và luồng thông tin theo ngoại lệ (§6), tích hợp theo tầng (§9). **v0.3 (2026-11-19), chờ duyệt**: channel của đội kiểu Slack (§6.7): người xem và nhắn trong một channel có thread theo task; agent vẫn chỉ nhận thông tin của mình, cộng nhắn ngang trong nhóm có hạn mức và tool đọc channel. Mảng H-49 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-30 (team cho native) ở giai đoạn A. Chạy trên [vendor runtime](/dev-kit/core-harness/vendor-runtime) (H-47), hiển thị qua [transcript](/dev-kit/core-harness/transcript) (H-48) và [desktop app](/dev-kit/core-harness/desktop-app) (H-33). **v0.4 (2026-11-21), chủ dự án duyệt**: review chéo theo bundle với Open Code Review (§10.1, Q-192 của F11.5) và cách tích hợp task con được nhận lại sau khi huỷ trưởng nhóm (§10.2, Q-193); OR-E21, OR-E22. **v0.5 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.** **v0.6 (2026-11-23), chủ dự án quyết định, Fugue FUG-55:** hàng đợi và tầng scheduler chỉ áp cho task đội; phiên vendor do user mở vượt tầng phiên đồng thời bị từ chối thay vì chờ ([vendor runtime §10](/dev-kit/core-harness/vendor-runtime#10-state-event-và-lưu-trữ)); chờ ở cấp phiên sau giai đoạn A.
+Trạng thái: **v0.4 đề xuất, ngày 2026-11-25, chờ chủ dự án duyệt** ([task hub](/dev-kit/core-harness/task-hub) TH-12): `fugue_team_propose` và `fugue_team_amend` nhận việc (task Jira hoặc việc riêng) tùy chọn cho cả đội và cho từng task (§5.3). **đề xuất v0.2, ngày 2026-11-07, chờ chủ dự án duyệt**. v0.2 thêm lập đội theo đề xuất (§5), đội nhiều tầng và luồng thông tin theo ngoại lệ (§6), tích hợp theo tầng (§9). **v0.3 (2026-11-19), chờ duyệt**: channel của đội kiểu Slack (§6.7): người xem và nhắn trong một channel có thread theo task; agent vẫn chỉ nhận thông tin của mình, cộng nhắn ngang trong nhóm có hạn mức và tool đọc channel. Mảng H-49 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-30 (team cho native) ở giai đoạn A. Chạy trên [vendor runtime](/dev-kit/core-harness/vendor-runtime) (H-47), hiển thị qua [transcript](/dev-kit/core-harness/transcript) (H-48) và [desktop app](/dev-kit/core-harness/desktop-app) (H-33). **v0.4 (2026-11-21), chủ dự án duyệt**: review chéo theo bundle với Open Code Review (§10.1, Q-192 của F11.5) và cách tích hợp task con được nhận lại sau khi huỷ trưởng nhóm (§10.2, Q-193); OR-E21, OR-E22. **v0.5 (2026-11-23), đề xuất, chờ chủ dự án duyệt, Fugue FUG-37: bỏ dẫn nguồn ngoài, chỉ sửa chữ; yêu cầu không đổi.** **v0.6 (2026-11-23), chủ dự án quyết định, Fugue FUG-55:** hàng đợi và tầng scheduler chỉ áp cho task đội; phiên vendor do user mở vượt tầng phiên đồng thời bị từ chối thay vì chờ ([vendor runtime §10](/dev-kit/core-harness/vendor-runtime#10-state-event-và-lưu-trữ)); chờ ở cấp phiên sau giai đoạn A.
 
 Tham khảo đã nghiên cứu: `PickAccount` của Agent Hub ([budget và quota §3](/dev-kit/core-harness/budget)), spike swarm ngày 2026-11-07 (§14), và mẫu giao diện cây agent do chủ dự án cung cấp (orchestrator, trưởng nhóm, thành viên; badge "cần bạn" và "thất bại"; chi phí theo từng nút; task thất bại được thay bằng lần chạy mới).
 
@@ -121,7 +121,15 @@ User sửa danh mục trong cài đặt. Đề xuất dùng tên vai trò trong 
 
 ### 5.3 Đề xuất và duyệt
 
-`fugue_team_propose(title, brief, roles[], tasks[], budget?)` trả proposal ID ngay; phiên kết thúc lượt. `roles` là danh sách vai trò cùng hồ sơ; `tasks` là cây task với `role`, `goal`, `write_scope`, `depends_on`, và task nào thuộc trưởng nhóm nào.
+`fugue_team_propose(title, brief, roles[], tasks[], budget?, work_items?)` trả proposal ID ngay; phiên kết thúc lượt. `roles` là danh sách vai trò cùng hồ sơ; `tasks` là cây task với `role`, `goal`, `write_scope`, `depends_on`, `work_item?`, và task nào thuộc trưởng nhóm nào.
+
+**Việc gắn với đội (v0.4, [task hub](/dev-kit/core-harness/task-hub) TH-12).**
+
+- `work_items` (đội) và `work_item` (từng task) là tùy chọn. Giá trị là key Jira, URL `browse` của Jira, hoặc key của việc riêng. Một đội làm được nhiều việc, và mỗi task gắn tối đa một việc.
+- Key sai dạng thì tool từ chối `invalid_argument` kèm lý do, để model sửa rồi gọi lại. Project chưa biết thì vẫn nhận, và thẻ duyệt cảnh báo.
+- Liên kết chỉ có hiệu lực **khi user duyệt thẻ**. User thêm hoặc bỏ việc ngay trên thẻ.
+- `fugue_team_amend` nhận cùng hai field cho task thêm mới.
+- Đây không phải ghi trạng thái: agent chỉ khai việc nào, trong cùng lời gọi đã có (TH-02 của task hub).
 
 Đề xuất hiện thành item `team_proposal` trong transcript ([transcript §3](/dev-kit/core-harness/transcript#3-loại-item)) và trong hộp duyệt. Fugue bổ sung vào thẻ:
 
@@ -336,7 +344,7 @@ Chủ dự án chọn dùng [Open Code Review](https://github.com/alibaba/open-c
 
 **Khi không có OCR** (không cài, sai phiên bản, `schema_version` lạ, lệnh lỗi): mọi file đổi, chia bundle theo thư mục, không có luật; độ phủ ghi rõ "không có OCR".
 
-**Không được**: dùng chế độ mặc định của OCR (cần API key, chỉ hợp giai đoạn B với OpenRouter); import package của OCR (nằm trong `internal/`); để reviewer sửa code hay chạy check.
+**Không được**: dùng chế độ mặc định của OCR (cần API key, chỉ hợp giai đoạn C với OpenRouter); import package của OCR (nằm trong `internal/`); để reviewer sửa code hay chạy check.
 
 ### 10.2 Task con được nhận lại (v0.4)
 

@@ -16,6 +16,7 @@
     "content-safety",
     "ask-plan",
     "tasks",
+    "task-hub",
     "context-engine",
     "model-adapter",
     "budget",

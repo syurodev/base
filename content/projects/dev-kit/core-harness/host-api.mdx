@@ -23,8 +23,8 @@ Theo D-29, lõi Go của Fugue và harness là một bộ all-in-one; mọi UI l
 | --- | --- |
 | HA-01 | **Host là process đang giữ data-directory lock (`fugue.lock`)**; host luôn mở một socket local cho client |
 | HA-02 | Contract dùng **protobuf với Connect** (`connect-go`, `connect-es`/`protobuf-es`, `buf`), **schema trước**; `buf breaking` chạy trong CI |
-| HA-03 | **v0.14 (sửa 2026-11-08)**: client duy nhất của giai đoạn A là **desktop app Gio** ([desktop app](/dev-kit/core-harness/desktop-app), H-33); CLI/TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn B. Electron bỏ. Web, Telegram để sau. Bản v0.12: chỉ desktop trên Electron |
-| HA-04 | Truy cập từ xa (Telegram, điện thoại) với role riêng: **giai đoạn B** |
+| HA-03 | **v0.14 (sửa 2026-11-08)**: client duy nhất của giai đoạn A là **desktop app Gio** ([desktop app](/dev-kit/core-harness/desktop-app), H-33); CLI/TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn C. Electron bỏ. Web, Telegram để sau. Bản v0.12: chỉ desktop trên Electron |
+| HA-04 | Truy cập từ xa (Telegram, điện thoại) với role riêng: **giai đoạn C** |
 | HA-05 | UI không chứa logic nghiệp vụ; mọi quyết định nằm trong lõi (H-43 kiểm kê phần còn sót) |
 | HA-06 | **v0.14**: phiên vendor gọi tool của Fugue qua `fugue mcp-bridge`, nối host bằng **token theo phiên** (principal `session`, §7). Token chỉ mở tool của đúng phiên và đúng vai trò, không bao giờ mở vault, duyệt quyền hay thao tác của user |
 
@@ -175,7 +175,7 @@ Thêm vào service `fugue.accounts.v1` (`AccountService`) để chuyển tiếp 
 - Kiểm tra UID chứng minh "cùng user hệ điều hành", không chứng minh "đúng app Fugue". Một process khác của cùng user vốn đã đọc được data dir, nên đây là mô hình đe dọa chấp nhận được; tài liệu bảo mật ghi rõ điều này.
 - (v0.12, Electron đã bỏ ở v0.14) Trong shell Electron, chỉ **main process** giữ kết nối tới host. Renderer không mở được socket; nó dùng client đã sinh thông qua preload (`contextBridge` hoặc `MessagePort`), với `contextIsolation` và `sandbox` bật, `nodeIntegration` tắt, có CSP.
 - Giai đoạn A **không mở HTTP loopback**. Server mode hiện tại giữ nguyên hành vi fail closed cho tới khi bị gỡ.
-- **Giai đoạn B**: ghép đôi bằng token cho CLI, web, Telegram và điện thoại; role theo resource (xem, steer, trả lời, duyệt, mở vault). Server lọc danh sách theo role để client không thấy thứ nó không được dùng.
+- **Giai đoạn C**: ghép đôi bằng token cho CLI, web, Telegram và điện thoại; role theo resource (xem, steer, trả lời, duyệt, mở vault). Server lọc danh sách theo role để client không thấy thứ nó không được dùng.
 
 ## 8. Version
 

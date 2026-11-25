@@ -21,7 +21,7 @@ Khi một trang thiết kế được chốt hoặc đổi phạm vi, cập nh�
 | **Ngoài v1** | Cố ý để sau; cần quyết định riêng trước khi làm |
 | **Chờ duyệt** | Trang đầy đủ đã viết, chờ chủ dự án duyệt trước khi coi là Đã chốt |
 
-Cột "Giai đoạn" theo [phát hành giai đoạn A](/dev-kit/core-harness/activation) (v0.13, Q-02 của Fugue): **A** là cần trước khi phát hành giai đoạn A (chủ dự án dogfood, CLI, gói ChatGPT, Linux và macOS), **B** là việc đã hoãn, tiêu chí quyết định sau khi A ổn định, **Sau** là sau B. Từ [activation](/dev-kit/core-harness/activation) v0.14 (đề xuất 2026-11-07), giai đoạn A là vendor runtime, orchestration và desktop app; các mảng chỉ phục vụ native chuyển B (A-01 v0.14).
+Cột "Giai đoạn" theo [phát hành giai đoạn A](/dev-kit/core-harness/activation) (v0.13, Q-02 của Fugue): **A** là cần trước khi phát hành giai đoạn A. Từ [activation](/dev-kit/core-harness/activation) v0.14 (đề xuất 2026-11-07), giai đoạn A là vendor runtime, orchestration và desktop app. Từ [D-34](/dev-kit/core-harness/decisions-and-validation) (2026-11-25): **B** là vòng làm việc hằng ngày trong app (mục J và [activation §7.1](/dev-kit/core-harness/activation)); **C** là mọi việc trước đây ghi B: native runtime, CLI/TUI và các việc hoãn, tiêu chí quyết định riêng; **Sau** là sau C. Chữ "v0.13: A" trong ngoặc là lịch sử của từng dòng.
 
 ## Tiêu chí một trang thiết kế đầy đủ
 
@@ -42,62 +42,62 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
-| H-01 | Kernel, state machine, invariant | Đã chốt | [State machine](/dev-kit/core-harness/state-machine), [event catalog](/dev-kit/core-harness/event-catalog) | B (v0.14; v0.13: A) | — |
+| H-01 | Kernel, state machine, invariant | Đã chốt | [State machine](/dev-kit/core-harness/state-machine), [event catalog](/dev-kit/core-harness/event-catalog) | C (v0.14; v0.13: A) | — |
 | H-02 | Event store, admission, recovery | Đã chốt | [Event storage](/dev-kit/core-harness/event-storage-recovery) | A | H-01 |
 | H-03 | Storage và bảo mật payload (G-03) | Đã chốt, chờ evidence | [Storage-security](/dev-kit/core-harness/storage-security) | A | H-02 |
 | H-04 | Đặt package và dependency (G-01) | Đã chốt | [ADR R0.1 đã duyệt](https://github.com/syurodev/dev-kit/blob/main/docs/adr/2026-10-31-harness-package-ownership.md), [PR #412](https://github.com/syurodev/dev-kit/pull/412); evidence luật arch ở R0.2 | A | D-29, H-42 (đã chốt); process root tạo core rồi inject qua contracts vào app; người thiết kế duyệt ngày 2026-10-31 |
-| H-05 | Review transition toàn bộ (G-02) | Đã chốt (review v0.14), đóng bằng evidence | [State machine §10](/dev-kit/core-harness/state-machine#10-review-g-02-h-05) | B (v0.14; v0.13: A) | Thiết kế H-01–H-03 (đã chốt); G-02 đóng bằng evidence F2.1, F2.2, F2.11 và **VC-01**–**VC-32**; review lại mỗi khi catalog có event, command hoặc wait reason mới |
+| H-05 | Review transition toàn bộ (G-02) | Đã chốt (review v0.14), đóng bằng evidence | [State machine §10](/dev-kit/core-harness/state-machine#10-review-g-02-h-05) | C (v0.14; v0.13: A) | Thiết kế H-01–H-03 (đã chốt); G-02 đóng bằng evidence F2.1, F2.2, F2.11 và **VC-01**–**VC-32**; review lại mỗi khi catalog có event, command hoặc wait reason mới |
 | H-06 | Budget: token, thời gian, tool, storage | Đã chốt | [Budget và quota](/dev-kit/core-harness/budget); state machine §7, §9; storage-security §4 | A | H-08 |
 
 ## B. Model
 
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
-| H-07 | Model adapter và converter: chuẩn hóa request/stream, phân loại lỗi, retry/backoff, circuit breaker, cấm provider-hosted tools, chuyển đổi history có tool cũ | Đã chốt | [Model adapter](/dev-kit/core-harness/model-adapter) | B (v0.14; v0.13: A) | H-09 |
-| H-08 | Usage và cost: đối soát usage, bảng giá, `usagemetrics` | Đã chốt | [Model adapter](/dev-kit/core-harness/model-adapter) §6 | B (v0.14; v0.13: A) | H-07 |
-| H-09 | Account, credential, rate limit của provider; chọn model và reasoning settings | Đã chốt | [Model adapter](/dev-kit/core-harness/model-adapter) §7 | B (v0.14; v0.13: A) | — |
+| H-07 | Model adapter và converter: chuẩn hóa request/stream, phân loại lỗi, retry/backoff, circuit breaker, cấm provider-hosted tools, chuyển đổi history có tool cũ | Đã chốt | [Model adapter](/dev-kit/core-harness/model-adapter) | C (v0.14; v0.13: A) | H-09 |
+| H-08 | Usage và cost: đối soát usage, bảng giá, `usagemetrics` | Đã chốt | [Model adapter](/dev-kit/core-harness/model-adapter) §6 | C (v0.14; v0.13: A) | H-07 |
+| H-09 | Account, credential, rate limit của provider; chọn model và reasoning settings | Đã chốt | [Model adapter](/dev-kit/core-harness/model-adapter) §7 | C (v0.14; v0.13: A) | — |
 
 ## C. Context và memory
 
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
-| H-10 | **Context engine**: thứ tự lắp prompt, bố cục cho prompt cache (prefix ổn định), budget token, cắt history, dọn tool result cũ | Đã chốt | [Context engine](/dev-kit/core-harness/context-engine) | B (v0.14; v0.13: A) | H-02 (epoch), H-07 |
-| H-11 | Compaction và summary có provenance; quan hệ với context epoch | Đã chốt | [Context engine](/dev-kit/core-harness/context-engine) §6 | B (v0.14; v0.13: A) | H-10 |
-| H-12 | System prompt và project instructions: nạp `AGENTS.md`/`CLAUDE.md`, project trust, nội dung không tin cậy | Đã chốt | [Context engine](/dev-kit/core-harness/context-engine) §3 | B (v0.14; v0.13: A) | H-10, H-26 |
-| H-13 | Context bền của workspace: pinned block, chỉ mục, gợi ý ở nền (`internal/workspacememory`) | Đã chốt | [Context engine](/dev-kit/core-harness/context-engine) §4 | B (v0.14; v0.13: A) | H-10 |
-| H-14 | Attachment, ảnh, PDF trong context | Một phần | [Prompt attachments](https://github.com/syurodev/dev-kit/blob/main/docs/agent-reference/prompt-attachments.md), [PDF](https://github.com/syurodev/dev-kit/blob/main/docs/agent-reference/pdf-documents.md) (cho vendor) | B | H-10, H-03 |
-| H-15 | Rewind, fork, branching của session native; tham chiếu session cũ (episodic) | Chưa | Event storage §6; [Context engine](/dev-kit/core-harness/context-engine) §8 | B (tham chiếu), Sau (rewind/fork) | H-02, H-10 |
+| H-10 | **Context engine**: thứ tự lắp prompt, bố cục cho prompt cache (prefix ổn định), budget token, cắt history, dọn tool result cũ | Đã chốt | [Context engine](/dev-kit/core-harness/context-engine) | C (v0.14; v0.13: A) | H-02 (epoch), H-07 |
+| H-11 | Compaction và summary có provenance; quan hệ với context epoch | Đã chốt | [Context engine](/dev-kit/core-harness/context-engine) §6 | C (v0.14; v0.13: A) | H-10 |
+| H-12 | System prompt và project instructions: nạp `AGENTS.md`/`CLAUDE.md`, project trust, nội dung không tin cậy | Đã chốt | [Context engine](/dev-kit/core-harness/context-engine) §3 | C (v0.14; v0.13: A) | H-10, H-26 |
+| H-13 | Context bền của workspace: pinned block, chỉ mục, gợi ý ở nền (`internal/workspacememory`) | Đã chốt | [Context engine](/dev-kit/core-harness/context-engine) §4 | C (v0.14; v0.13: A) | H-10 |
+| H-14 | Attachment, ảnh, PDF trong context | Một phần | [Prompt attachments](https://github.com/syurodev/dev-kit/blob/main/docs/agent-reference/prompt-attachments.md), [PDF](https://github.com/syurodev/dev-kit/blob/main/docs/agent-reference/pdf-documents.md) (cho vendor) | C | H-10, H-03 |
+| H-15 | Rewind, fork, branching của session native; tham chiếu session cũ (episodic) | Chưa | Event storage §6; [Context engine](/dev-kit/core-harness/context-engine) §8 | C (tham chiếu), Sau (rewind/fork) | H-02, H-10 |
 
 ## D. Tool
 
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
-| H-16 | Tool system cấp hệ thống | Đã chốt | [Tool system](/dev-kit/core-harness/tool-system) | B (v0.14; v0.13: A) | H-01 |
-| H-17 | Tool file: read, tìm (grep/glob), edit, write | Đã chốt | [Tool file](/dev-kit/core-harness/file-tools) | B (v0.14; v0.13: A) | H-16, H-24, H-25, H-26, H-27, H-28 |
-| H-18 | Tool shell và job | Đã chốt | [Shell và job](/dev-kit/core-harness/shell-job) | B (v0.14; v0.13: A) | H-16, H-24, H-25 |
-| H-19 | Tool đọc code: codegraph, LSP, workspace search. Giai đoạn A chỉ đọc code bằng read, grep, glob (H-17) | Chưa | — | B | H-16 |
-| H-20 | Hỏi user có cấu trúc (`ask_user`), plan và todo | Đã chốt | [Hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan); `todo` ở [task và checklist](/dev-kit/core-harness/tasks) | B (v0.14; v0.13: A) | H-24, H-46 |
-| H-21 | Web fetch và web search: có cần không, và nếu có thì thiết kế ra sao | Chưa | — | B | H-26 |
+| H-16 | Tool system cấp hệ thống | Đã chốt | [Tool system](/dev-kit/core-harness/tool-system) | C (v0.14; v0.13: A) | H-01 |
+| H-17 | Tool file: read, tìm (grep/glob), edit, write | Đã chốt | [Tool file](/dev-kit/core-harness/file-tools) | C (v0.14; v0.13: A) | H-16, H-24, H-25, H-26, H-27, H-28 |
+| H-18 | Tool shell và job | Đã chốt | [Shell và job](/dev-kit/core-harness/shell-job) | C (v0.14; v0.13: A) | H-16, H-24, H-25 |
+| H-19 | Tool đọc code: codegraph, LSP, workspace search. Giai đoạn A chỉ đọc code bằng read, grep, glob (H-17) | Chưa | — | C | H-16 |
+| H-20 | Hỏi user có cấu trúc (`ask_user`), plan và todo | Đã chốt | [Hỏi user và kế hoạch](/dev-kit/core-harness/ask-plan); `todo` ở [task và checklist](/dev-kit/core-harness/tasks) | C (v0.14; v0.13: A) | H-24, H-46 |
+| H-21 | Web fetch và web search: có cần không, và nếu có thì thiết kế ra sao | Chưa | — | C | H-26 |
 | H-22 | ~~Chuyển các group nghiệp vụ của DevKit sang native~~ | Bỏ (A-03): Fugue không có các owner service này | [Activation](/dev-kit/core-harness/activation) §1 | — | — |
-| H-23 | MCP server bên ngoài và plugin làm nguồn tool: adapter, ghim mô tả, trust | Chưa | — | B | H-16, H-26 |
+| H-23 | MCP server bên ngoài và plugin làm nguồn tool: adapter, ghim mô tả, trust | Chưa | — | C | H-16, H-26 |
 
 ## E. Interaction, sandbox, an toàn
 
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
 | H-24 | Interaction owner API và approval policy (phần còn lại của G-05): approval mode, sandbox profile, policy khi nào hỏi, env tag, grant scope, request/receipt/question, Host API | Đã chốt | [Interaction](/dev-kit/core-harness/interaction) | A | H-16, H-42 |
-| H-25 | Sandbox runtime: jail theo session, process registry, reaper, env snapshot, Docker endpoint | Đã chốt (spike giai đoạn B ở §13) | [Sandbox runtime](/dev-kit/core-harness/sandbox-runtime) | B (v0.14; v0.13: A) | H-16, H-24 |
+| H-25 | Sandbox runtime: jail theo session, process registry, reaper, env snapshot, Docker endpoint | Đã chốt (spike giai đoạn C ở §13) | [Sandbox runtime](/dev-kit/core-harness/sandbox-runtime) | C (v0.14; v0.13: A) | H-16, H-24 |
 | H-26 | Nội dung không tin cậy và prompt injection: tool result, file, web, mô tả MCP; cách gắn nhãn | Đã chốt | [An toàn nội dung](/dev-kit/core-harness/content-safety) §2, §4, §5 | A | — |
 | H-27 | Redact secret trong result, log, export | Đã chốt | [An toàn nội dung](/dev-kit/core-harness/content-safety) §3, §6 | A | H-26 |
-| H-28 | Snapshot và restore | Đã chốt | Tool system §9 | B (v0.14; v0.13: A) | H-16 |
+| H-28 | Snapshot và restore | Đã chốt | Tool system §9 | C (v0.14; v0.13: A) | H-16 |
 
 ## F. Điều phối
 
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
-| H-29 | Queue, steering, chen ngang, peer message, input của user giữa run | Đã chốt | [Điều phối input](/dev-kit/core-harness/coordination) | B (v0.14; v0.13: A) | H-01 |
+| H-29 | Queue, steering, chen ngang, peer message, input của user giữa run | Đã chốt | [Điều phối input](/dev-kit/core-harness/coordination) | C (v0.14; v0.13: A) | H-01 |
 | H-30 | Child session, subagent và team cho native | Ngoài v1; team của giai đoạn A là orchestration qua vendor (H-49) | Activation §2 | Sau | H-29 |
-| H-31 | Continuation và điều kiện dừng: giới hạn step, phát hiện lặp, chế độ goal tự chạy nhiều vòng | Đã chốt | [Continuation](/dev-kit/core-harness/continuation) | B (v0.14; v0.13: A) | H-01, H-10 |
+| H-31 | Continuation và điều kiện dừng: giới hạn step, phát hiện lặp, chế độ goal tự chạy nhiều vòng | Đã chốt | [Continuation](/dev-kit/core-harness/continuation) | C (v0.14; v0.13: A) | H-01, H-10 |
 
 ## G. Host và UI
 
@@ -110,8 +110,8 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | H-42 | **Host API**: contract command, query và event có schema và version, không gắn Wails; transport (Wails, socket local, HTTP/WebSocket loopback, MCP); read model với snapshot và catch-up; tin cậy client (ai được duyệt approval, mở vault); lệch version giữa UI và lõi; cách chạy process (nhúng, daemon hoặc cả hai) | Đã chốt | [Host API](/dev-kit/core-harness/host-api) | A | H-02, H-24 |
 | H-43 | ~~Kiểm kê logic nghiệp vụ ở frontend DevKit~~ | Bỏ (A-03, Q-05): DevKit đóng băng | — | — | — |
 | H-44 | ~~Electron desktop~~ | Bỏ (A-06 v0.14): thay bằng desktop app Gio (H-33) | — | — | — |
-| H-45 | **CLI/TUI client** `fugue`: client tin cậy duy nhất của giai đoạn A; tạo và chạy session, trả lời interaction, mở vault, đăng nhập ChatGPT (chữ bắt buộc của model adapter §11.6), job và snapshot, mọi hành động failure UX (sửa 2026-11-08: client CLI/TUI sang B, giai đoạn A chỉ còn `fugue serve` và `fugue mcp-bridge`; cần lượt sửa cho vendor runtime) | Đã chốt (v0.13) | [CLI và TUI](/dev-kit/core-harness/cli); [Activation](/dev-kit/core-harness/activation) §3; [Host API](/dev-kit/core-harness/host-api) | B (v0.14: A) | H-42, H-24 |
-| H-46 | **Task và checklist**: board task bền và step do model cập nhật trong một mô hình chung; `todo`, `tasks.*`, claim, cổng verify chạy trong jail | Đã chốt | [Task và checklist](/dev-kit/core-harness/tasks) | B (v0.14; v0.13: A) | H-20, H-24, H-25, H-26 |
+| H-45 | **CLI/TUI client** `fugue`: client tin cậy duy nhất của giai đoạn A; tạo và chạy session, trả lời interaction, mở vault, đăng nhập ChatGPT (chữ bắt buộc của model adapter §11.6), job và snapshot, mọi hành động failure UX (sửa 2026-11-08: client CLI/TUI sang C, giai đoạn A chỉ còn `fugue serve` và `fugue mcp-bridge`; cần lượt sửa cho vendor runtime) | Đã chốt (v0.13) | [CLI và TUI](/dev-kit/core-harness/cli); [Activation](/dev-kit/core-harness/activation) §3; [Host API](/dev-kit/core-harness/host-api) | C (v0.14: A) | H-42, H-24 |
+| H-46 | **Task và checklist**: board task bền và step do model cập nhật trong một mô hình chung; `todo`, `tasks.*`, claim, cổng verify chạy trong jail | Đã chốt | [Task và checklist](/dev-kit/core-harness/tasks) | C (v0.14; v0.13: A) | H-20, H-24, H-25, H-26 |
 
 ## I. Vendor runtime và orchestration
 
@@ -123,15 +123,28 @@ Một mảng chỉ được đánh dấu **Đã chốt** khi trang của nó tr�
 | H-50 | **Diff theo lượt và bảo vệ push**: turn snapshot bằng shadow git cho phiên vendor, quét secret phần thêm vào cuối lượt, pre-push hook bật theo repo hỏi user trước khi push nội dung nghi là secret. Từ git guard v0.2 (2026-11-23): diff theo lượt và quét cuối lượt (§3) do chủ dự án duyệt cho giai đoạn A; pre-push hook (§4) sau giai đoạn A | Đã chốt (§3, v0.2); §4 chờ duyệt | [Git guard](/dev-kit/core-harness/git-guard) | A (§3); sau A (§4) | H-24, H-27, H-33, H-42, H-47, H-48 |
 | H-51 | **UI kit**: bộ component dùng chung của app Gio, token khoảng cách, bo góc, kiểu chữ và trạng thái, đặc tả từng component, hành vi chung, gallery và spike kiểm chứng | Đã chốt (v0.3) | [UI kit](/dev-kit/core-harness/ui-kit) | A | H-33 |
 
+## J. Vòng làm việc hằng ngày trong app (giai đoạn B, D-34)
+
+| ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
+| --- | --- | --- | --- | --- | --- |
+| H-52 | **Task hub**: một việc (task Jira hoặc việc riêng) gom các phiên, đội, nhánh, PR, CI, checklist và note; Jira chỉ đọc; liên kết mềm nhiều-nhiều; rail Tasks và dropdown trên header phiên | Chờ duyệt (v0.1) | [Task hub](/dev-kit/core-harness/task-hub) | B | H-33, H-46, H-49 |
+| H-53 | **Module contract**: một module đăng ký mục rail, sidebar, workbench, panel đồng hành và tool cho agent như thế nào; thứ tự cài; gỡ module | Chưa | Khung ở [desktop app §5.3](/dev-kit/core-harness/desktop-app) | B | H-33, H-42 |
+| H-54 | **Module Terminal**: chạy lệnh (e2e) trong workspace, xem và giữ output, gửi lỗi cho phiên; sửa DA-02 | Chưa | — | B | H-53, H-34 |
+| H-55 | **Module Git và PR**: review nhánh hoặc PR, theo dõi PR, CI và review; ghi đè hành động của chip git ref ([desktop app §5.4](/dev-kit/core-harness/desktop-app)) | Chưa | — | B | H-53, H-50 |
+| H-56 | **Notes và checklist của user** gắn với task; quan hệ với step của H-46 | Một phần | Checklist và note theo việc ở [task hub](/dev-kit/core-harness/task-hub) §4, §8.1 | B | H-52, H-46 |
+| H-57 | **Tìm trong source cho user**: mở nhanh file và tìm toàn văn trong workspace (khác H-19, là tool đọc code của agent) | Chưa | — | B | H-53, H-34 |
+| H-58 | **Module API client** dùng env từ secret store | Chưa | — | B (sau H-54 đến H-57) | H-53 |
+| H-59 | **Module Database** | Chưa | — | B (sau H-54 đến H-57) | H-53 |
+
 ## H. Vòng đời, chất lượng, vận hành
 
 | ID | Mảng | Trạng thái | Nơi thiết kế | Giai đoạn | Phụ thuộc |
 | --- | --- | --- | --- | --- | --- |
 | H-36 | Tương thích phiên bản Fugue: nâng cấp, hạ phiên bản, lệch version client và host (G-06) | Đã chốt | [Activation](/dev-kit/core-harness/activation) §4 | A | H-02, H-42 |
 | H-37 | Phát hành giai đoạn A (G-07, Q-02) | Đã chốt (v0.13) | [Activation](/dev-kit/core-harness/activation) | A | Mọi mảng A |
-| H-38 | Observability: telemetry, chẩn đoán, export, metrics | Một phần | — | B | H-32 |
-| H-39 | Test và eval: conformance headless, fault injection, eval prompt và tool, benchmark | Đã chốt (phần test, v0.14); eval ở B | [Bộ kiểm chứng](/dev-kit/core-harness/verification) | A (test), B (eval) | Mục Evidence của mọi trang giai đoạn A |
-| H-40 | Hiệu năng: độ trễ khởi động, chi phí token mỗi turn, chi phí snapshot | Một phần | Activation §6 | B | H-10 |
+| H-38 | Observability: telemetry, chẩn đoán, export, metrics | Một phần | — | C | H-32 |
+| H-39 | Test và eval: conformance headless, fault injection, eval prompt và tool, benchmark | Đã chốt (phần test, v0.14); eval ở C | [Bộ kiểm chứng](/dev-kit/core-harness/verification) | A (test), C (eval) | Mục Evidence của mọi trang giai đoạn A |
+| H-40 | Hiệu năng: độ trễ khởi động, chi phí token mỗi turn, chi phí snapshot | Một phần | Activation §6 | C | H-10 |
 | H-41 | Lớp tự cải tiến harness | Ngoài v1 | D-07 | Sau | — |
 
 ## Thứ tự thiết kế đề xuất cho giai đoạn A

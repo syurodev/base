@@ -15,7 +15,7 @@ Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-25 tr
 | J-02 | Linux: một PID namespace mỗi jail; dừng jail là **stop proof mạnh** cho mọi process trong jail, kể cả daemon. macOS: stop proof cho daemon tự tách là **best-effort** qua registry và reaper |
 | J-03 | Jail dựng **lười** ở lệnh đầu tiên; dừng khi **rảnh 30 phút**, khi đóng session, khi host tắt hoặc khi đổi sandbox profile |
 | J-04 | Env snapshot **lọc biến trông giống secret theo denylist**; workspace cho phép giữ lại theo tên |
-| J-05 | Docker chỉ ở sandbox profile `full-access`; Docker proxy, egress allowlist và Keychain để giai đoạn B |
+| J-05 | Docker chỉ ở sandbox profile `full-access`; Docker proxy, egress allowlist và Keychain để giai đoạn C |
 | J-06 | Output của lệnh **không ghi ra đĩa**; job giữ ring buffer trong memory |
 | J-07 | Không có đường chạy lệnh của model ngoài sandbox. Jail không dựng được thì lỗi có kiểu, không fallback |
 
@@ -146,7 +146,7 @@ Chỉ khi sandbox profile là `full-access` (J-05), theo [tool system §8](/dev-
 - **J-E08** Fuzz cho parser frame; frame quá lớn dừng jail.
 - **J-E09** `sandbox_unavailable` khi thiếu backend; không có đường chạy ngoài sandbox.
 
-## 13. Spike còn mở (giai đoạn B)
+## 13. Spike còn mở (giai đoạn C)
 
 | Hạng mục | Cần chứng minh |
 | --- | --- |

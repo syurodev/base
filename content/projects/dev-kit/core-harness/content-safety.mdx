@@ -28,7 +28,7 @@ Trạng thái: v0.13, ngày 2026-11-03. **Thiết kế đã chốt** cho H-26 (n
 | --- | --- | --- |
 | Tin cậy | R0, input của user, thông báo do harness sinh (job xong, lỗi có kiểu, header của result) | Như hiện tại |
 | Instruction của project | File instruction được [context engine §3](/dev-kit/core-harness/context-engine#3-tầng-rule) nạp | Trong system prompt, theo context engine; vẫn được redact (§3.5) |
-| **Không tin cậy** | Nội dung file; kết quả `grep` và `glob`; output của shell và job; đoạn file trong thông báo lỗi; diff đã áp dụng. Giai đoạn B thêm web, result và mô tả của MCP | **Trong envelope** (§4) |
+| **Không tin cậy** | Nội dung file; kết quả `grep` và `glob`; output của shell và job; đoạn file trong thông báo lỗi; diff đã áp dụng. Giai đoạn C thêm web, result và mô tả của MCP | **Trong envelope** (§4) |
 | Do model viết từ nội dung không tin cậy | Tóm tắt khi compaction; entry W do agent viết chưa được user đánh dấu `verified` | **Trong envelope** với `source=summary` hoặc `source=memory` |
 
 Input của user không bị redact và không nằm trong envelope: user tự đưa vào thì đó là lựa chọn của user.
@@ -160,7 +160,7 @@ internal/x/load.go · dòng 1–120 / 340
 | `summary` | `epoch` |
 | `memory` | `entry` |
 | `task` | `key` ([task và checklist](/dev-kit/core-harness/tasks)) |
-| `web`, `mcp` | Giai đoạn B: `url`; `server`, `tool` |
+| `web`, `mcp` | Giai đoạn C: `url`; `server`, `tool` |
 
 ### 4.3 Đoạn bắt buộc trong R0
 
@@ -220,5 +220,5 @@ Prompt injection có thể làm model *muốn* làm điều sai. Các bất bi�
 ## 8. Phụ thuộc
 
 - Cần trước: [storage-security](/dev-kit/core-harness/storage-security) (protected payload, session key, vault observation), [sandbox runtime](/dev-kit/core-harness/sandbox-runtime) (denylist J-04), [context engine](/dev-kit/core-harness/context-engine) (R0, compaction, W).
-- Mảng dùng trang này: [tool file](/dev-kit/core-harness/file-tools) (H-17), [shell và job](/dev-kit/core-harness/shell-job) (H-18), H-20, H-21 và H-23 (web và MCP, giai đoạn B).
+- Mảng dùng trang này: [tool file](/dev-kit/core-harness/file-tools) (H-17), [shell và job](/dev-kit/core-harness/shell-job) (H-18), H-20, H-21 và H-23 (web và MCP, giai đoạn C).
 - Mảng liên quan: [workspace](/dev-kit/core-harness/workspace) (H-34: ngoại lệ redact theo tên khóa và path), H-45 (xem giá trị thật trong client tin cậy), [git guard](/dev-kit/core-harness/git-guard) (H-50: quét diff theo lượt và commit sắp push).
