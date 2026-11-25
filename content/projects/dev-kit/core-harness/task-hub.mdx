@@ -16,7 +16,7 @@ Chủ dự án làm việc theo task Jira: nhận task, làm trong một phiên 
 | Việc gắn với task Jira và việc riêng không có Jira | Ghi lên Jira từ app (agent vẫn làm qua MCP của user) |
 | Liên kết mềm giữa việc với phiên, đội, nhánh, PR | Board dạng cột (sau bản list, §11) |
 | Đọc tiêu đề và trạng thái Jira, đọc PR và CI | Đưa nội dung việc vào context của agent |
-| Checklist và note của user; todo của agent chỉ để xem | Tool cho agent ghi việc riêng qua MCP bridge |
+| Checklist và note của user; todo của agent chỉ để xem | Tool cho agent tạo, sửa việc qua MCP bridge (agent chỉ khai việc khi lập đội, TH-12) |
 | List ở rail Tasks, chi tiết ở slot đồng hành, dropdown trên header phiên, thẻ việc trong transcript | Chạy e2e, review diff, tìm source (H-54, H-55, H-57 hiện kết quả của chúng ở đây) |
 
 Từ ngữ: trang này gọi đối tượng là **việc** (work item). "Task đội" của [orchestration](/dev-kit/core-harness/orchestration) là thứ khác, và service `fugue.tasks.v1` thuộc về nó.
@@ -36,6 +36,7 @@ Từ ngữ: trang này gọi đối tượng là **việc** (work item). "Task �
 | TH-09 | Không có token mới: Jira qua OAuth trên trình duyệt (§6.2), GitHub qua `gh` đã đăng nhập (§6.3). Chưa kết nối thì lấy từ transcript (§6.1) |
 | TH-10 | Owner là package mới `internal/workitems`, đường ghi duy nhất. Khi [task và checklist](/dev-kit/core-harness/tasks) (H-46) được làm ở giai đoạn C, nó mở rộng owner này thay vì tạo store thứ hai |
 | TH-11 | Nội dung (tiêu đề, note, checklist, bản chụp Jira) được seal bằng vault record như TK-06. Vault khoá thì list chỉ còn key, nhóm trạng thái và thời gian |
+| TH-12 | Tool MCP lập đội của Fugue nhận việc **tùy chọn**: `work_items` cho cả đội và `work_item` cho từng task ([orchestration §5.3](/dev-kit/core-harness/orchestration)). Agent chỉ khai việc trong lời gọi đã có, không ghi trạng thái; liên kết có hiệu lực khi user duyệt thẻ |
 
 ## 3. Mô hình
 
@@ -64,7 +65,7 @@ Owner `internal/workitems`. Host API, bộ quan sát (§5) và bộ đọc (§6)
 | `work_items` | PK `item_id`; `kind` ∈ `jira`, `local`; `external_key`, `external_site` (jira); `board_key` (local); `workspace_id`; `status_category`; `archived_at`, `revision`, `created_at`, `updated_at`; `sealed` | (`external_site`, `external_key`) UNIQUE cho `jira`. `local` dùng `key_prefix-number` của workspace |
 | `work_item_roots` | PK (`item_id`, `root_name`) | `root_name` phải là root của workspace của việc |
 | `work_item_snapshots` | PK `item_id`; `source` ∈ `oauth`, `transcript`; `status_name`, `status_category`, `fetched_at`, `sealed` (tiêu đề, người được giao, field đã cấu hình) | Bản mới chỉ thay bản cũ khi `fetched_at` mới hơn; `oauth` thắng `transcript` cùng thời điểm |
-| `work_item_links` | PK `link_id`; `item_id`; `target_kind` ∈ `session`, `team`, `branch`, `pr`; `target_ref`; `source`; `state` ∈ `linked`, `suggested`, `dismissed`; `first_at`, `last_at` | UNIQUE (`item_id`, `target_kind`, `target_ref`). `dismissed` không bao giờ tự quay lại `linked` |
+| `work_item_links` | PK `link_id`; `item_id`; `target_kind` ∈ `session`, `team`, `branch`, `pr`; `target_ref`; `source` ∈ `prompt`, `mcp_read`, `branch`, `pr`, `mention`, `manual`, `team_proposal`, `team_task`; `state` ∈ `linked`, `suggested`, `dismissed`; `first_at`, `last_at` | UNIQUE (`item_id`, `target_kind`, `target_ref`). `dismissed` không bao giờ tự quay lại `linked` |
 | `work_item_steps` | PK `step_id`; `item_id`; `position`, `done`, `sealed` (nội dung) | Checklist của user; 0–100 mục, nội dung 1–300 ký tự |
 | `work_item_notes` | PK `item_id`; `revision`, `sealed` (markdown) | Tối đa 64 KiB |
 
@@ -83,6 +84,8 @@ Bộ quan sát đọc event đã có, không thêm việc cho agent.
 | PR | Tiêu đề hoặc nhánh nguồn có key (§6.3) | `linked` PR, `source=pr` |
 | Tin nhắn của agent, output của tool khác | Có key | `suggested`, hiện ở mục Gợi ý của dropdown (§8.2) |
 | User | Gắn hoặc gỡ từ dropdown hay chi tiết việc | `linked` hoặc `dismissed`, `source=manual` |
+| Đề xuất đội được duyệt (TH-12) | `work_items` của đề xuất, sau khi user sửa trên thẻ | `linked` tới đội, `source=team_proposal` |
+| Task đội được duyệt (TH-12) | `work_item` của task | `linked` tới đội và tới phiên chạy task khi task bắt đầu, `source=team_task` |
 
 Một liên kết `linked` tới phiên hay đội cập nhật `last_at` mỗi lần nguồn khớp lại, dùng để xếp "chạm gần nhất".
 
@@ -204,7 +207,7 @@ Service `fugue.workitems.v1` (`WorkItemService`), chỉ cho principal `local`.
 ## 11. Để sau
 
 - Board dạng cột.
-- Tool cho agent đọc và ghi việc `local` qua MCP bridge.
+- Tool cho agent đọc, tạo và sửa việc qua MCP bridge (ngoài phần khai việc khi lập đội của TH-12).
 - Đưa việc vào context của phiên.
 - Sync giữa nhiều máy.
 - Ghi lên Jira từ app.
@@ -227,6 +230,13 @@ Service `fugue.workitems.v1` (`WorkItemService`), chỉ cho principal `local`.
   - "Link task" khi phiên chưa có việc.
 - **TH-E09** GitHub: `gh` giả trả PR theo nhánh và theo key. Thiếu `gh` hoặc chưa đăng nhập thì cột PR trống và có lời chỉ dẫn, không lỗi.
 - **TH-E10** Bàn phím của list (J/K, Enter, Esc, `/`, N) và của dropdown (↑↓, Enter, Backspace).
+- **TH-E11** Lập đội có việc:
+  - `fugue_team_propose` với key sai dạng bị từ chối `invalid_argument`.
+  - Key của project chưa biết vẫn được nhận, và thẻ có cảnh báo.
+  - Trước khi user duyệt thì không có liên kết nào.
+  - Sau khi duyệt thì đội và phiên chạy từng task có đúng liên kết `team_proposal` và `team_task`.
+  - Việc user bỏ trên thẻ thì không thành liên kết.
+  - `fugue_team_amend` gắn việc cho task mới.
 
 ## 13. Phụ thuộc
 
