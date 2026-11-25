@@ -5,7 +5,7 @@ description: H-51 — bộ component dùng chung của app Gio; token kích thư
 
 # UI kit
 
-Trạng thái: **v0.6 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt** (bỏ nguồn tham khảo bên ngoài; giữ WCAG và asset đóng gói; token, số đo và luật không đổi). Bản đã duyệt gần nhất là v0.5. **v0.3, ngày 2026-11-15, đã duyệt** (chủ dự án, 2026-11-15, base-doc PR #15). v0.2 đã duyệt (chủ dự án, 2026-11-15, base-doc PR #14). Số đo ở §3 đã đối chiếu với các chuẩn ở §13. v0.2 ghi kết quả spike (§9): giữ mọi token chữ, chốt giá trị màu tương tác, thêm bóng nhẹ cho lớp nổi, chốt Lucide, và thêm các luật Gio mà spike tìm ra ở §6. v0.3 đổi phong cách theo lựa chọn của chủ dự án sau khi xem gallery của F10.9 (§3.8): bo góc lớn hơn, nền tông màu thay cho viền, viền nhạt, nhấn co lại, vòng focus cách mép, control tắt mờ đi, và mọi component có chuyển động phù hợp (§3.7). Mật độ của IDE (chiều cao control, cỡ chữ) giữ nguyên. Cập nhật 2026-11-18 (chủ dự án duyệt): tab `document` ở §6.22 đổi từ gạch chân sang viên bo nền như tab `mode`, nút đóng nhỏ chỉ hiện khi cần, và tab có icon tùy chọn. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8). **v0.4 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #23; Q-173 A ngày 2026-11-21): hàng vạch bo tròn `LineRow` (§3.9) và Progress hai cấp vẽ bằng vạch, tông theo mức (§6.5), theo yêu cầu và mock chủ dự án đã xem cho thanh quota; UK-E12. **v0.5 (2026-11-21), đã duyệt** (chủ dự án): icon file và thư mục lấy từ bộ Symbols (vscode-symbols, MIT), tô một màu theo theme (§6.1); UK-E13.
+Trạng thái: **v0.7 (2026-11-25), chủ dự án duyệt sau khi dùng thử bản build (Fugue FUG-74, PR #255)**: token chuyển động nhanh theo kiểu macOS, hover và nhấn hiện ngay rồi mờ đi theo Exit, nội dung mờ dần hiện ra theo Snappy, nhanh hơn phần di chuyển (§3.7). **v0.6 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt** (bỏ nguồn tham khảo bên ngoài; giữ WCAG và asset đóng gói; token, số đo và luật không đổi). Bản đã duyệt gần nhất là v0.5. **v0.3, ngày 2026-11-15, đã duyệt** (chủ dự án, 2026-11-15, base-doc PR #15). v0.2 đã duyệt (chủ dự án, 2026-11-15, base-doc PR #14). Số đo ở §3 đã đối chiếu với các chuẩn ở §13. v0.2 ghi kết quả spike (§9): giữ mọi token chữ, chốt giá trị màu tương tác, thêm bóng nhẹ cho lớp nổi, chốt Lucide, và thêm các luật Gio mà spike tìm ra ở §6. v0.3 đổi phong cách theo lựa chọn của chủ dự án sau khi xem gallery của F10.9 (§3.8): bo góc lớn hơn, nền tông màu thay cho viền, viền nhạt, nhấn co lại, vòng focus cách mép, control tắt mờ đi, và mọi component có chuyển động phù hợp (§3.7). Mật độ của IDE (chiều cao control, cỡ chữ) giữ nguyên. Cập nhật 2026-11-18 (chủ dự án duyệt): tab `document` ở §6.22 đổi từ gạch chân sang viên bo nền như tab `mode`, nút đóng nhỏ chỉ hiện khi cần, và tab có icon tùy chọn. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8). **v0.4 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #23; Q-173 A ngày 2026-11-21): hàng vạch bo tròn `LineRow` (§3.9) và Progress hai cấp vẽ bằng vạch, tông theo mức (§6.5), theo yêu cầu và mock chủ dự án đã xem cho thanh quota; UK-E12. **v0.5 (2026-11-21), đã duyệt** (chủ dự án): icon file và thư mục lấy từ bộ Symbols (vscode-symbols, MIT), tô một màu theo theme (§6.1); UK-E13.
 
 Bố cục khung app (rail, sidebar nhiều project, khung chia đôi, panel đồng hành) và hợp đồng module (tham chiếu `fugue://`, card view, item `module_action`) thuộc các trang khác, viết sau spike. Trang này chỉ định nghĩa phần nền mà khung và module lắp ráp từ đó.
 
@@ -158,24 +158,36 @@ Chủ dự án chốt (v0.3): mọi component có chuyển động phù hợp. M
 
 | Tình huống | Chuyển động | Token |
 | --- | --- | --- |
-| Hover, đổi màu nền hay màu chữ của control | Màu chuyển dần | Snappy |
-| Nhấn Button, IconButton, Checkbox, card bấm được | Co về `motion.press` khi nhấn, về 1 khi nhả; chỉ phần vẽ co, vùng bấm giữ nguyên | Snappy |
+| Hover, đổi màu nền hay màu chữ của control | Hiện đủ ngay ở frame đầu khi con trỏ vào; khi con trỏ rời thì mờ đi, không nảy | Vào: tức thì; ra: Exit |
+| Nhấn Button, IconButton, Checkbox, card bấm được | Co về `motion.press` ngay ở frame đầu khi nhấn, về 1 khi nhả; chỉ phần vẽ co, vùng bấm giữ nguyên | Nhấn: tức thì; nhả: Exit |
 | Gợn sóng khi nhấn (ripple) | Vòng tròn mờ loang từ điểm nhấn, clip theo khung bo góc, mờ hẳn rồi biến mất; chỉ ở Button và IconButton | Smooth, mờ đi bằng Exit |
 | Vòng focus | Hiện bằng mờ dần nhanh; không co giãn | Snappy |
 | Đổi nội dung trong cùng chỗ (icon thành spinner, icon copy thành dấu tích) | Mờ chéo, icon mới phóng nhẹ từ 0,8 | Snappy |
 | Menu, popover, tooltip, combobox mở | Mờ dần cộng phóng từ 0,96 về phía neo | Snappy; đóng bằng Exit |
 | Dialog | Scrim mờ dần; khung mờ dần cộng phóng từ 0,95 | Smooth cho scrim, Snappy cho khung; đóng bằng Exit |
 | Toast | Trượt vào từ mép dưới cộng mờ dần; toast khác dịch chỗ | Snappy; dịch chỗ Smooth; đóng bằng Exit |
-| Nội dung dịch chỗ, mở và gập section, cây, accordion | Chiều cao và vị trí chuyển dần, nội dung mờ dần | Smooth |
+| Nội dung dịch chỗ, mở và gập section, cây, accordion, sidebar, slot | Chiều cao, bề rộng và vị trí chuyển dần; nội dung mờ dần hiện ra nhanh hơn phần di chuyển | Smooth cho kích thước và vị trí; Snappy cho độ mờ khi hiện; Exit khi ẩn |
 | Chỉ báo đang chọn (tab, segmented, row đang chọn của sidebar) | Nền hoặc gạch chân trượt từ mục cũ sang mục mới | Smooth |
-| Mục mới vào list, mục bị xoá | Mờ dần cộng mở chiều cao; xoá thì mờ đi rồi gập | Smooth; xoá bằng Exit |
+| Mục mới vào list, mục bị xoá, EmptyState | Mờ dần cộng mở chiều cao; xoá thì mờ đi rồi gập | Smooth cho chiều cao; Snappy cho độ mờ; xoá bằng Exit |
 | Mũi tên mở gập, mũi tên của Select | Xoay 90° hoặc 180° | Snappy |
 | Núm switch | Trượt có nảy; khi nhấn núm giãn ngang | Bouncy |
 | Khung giả khi tải (§4.3) | Dải sáng quét ngang (shimmer) | Đều, không spring; chỉ xin frame khi đang hiện |
 | Kéo đổi kích thước, kéo thả | Bám con trỏ, không spring; thả ra thì đứng yên | — |
 | Không animate | Vị trí con trỏ chữ (chỉ nhấp nháy), số liệu và chữ của dữ liệu, cuộn do người dùng, vị trí vùng chọn chữ | — |
 
+Giá trị của bốn token (v0.7, Fugue FUG-74). Chủ dự án chọn sau khi dùng thử bản build. "Đạt 90%" và "dừng 99%" là thời điểm giá trị đi được 90% và 99% quãng đường:
+
+| Token | Response | Damping | Đạt 90% | Dừng 99% |
+| --- | --- | --- | --- | --- |
+| Snappy | 220 ms | 0,9 | khoảng 120 ms | khoảng 182 ms |
+| Smooth | 300 ms | 1 | khoảng 186 ms | khoảng 319 ms |
+| Bouncy | 320 ms | 0,72 | khoảng 137 ms | khoảng 169 ms |
+| Exit | 150 ms | 1 | khoảng 93 ms | khoảng 161 ms |
+
 Luật chung:
+
+- Desktop cần nhanh: chuyển động thường xong trong 100–250 ms. **Nội dung mờ dần hiện ra nhanh hơn phần di chuyển**, để đọc được trước khi khung dừng hẳn.
+- Hover và nhấn có phản hồi ở **ngay frame đầu**, không nảy.
 
 - Mọi chuyển động **quay đầu được**: đổi đích giữa chừng thì đi tiếp từ giá trị hiện tại, không nhảy (F10.6).
 - **Không chặn thao tác**: control nhận input ngay khi đang chuyển động; menu đang đóng không nhận cú bấm.
