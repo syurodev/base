@@ -1,0 +1,239 @@
+---
+title: Task hub
+description: H-52 — một việc (task Jira hoặc việc riêng) gom các phiên, đội, nhánh, PR, CI, checklist và note; Jira là nguồn sự thật và chỉ được đọc; liên kết mềm nhiều-nhiều suy ra từ hoạt động; list theo mẫu Linear và Jira ở rail Tasks, dropdown task trên header của phiên.
+---
+
+# Task hub
+
+Trạng thái: **v0.1 đề xuất, ngày 2026-11-25, chờ chủ dự án duyệt** (giai đoạn B theo [D-34](/dev-kit/core-harness/decisions-and-validation)). Các phương án bố cục đã được chủ dự án chọn trên bản nghiên cứu UX cùng ngày. Phần đọc Jira bằng OAuth chờ kết quả spike Fugue FUG-75 (§6.2).
+
+## 1. Phạm vi
+
+Chủ dự án làm việc theo task Jira: nhận task, làm trong một phiên hoặc một đội, chạy e2e, review, tìm trong source, ghi checklist, theo dõi PR. Trang này thiết kế chỗ gom tất cả những thứ đó theo từng việc.
+
+| Trong phạm vi | Ngoài phạm vi |
+| --- | --- |
+| Việc gắn với task Jira và việc riêng không có Jira | Ghi lên Jira từ app (agent vẫn làm qua MCP của user) |
+| Liên kết mềm giữa việc với phiên, đội, nhánh, PR | Board dạng cột (sau bản list, §11) |
+| Đọc tiêu đề và trạng thái Jira, đọc PR và CI | Đưa nội dung việc vào context của agent |
+| Checklist và note của user; todo của agent chỉ để xem | Tool cho agent ghi việc riêng qua MCP bridge |
+| List ở rail Tasks, chi tiết ở slot đồng hành, dropdown trên header phiên, thẻ việc trong transcript | Chạy e2e, review diff, tìm source (H-54, H-55, H-57 hiện kết quả của chúng ở đây) |
+
+Từ ngữ: trang này gọi đối tượng là **việc** (work item). "Task đội" của [orchestration](/dev-kit/core-harness/orchestration) là thứ khác, và service `fugue.tasks.v1` thuộc về nó.
+
+## 2. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| TH-01 | **Jira là nguồn sự thật** cho tiêu đề và trạng thái của việc gắn Jira. Fugue chỉ đọc và giữ một bản chụp có giờ đọc; không bản chụp nào được ghi bởi agent hay user |
+| TH-02 | **Agent không ghi hai nơi.** Không có tool nào bắt agent báo trạng thái cho Fugue. Fugue suy ra mọi thứ từ hoạt động đã xảy ra (§5) |
+| TH-03 | **Liên kết mềm, nhiều-nhiều.** Một phiên hay một đội có thể chạm nhiều việc; một việc có nhiều phiên và đội. Không gắn cứng phiên với việc, không có claim |
+| TH-04 | Mỗi liên kết có **nguồn** và **trạng thái** (`linked`, `suggested`, `dismissed`). User gỡ một liên kết thì nó thành `dismissed` và luật tự động không gắn lại |
+| TH-05 | Hai loại việc: `jira` (key và URL của Jira) và `local` (việc riêng, key theo `key_prefix` của workspace như [task và checklist](/dev-kit/core-harness/tasks) TK-04) |
+| TH-06 | Mỗi việc thuộc **một workspace**: nơi mở phiên mới cho việc. Việc ghi các root (repo) nó cần; repo chưa có trong workspace thì user thêm từ chi tiết việc, đi qua đúng đường thêm root của [workspace §4.1](/dev-kit/core-harness/workspace) |
+| TH-07 | View "Của tôi" mặc định là **việc có hoạt động của user**. Lọc theo Jira là cấu hình (JQL), không mã cứng field nào: mỗi công ty dùng field riêng, ví dụ custom field "Vendor Assignee" |
+| TH-08 | Việc đã xong **giữ nguyên** trong list cho tới khi user lưu trữ; không tự ẩn theo thời gian |
+| TH-09 | Không có token mới: Jira qua OAuth trên trình duyệt (§6.2), GitHub qua `gh` đã đăng nhập (§6.3). Chưa kết nối thì lấy từ transcript (§6.1) |
+| TH-10 | Owner là package mới `internal/workitems`, đường ghi duy nhất. Khi [task và checklist](/dev-kit/core-harness/tasks) (H-46) được làm ở giai đoạn C, nó mở rộng owner này thay vì tạo store thứ hai |
+| TH-11 | Nội dung (tiêu đề, note, checklist, bản chụp Jira) được seal bằng vault record như TK-06. Vault khoá thì list chỉ còn key, nhóm trạng thái và thời gian |
+
+## 3. Mô hình
+
+```text
+Việc PROJ-123 (jira)                      Việc PAY-7 (local)
+ ├─ bản chụp Jira: tiêu đề, trạng thái,    ├─ trạng thái do user đặt
+ │  nhóm trạng thái, giờ đọc, nguồn đọc    ├─ workspace + root cần
+ ├─ workspace + root cần                   └─ checklist, note
+ ├─ liên kết ──┬─ phiên “retry policy”  (prompt)
+ │             ├─ đội “webhook hardening” (agent đọc issue)
+ │             ├─ nhánh feat/PROJ-123-retry (tên nhánh)
+ │             └─ PR #128               (tiêu đề PR)
+ ├─ checklist của user
+ └─ note
+```
+
+- **Nhóm trạng thái** dùng ba nhóm của Jira: `todo`, `in_progress`, `done`. List nhóm theo nhóm, hiện tên trạng thái thật bên trong, nên mọi workflow riêng của từng project vẫn vừa. Việc `local` dùng workflow mặc định của TK §2.1 ánh xạ về cùng ba nhóm.
+- **Todo của agent** không lưu trong việc. Chi tiết việc đọc item `plan` mới nhất của từng phiên đã liên kết ([transcript §4](/dev-kit/core-harness/transcript): Claude `TodoWrite` thành `plan`).
+
+## 4. Owner và dữ liệu
+
+Owner `internal/workitems`. Host API, bộ quan sát (§5) và bộ đọc (§6) đều đi qua owner.
+
+| Bảng | Khóa / cột chính | Ràng buộc |
+| --- | --- | --- |
+| `work_items` | PK `item_id`; `kind` ∈ `jira`, `local`; `external_key`, `external_site` (jira); `board_key` (local); `workspace_id`; `status_category`; `archived_at`, `revision`, `created_at`, `updated_at`; `sealed` | (`external_site`, `external_key`) UNIQUE cho `jira`. `local` dùng `key_prefix-number` của workspace |
+| `work_item_roots` | PK (`item_id`, `root_name`) | `root_name` phải là root của workspace của việc |
+| `work_item_snapshots` | PK `item_id`; `source` ∈ `oauth`, `transcript`; `status_name`, `status_category`, `fetched_at`, `sealed` (tiêu đề, người được giao, field đã cấu hình) | Bản mới chỉ thay bản cũ khi `fetched_at` mới hơn; `oauth` thắng `transcript` cùng thời điểm |
+| `work_item_links` | PK `link_id`; `item_id`; `target_kind` ∈ `session`, `team`, `branch`, `pr`; `target_ref`; `source`; `state` ∈ `linked`, `suggested`, `dismissed`; `first_at`, `last_at` | UNIQUE (`item_id`, `target_kind`, `target_ref`). `dismissed` không bao giờ tự quay lại `linked` |
+| `work_item_steps` | PK `step_id`; `item_id`; `position`, `done`, `sealed` (nội dung) | Checklist của user; 0–100 mục, nội dung 1–300 ký tự |
+| `work_item_notes` | PK `item_id`; `revision`, `sealed` (markdown) | Tối đa 64 KiB |
+
+- Thua race (`revision` lệch) thì từ chối có kiểu, không ghi đè.
+- Không có xoá cứng việc `jira`; lưu trữ rồi khôi phục được. Việc `local` chỉ user xoá, có xác nhận.
+
+## 5. Quan sát và liên kết
+
+Bộ quan sát đọc event đã có, không thêm việc cho agent.
+
+| Nguồn | Luật | Kết quả |
+| --- | --- | --- |
+| Prompt của user trong phiên | Có key hoặc URL Jira (§5.1) | `linked`, `source=prompt` |
+| `tool_call` đọc Jira qua MCP của user | Tên tool khớp danh sách cấu hình (§7), input có key | `linked`, `source=mcp_read`; output thành bản chụp `transcript` (§6.1) |
+| Nhánh của root trong workspace | Tên nhánh có key | `linked` nhánh, `source=branch`; phiên và đội đang làm trên nhánh đó được gắn theo |
+| PR | Tiêu đề hoặc nhánh nguồn có key (§6.3) | `linked` PR, `source=pr` |
+| Tin nhắn của agent, output của tool khác | Có key | `suggested`, hiện ở mục Gợi ý của dropdown (§8.2) |
+| User | Gắn hoặc gỡ từ dropdown hay chi tiết việc | `linked` hoặc `dismissed`, `source=manual` |
+
+Một liên kết `linked` tới phiên hay đội cập nhật `last_at` mỗi lần nguồn khớp lại, dùng để xếp "chạm gần nhất".
+
+### 5.1 Nhận diện key
+
+- Mẫu `[A-Z][A-Z0-9_]{1,9}-[1-9][0-9]{0,6}` **chỉ khớp khi prefix nằm trong danh sách project đã biết**: project trong cấu hình (§7), project của các việc đã có, và project trả về từ Jira khi đã kết nối. Nhờ vậy `UTF-8`, `SHA-256`, `ISO-8601` không bao giờ thành việc.
+- URL `https://<site>/browse/<KEY>` với `site` trong cấu hình luôn khớp, kể cả project chưa biết; lần khớp đó thêm project vào danh sách.
+- Key trong khối code của prompt vẫn được nhận; key trong output của lệnh shell chỉ thành `suggested`.
+
+## 6. Nguồn dữ liệu
+
+### 6.1 Transcript (luôn có)
+
+Kết quả của lệnh đọc issue qua MCP nằm sẵn trong transcript. Bộ trích xuất đọc tiêu đề, trạng thái và người được giao theo bảng field của từng tool đã cấu hình (§7) và ghi bản chụp `source=transcript` kèm giờ của item. App ghi rõ "theo lần agent đọc lúc …". Output không đúng dạng thì bỏ qua, không lỗi.
+
+### 6.2 Jira qua OAuth (chờ FUG-75)
+
+- User bấm "Connect Jira" một lần, trình duyệt mở trang đồng ý của Atlassian. Token và refresh token nằm trong vault như mọi credential.
+- Host làm **client chỉ đọc**: lấy issue theo key, và tìm theo JQL cho view "Của tôi" khi đã cấu hình (TH-07).
+- Làm mới khi user mở list hay chi tiết, tối đa một lần mỗi 60 giây cho mỗi việc, và theo lô cho list.
+- Đường đi cụ thể (MCP client tới Atlassian Remote MCP, hoặc OAuth 3LO tới REST) chốt theo báo cáo của spike FUG-75. Trang này chỉ cố định hợp đồng của bộ đọc: input là key hoặc JQL, output là bản chụp ở §4.
+
+### 6.3 GitHub qua `gh`
+
+- Host gọi `gh` của user (đã đăng nhập) để tìm PR theo nhánh hoặc theo key trong tiêu đề, kèm trạng thái, kết quả CI gộp và tình trạng review.
+- Không có `gh` hoặc chưa đăng nhập thì cột PR trống và chi tiết việc chỉ cách đăng nhập. Không có token nào được Fugue lưu.
+- Làm mới như §6.2. Module Git và PR (H-55) sau này dùng chung bộ đọc này.
+
+## 7. Cấu hình
+
+Ở `~/Fugue/config.toml` (tầng 2 của [workspace §5](/dev-kit/core-harness/workspace)); không chứa secret (WS-08).
+
+```toml
+[workitems.jira]
+sites = ["acme.atlassian.net"]
+projects = ["PROJ", "OPS"]
+# View "Của tôi" theo Jira; bỏ trống thì chỉ theo hoạt động (TH-07)
+mine_jql = 'project in (PROJ, OPS) AND ("Vendor Assignee" = currentUser() OR assignee = currentUser())'
+# Field thêm vào bản chụp, hiện ở chi tiết việc
+fields = ["Vendor Assignee", "Sprint"]
+
+[[workitems.jira.mcp_tools]]
+# Tool đọc issue của MCP mà user đã cài cho vendor; bộ trích xuất đọc output theo bảng field
+match = "mcp__*atlassian*__getJiraIssue"
+key_input = "issueIdOrKey"
+```
+
+Cấu hình sai (JQL rỗng sau khi trim, project sai mẫu, `match` rỗng) là lỗi validate có kiểu, không áp dụng nửa chừng.
+
+## 8. Desktop app
+
+### 8.1 Rail Tasks
+
+- Mục rail mới **Tasks** đứng giữa Chat và Team ([desktop app §5.3](/dev-kit/core-harness/desktop-app)).
+- **Sidebar** là các view:
+  - "Mine": việc có hoạt động của user, cộng kết quả `mine_jql` khi đã cấu hình;
+  - "Agents running": việc có phiên hay đội đang chạy;
+  - "Recent";
+  - mỗi project Jira đã biết;
+  - "Local" theo từng workspace.
+- **Slot chính là list** theo mẫu đã kiểm chứng của Linear và Jira:
+  - Mỗi dòng cao `theme.Tab`. Thứ tự: icon nhóm trạng thái, key, tiêu đề (cắt bằng dấu ba chấm). Bên phải là số phiên hoặc đội đang chạy, PR kèm màu CI, checklist đã xong trên tổng, rồi giờ Jira cập nhật.
+  - Nhóm theo nhóm trạng thái, có số đếm, thu gọn được. Header nhóm dính trên cùng khi cuộn.
+  - Thanh trên có Filter và Display. Display đổi cách nhóm (nhóm trạng thái, project, workspace, có agent) và ẩn hiện cột.
+  - Bàn phím: J/K di chuyển, Enter mở chi tiết, Esc đóng, `/` tìm, N mở phiên mới cho việc đang chọn.
+- **Chi tiết** mở ở slot đồng hành, list vẫn ở slot chính.
+  - Header: key, tiêu đề, nhóm và tên trạng thái, giờ đọc kèm nguồn đọc, field đã cấu hình. Nút "New session" mở phiên ở workspace của việc, prompt điền sẵn key; nút "Open in Jira".
+  - Các tab:
+    - Overview: agent đang chạy, PR và CI, root của việc kèm nút "Add repo";
+    - Checklist: của user, sửa được; bên cạnh là todo của agent, chỉ xem, theo từng phiên;
+    - Note;
+    - Activity: mọi liên kết kèm nguồn, gỡ được.
+
+### 8.2 Trong chat
+
+- **C1, dropdown trên header của phiên.**
+  - Nút hiện việc chạm gần nhất kèm số việc còn lại (`PROJ-123 +4`). Phiên chưa có việc thì nút là "Link task".
+  - Dropdown là một Popover ([ui kit §6.16](/dev-kit/core-harness/ui-kit)) gồm:
+    - ô tìm, nhận cả key và URL Jira để gắn;
+    - danh sách đã liên kết, xếp theo `last_at`;
+    - mục "Suggested" cho liên kết `suggested`;
+    - chân dropdown "Open Tasks".
+  - Bàn phím: ↑↓ chọn, Enter mở chi tiết ở slot đồng hành, Backspace gỡ (thành `dismissed`).
+  - Chỉ một nút dù có bao nhiêu việc.
+- **C2, thẻ việc trong transcript.** `tool_call` đọc Jira khớp §7 vẽ thành thẻ: icon nhóm trạng thái, key, tên trạng thái, tiêu đề, giờ đọc. Bấm vào là mở chi tiết. Output gốc vẫn xem được như mọi `tool_call` ([desktop app §5.4](/dev-kit/core-harness/desktop-app)).
+
+### 8.3 Chuyển động và trạng thái
+
+- Theo [ui kit §3.7](/dev-kit/core-harness/ui-kit). Dòng mới vào list mờ dần và mở chiều cao. Đổi nhóm thì dòng trượt sang nhóm mới.
+- List giữ nội dung cũ trong lúc làm mới, không nháy trạng thái rỗng.
+- Bản chụp cũ hơn 24 giờ hiện giờ đọc màu `FgMuted` kèm chữ "stale".
+
+## 9. Host API
+
+Service `fugue.workitems.v1` (`WorkItemService`), chỉ cho principal `local`.
+
+| RPC | Ghi chú |
+| --- | --- |
+| `ListWorkItems` | View, filter, cách nhóm, cursor; tối đa 200 mỗi trang |
+| `GetWorkItem` | Chi tiết, liên kết, checklist, note, root, bản chụp |
+| `CreateLocalWorkItem` | `command_id`, workspace, tiêu đề |
+| `LinkWorkItem` / `DismissLink` | Gắn theo key, URL hoặc id; gỡ thành `dismissed` |
+| `SetWorkItemRoots` | Danh sách root; root chưa có trong workspace đi qua thêm root của workspace §4.1 trước, rồi mới ghi |
+| `UpdateSteps`, `UpdateNote`, `SetLocalStatus` | Kèm `expected_revision` |
+| `ArchiveWorkItem` / `RestoreWorkItem` | |
+| `RefreshWorkItems` | Yêu cầu đọc lại Jira và GitHub theo §6.2, §6.3 |
+| `ConnectJira` | Bắt đầu luồng OAuth; trả URL để app mở trình duyệt |
+
+- Topic `workitems` phát thay đổi của list (bền, snapshot 200 việc gần nhất). Vault khoá thì event chỉ mang metadata, giống transcript.
+- Mã lỗi công khai mới: `workitems.not_found`, `workitems.revision_conflict`, `workitems.invalid_key`, `workitems.root_not_in_workspace`, `workitems.jira_not_connected`, `workitems.config_invalid`.
+
+## 10. Bảo mật
+
+- Nội dung từ Jira và GitHub là **dữ liệu không tin cậy**. App chỉ hiện, không render HTML. Link chỉ mở `https`, đúng luật mở link của [desktop app §5.4](/dev-kit/core-harness/desktop-app).
+- Token OAuth chỉ nằm trong vault. Host không ghi token vào log, transcript hay cấu hình. Vault khoá thì bộ đọc OAuth dừng, và list dùng bản chụp đã có ở dạng metadata.
+- `gh` chạy bằng đường dẫn tuyệt đối đã dò lúc khởi động, có timeout. Args là key và tên nhánh đã qua mẫu §5.1, không đi qua shell.
+- Bộ trích xuất transcript chỉ đọc `tool_call` khớp cấu hình. Nó không gửi gì ra ngoài.
+
+## 11. Để sau
+
+- Board dạng cột.
+- Tool cho agent đọc và ghi việc `local` qua MCP bridge.
+- Đưa việc vào context của phiên.
+- Sync giữa nhiều máy.
+- Ghi lên Jira từ app.
+- Phần còn lại của H-46 ở giai đoạn C (claim, cổng verify, `todo` native) dựng trên owner này (TH-10).
+
+## 12. Evidence
+
+- **TH-E01** Nhận diện key: bảng test có `PROJ-123` (khớp), `UTF-8`, `SHA-256`, `ISO-8601` (không khớp khi prefix chưa biết), và URL `browse` của site đã cấu hình (khớp, thêm project). Mutation probe: bỏ điều kiện project đã biết thì test fail.
+- **TH-E02** Liên kết: mỗi nguồn ở §5 tạo đúng `source` và `state`. Một phiên có thể có nhiều việc, và một việc nhiều phiên. Liên kết `dismissed` không quay lại sau khi nguồn khớp lại. Mutation probe: cho luật tự động ghi đè `dismissed` thì test fail.
+- **TH-E03** Bản chụp: fixture output của tool đọc Jira (đã redact) cho ra bản chụp `transcript` đúng field; output sai dạng thì bỏ qua, không lỗi. Bản `oauth` mới hơn thắng bản `transcript`, và bản cũ hơn không ghi đè bản mới.
+- **TH-E04** Root: `SetWorkItemRoots` với repo chưa có trong workspace đi qua thêm root của workspace và tăng `config_revision`. Root không hợp lệ bị từ chối `workitems.root_not_in_workspace`, không ghi nửa chừng.
+- **TH-E05** Vault khoá: list chỉ có key, nhóm trạng thái, thời gian; event của topic không mang nội dung; bộ đọc OAuth dừng.
+- **TH-E06** Cấu hình: các ca sai ở §7 trả `workitems.config_invalid`. Không có `mine_jql` thì "Mine" chỉ theo hoạt động.
+- **TH-E07** Việc xong vẫn ở list cho tới khi lưu trữ; lưu trữ rồi khôi phục giữ nguyên liên kết, checklist và note.
+- **TH-E08** Shot sáng và tối ở 100 và 125%:
+  - list có ba nhóm trạng thái và đủ các cột;
+  - chi tiết ở slot đồng hành;
+  - dropdown C1 với 5 việc và một gợi ý;
+  - thẻ C2 trong transcript;
+  - "Link task" khi phiên chưa có việc.
+- **TH-E09** GitHub: `gh` giả trả PR theo nhánh và theo key. Thiếu `gh` hoặc chưa đăng nhập thì cột PR trống và có lời chỉ dẫn, không lỗi.
+- **TH-E10** Bàn phím của list (J/K, Enter, Esc, `/`, N) và của dropdown (↑↓, Enter, Backspace).
+
+## 13. Phụ thuộc
+
+- Cần trước:
+  - [desktop app](/dev-kit/core-harness/desktop-app) (H-33): rail, slot, Popover;
+  - [workspace](/dev-kit/core-harness/workspace) (H-34): root, thêm root;
+  - [transcript](/dev-kit/core-harness/transcript) (H-48): `tool_call`, `plan`;
+  - vault record;
+  - spike FUG-75 cho §6.2.
+- Mảng liên quan: [task và checklist](/dev-kit/core-harness/tasks) (H-46, TH-10), module contract (H-53), module Terminal (H-54), Git và PR (H-55), notes và checklist (H-56: trang này phủ phần checklist và note theo việc), tìm trong source (H-57).
