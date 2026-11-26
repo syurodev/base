@@ -114,6 +114,21 @@ Radius theo ngữ cảnh: 6–10 cho control, 14–18 cho container, `full` ch�
 status/dot compact. Giá trị ngoài thang là dấu hiệu ai đó canh mắt — khi gặp,
 nắn về bậc gần nhất chứ đừng thêm bậc mới.
 
+### Token shell Islands (Gio desktop app — FUG-90 / FUG-97)
+
+| Token | Giá trị | Vai trò |
+|---|---|---|
+| `RailWidth` / `RightStripeWidth` | `40dp` | Cột Left Rail và Right Stripe cố định |
+| Nút rail & Right Stripe | `28dp` (`ControlMD`, `SizeMD`) | Nút icon vuông trên rail trái và dải phải |
+| Icon rail | `16dp` (`IconMD`) | Icon Lucide bên trong nút rail và Right Stripe `28dp` |
+| CSD window controls | `14dp` (`IconSM`) | Icon Lucide bên trong nút cửa sổ Linux CSD `24×24dp` (`ControlSM`) |
+| `IslandGap` | `4dp` (`SpaceXS`) | Khe `AppBg` tách Sidebar Island và các ô slot |
+| `RadiusIsland` | `8dp` | Bo góc từng island |
+| `TopBarHeight` / `StatusBarHeight` | `32dp` / `22dp` | Thanh Top Bar và Status Bar trên nền `AppBg` |
+| `SlotHeaderHeight` | `30dp` | Thanh đầu bên trong Sidebar Island và mỗi slot |
+
+**Island không viền (FUG-97):** Sidebar Island, các slot trong lưới, slot đang mờ đóng và drawer khi gập đều **không vẽ nét viền `BorderSubtle` quanh khung**. Lớp nền `CanvasBg` đặt trên `AppBg` với khe `4dp` tự tách các island; đường hairline `BorderSubtle` dưới header `30dp` bên trong island vẫn giữ nguyên. Drag ghost, drop zone, card và dialog vẫn giữ viền riêng.
+
 ## Luật bind
 
 - **Không bao giờ để hex thô hay px thô trong component.** Màu bind vào

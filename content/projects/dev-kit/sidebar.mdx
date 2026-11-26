@@ -134,6 +134,17 @@ chốt cuối cùng.**
 - **Toggle state persist qua**: [UI state persistence](/dev-kit/ui-state) —
   Sidebar là consumer đầu tiên của bảng `ui_state` chung.
 
+## Islands Sidebar & Rails trên Gio desktop app (FUG-93 / FUG-94 / FUG-97)
+
+Trong shell Islands của app desktop Gio:
+
+- **Left Rail (`40dp`, `RailWidth`) & Right Stripe (`40dp`, `RightStripeWidth`):**
+  - Nút trên Left Rail (Chat, Team, Modules), nút companion trên Right Stripe (Approvals, Accounts, Secrets) và nút tab slot gập khi cửa sổ hẹp đều dùng `kit.SizeMD` (**28×28dp**, `ControlMD`) với icon **16dp** (`IconMD`).
+  - Pill `SelectedWash` của Left Rail và chấm trạng thái (`drawStatusBadgeDot`) tự co theo kích thước nút `28dp`. Đường ngăn cách nhóm slot gập cũng theo bề rộng nút `28dp`.
+- **Sidebar Island không viền:**
+  - Sidebar Island (`240dp` mặc định, bo góc `8dp` `RadiusIsland`) vẽ trực tiếp bằng `CanvasBg` trên `AppBg` — không còn nét viền `BorderSubtle` quanh khung (cả ở chế độ inline lẫn overlay nổi khi cửa sổ hẹp, nơi overlay vẫn giữ `DrawFloatShadow`).
+  - Khe tách giữa Sidebar Island và lưới slot là `4dp` (`IslandGap`). Đường hairline `BorderSubtle` bên dưới thanh đầu `30dp` (`SlotHeaderHeight`) vẫn được giữ lại.
+
 <Cards>
   <Card title="UI state persistence" href="/dev-kit/ui-state" description="Bảng ui_state chung — nơi toggle global được lưu" />
   <Card title="Title bar" href="/dev-kit/title-bar" description="Sidebar toggle — vị trí cố định ngoài 3 vùng" />

@@ -120,6 +120,20 @@ rỗng. Ẩn/disable theo module sẽ làm nút nhấp nháy mỗi lần chuyể
 - **Sidebar content primitive**: [Sidebar](/dev-kit/sidebar) —
   `useSidebarContent`, toggle global, resize, ràng buộc vault unlocked.
 
+## Islands Top Bar trên Gio desktop app (FUG-95 / FUG-97)
+
+Trên app desktop Gio (`ui/internal/appwin/titlebar.go`), Top Bar thống nhất cao **32dp** (`TopBarHeight`) trên nền `AppBg`:
+
+- **Inset trái:** `72dp` (`MacTrafficLightInset`) cho traffic lights native trên macOS (gập về `RailWidth = 40dp` khi fullscreen); `40dp` (`RailWidth`) trên Windows và Linux khi đã mở khoá để context pill thẳng hàng với mép trái Sidebar Island.
+- **Vùng giữa:** thanh context pill và vùng kéo cửa sổ (`ActionMove`), hỗ trợ double-click để phóng to/thu nhỏ trên Linux CSD.
+- **Cụm nút phải:** nút đổi theme và nút Settings (`24dp` `ControlSM`), căn giữa theo cột `RightStripeWidth` (`40dp`, cách mép phải `8dp` khi không có CSD).
+- **Nút cửa sổ Linux CSD (`titleBar.csd == true`, khi compositor không cấp SSD như GNOME Wayland):** vẽ cụm 3 nút Lucide nhỏ gọn (`88dp` tổng cộng) thay cho glyph tự vẽ:
+  - **Minimize:** `minus` (`System.ActionMinimize`)
+  - **Maximize / Restore:** `square` / `copy` khi đang maximized (`ActionMaximize` / `ActionUnmaximize`)
+  - **Close:** `x` (`ActionClose`)
+  - Mỗi nút là ghost button **24×24dp** (`ControlSM`) với icon **14dp** (`IconSM`), căn giữa dọc trong Top Bar `32dp` (`y = 4dp`), cách nhau **4dp** (`SpaceXS`), cách mép phải **8dp** (`SpaceMD`). Hover/press dùng kit wash (`HoverWash`/`PressedWash`) với bo góc `RadiusMD` khớp nút theme/settings, riêng Close dùng `DangerSoftHover`/`DangerSoftPressed` với chữ `DangerFg`.
+  - macOS (traffic lights native), Windows và Linux có SSD không vẽ nút cửa sổ riêng.
+
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
