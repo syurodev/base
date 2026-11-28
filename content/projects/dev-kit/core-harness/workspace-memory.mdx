@@ -150,7 +150,7 @@ Một file UTF-8, đọc được bằng mắt và nhập lại không mất th�
 | ID | Câu hỏi | Cách trả lời |
 | --- | --- | --- |
 | Q-1 | Vendor nào đưa `instructions` của MCP server vào context (Claude Code, Codex, Antigravity)? | Spike với từng CLI ở version đang hỗ trợ. Vendor không đưa vào thì dựa vào mô tả tool dặn gọi `memory_overview`; ghi kết quả vào trang này |
-| Q-2 | Ngưỡng điểm và cách gộp điểm giữa hai index | Chọn trong lúc làm, chứng minh bằng bộ truy vấn mẫu của WM-E03 |
+| Q-2 | Ngưỡng điểm và cách gộp điểm giữa hai index | **Đã chốt (FUG-114):** Trọng số BM25 mỗi bảng là `label=10`, `keywords=10`, `summary=4`, `body=1`. Chuẩn hoá điểm BM25 âm của SQLite về `[0.20, 1.0)` bằng `(max(-bm25, 0) + 0.25) / (max(-bm25, 0) + 1.25)` để không bị `IDF=0` trên corpus nhỏ. Gộp hai bảng theo `0.65 * word + 0.35 * trigram`, rồi nhân hệ số `verified` (`×1.20`) và độ tươi (`fresh ×1.10`, `unknown ×1.00`, `stale ×0.90`). Khi không có kết quả chính xác, fallback trích tối đa 24 trigram 3 ký tự từ query hợp lệ, truy vấn `OR` trên bảng trigram và lấy tối đa 5 kết quả gắn cờ gần đúng (chứng minh bằng bộ WM-E03). |
 
 ## 12. Evidence
 
