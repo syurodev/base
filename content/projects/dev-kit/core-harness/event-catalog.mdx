@@ -24,6 +24,7 @@ Catalog chỉ chứa facts của **run kernel**. Các trạng thái sau do owner
 | Quota và account | `internal/quota`, bảng `quota_*` ([budget và quota](/dev-kit/core-harness/budget)) | `PickAccount` trước mỗi attempt; command `QuotaChanged` đánh thức wait `quota_refresh` |
 | Session policy | `exec_session_policy` ([interaction](/dev-kit/core-harness/interaction)) | `SetSessionPolicy` tăng `policy_revision`; request đang live bị `Refused` khi scope đổi; mode mới áp dụng từ step kế tiếp |
 | Cấu hình workspace | `fugue.toml` theo tầng ([workspace](/dev-kit/core-harness/workspace)) | Nạp lại ở ranh giới step; đổi root qua đường gỡ và thêm root của workspace §4 |
+| Workspace memory | `internal/workspacememory`, bảng `workspace_memory_entries`, `workspace_memory_history` ([workspace memory](/dev-kit/core-harness/workspace-memory)) | Topic `memory` phát `MemoryEntryWritten` (`entry_id`, `workspace_id`, `revision`, `author`, `op`; **không có nội dung**) sau mỗi lần ghi đã commit |
 
 ## 2. Run và step
 
