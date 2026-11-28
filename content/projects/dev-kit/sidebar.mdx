@@ -143,7 +143,7 @@ Trong shell Islands của app desktop Gio:
   - Pill `SelectedWash` của Left Rail và chấm trạng thái (`drawStatusBadgeDot`) tự co theo kích thước nút `28dp`. Đường ngăn cách nhóm slot gập cũng theo bề rộng nút `28dp`.
 - **Sidebar Island không viền:**
   - Sidebar Island (`240dp` mặc định, bo góc `8dp` `RadiusIsland`) vẽ trực tiếp bằng `CanvasBg` trên `AppBg` — không còn nét viền `BorderSubtle` quanh khung (cả ở chế độ inline lẫn overlay nổi khi cửa sổ hẹp, nơi overlay vẫn giữ `DrawFloatShadow`).
-  - Khe tách giữa Sidebar Island và lưới slot là `4dp` (`IslandGap`). Đường hairline `BorderSubtle` bên dưới thanh đầu `30dp` (`SlotHeaderHeight`) vẫn được giữ lại.
+  - Khe tách giữa Sidebar Island và lưới slot là `4dp` (`IslandGap`). Đường hairline `BorderSubtle` bên dưới thanh đầu `32dp` (`SlotHeaderHeight`, nâng từ 30 để control `xs` chừa đủ 4dp cho vòng focus — FUG-108) vẫn được giữ lại.
 
 <Cards>
   <Card title="UI state persistence" href="/dev-kit/ui-state" description="Bảng ui_state chung — nơi toggle global được lưu" />
