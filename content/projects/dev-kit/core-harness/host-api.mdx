@@ -9,6 +9,8 @@ Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-42 
 
 **v0.22 (2026-11-24), chủ dự án duyệt (base-doc PR #44), Fugue FUG-66:** thêm §5.5 `SubmitLoginCode` cho `fugue.accounts.v1` để chuyển tiếp code đăng nhập dán từ trình duyệt vào stdin của CLI đang chạy (sửa Q-112); evidence `HA-E13`.
 
+**v0.19 (2026-11-22), chủ dự án duyệt: đọc trạng thái đội (F11.7), cập nhật cấu hình giữ comment (F10.24) và kho secret dùng chung (F10.15).** Mở rộng §5.3 (`ListTeams`, `GetTeam`, `RecoverTask`; evidence HA-E11), §5.4 (`PatchWorkspaceConfig`; evidence HA-E10) và thêm §5.6 (`fugue.secrets.v1` cho màn hình Kho secret riêng, câu trả lời secret của F10.15 và biến môi trường của các module như API client; evidence HA-E12).
+
 **v0.18 (2026-11-21), chủ dự án duyệt: đọc file trong workspace.** Thêm §5.4, `ReadWorkspaceFile` cho trình xem file chỉ đọc của transcript ([desktop app](/dev-kit/core-harness/desktop-app) v0.10 §5.4, Q-179 A); evidence HA-E09.
 
 **v0.17 (2026-11-21), chủ dự án duyệt: channel của đội.** Thêm §5.3, `PageChannel`, `PostChannelMessage` và nội dung của topic `team:<id>` cho channel ([orchestration](/dev-kit/core-harness/orchestration) v0.3 §6.7), theo Q-175 A của F11.10; evidence HA-E08.
@@ -94,7 +96,7 @@ Topic `appstate` (bền) phát `window_put`, `window_deleted` và `preferences_p
 
 - `layout` và `preferences` là **JSON có version** do app định nghĩa: `{"schema_version": <số nguyên dương>, ...}`. Host không diễn giải nội dung slot. Host chỉ kiểm JSON hợp lệ, `schema_version` hợp lệ và kích thước: `layout` tối đa 64 KiB, `preferences` tối đa 16 KiB.
 - Lý do: bố cục còn đổi nhiều qua F10.20 và F10.21; để ngoài proto thì mỗi lần đổi bố cục không phải sửa contract. Slot trỏ tới đối tượng không còn tồn tại thì app tự hiện EmptyState (desktop app, "Lưu bố cục"), nên host không cần kiểm tham chiếu.
-- Slot chỉ chứa **loại và ID** của đối tượng: `session`, `team`, `agent`, `diff`, `inbox`, `module` (ID module không diễn giải; hợp đồng module viết trước item module đầu tiên). Không chứa nội dung transcript, tiêu đề, payload hay secret.
+- Slot chỉ chứa **loại và ID** của đối tượng: `session`, `team`, `agent`, `diff`, `inbox`, `accounts`, `secrets`, `module` (ID module không diễn giải; hợp đồng module viết trước item module đầu tiên). Không chứa nội dung transcript, tiêu đề, payload hay secret.
 - Bố cục được lưu **không qua vault**, vì app phải dựng cửa sổ (và màn hình mở vault bên trong nó) trước khi vault mở. Đây là lý do luật trên là MUST.
 - `window_id` là UUID do app sinh khi cửa sổ mở lần đầu.
 - App gặp `schema_version` cao hơn bản nó hiểu thì dùng bố cục mặc định và **không ghi đè** bản đã lưu cho tới khi user tự đổi bố cục. Gặp bản thấp hơn thì app tự chuyển đổi rồi ghi lại.
@@ -107,9 +109,9 @@ Topic `appstate` (bền) phát `window_put`, `window_deleted` và `preferences_p
 
 Mã lỗi công khai mới: `appstate.revision_conflict`, `appstate.invalid_document`, `appstate.too_large`, `appstate.too_many_windows`.
 
-### 5.3 Channel của đội (v0.17)
+### 5.3 Channel và trạng thái của đội (v0.17, v0.19)
 
-Channel là phép chiếu của event đội ([orchestration](/dev-kit/core-harness/orchestration) §6.7); API này chỉ cho user đọc và gửi tin, agent đọc qua tool `fugue_team_read`, không subscribe.
+Channel là phép chiếu của event đội ([orchestration](/dev-kit/core-harness/orchestration) §6.7); API này chỉ cho user đọc trạng thái đội, đọc/gửi tin trên channel và phục hồi task `unknown`, agent đọc qua tool `fugue_team_read`, không subscribe. Các quyết định duyệt đề xuất đội (`Approve`, `Approve with edits`, `Work solo`, `Reject`), sửa đội, gia hạn deadline và duyệt tích hợp cuối (`final_review`) đi qua `fugue.interaction.v1/Answer`.
 
 Service `fugue.tasks.v1` (`TaskService`), chỉ cho principal `local`; `session` và `guard` bị từ chối.
 
@@ -117,16 +119,20 @@ Service `fugue.tasks.v1` (`TaskService`), chỉ cho principal `local`; `session`
 | --- | --- | --- | --- |
 | `PageChannel` | `team_id`, `thread_task_id?`, `before?`, `since?`, `limit?` | Các tin, mới nhất trước: `#n`, loại, người gửi, người nhận, thread, lần thử, thời điểm, nội dung | Không có `thread_task_id` là channel chung. `limit` mặc định 100, tối đa 500. Vault khoá thì từ chối (fail closed) |
 | `PostChannelMessage` | `command_id`, `team_id`, `thread_task_id?`, `to_task_id?`, `text` | `#n` của tin mới | Nguồn `user`, đi ngay, không qua hàng chờ giãn nhịp (§6.1). Không có `to_task_id`: trong thread thì gửi agent của task, ở channel chung thì gửi lead. Người giao của agent nhận một dòng (§6.2). Chống trùng theo `command_id` |
+| `PruneWorktrees` | `retention_seconds?` | Danh sách worktree, nhánh và admin entry đã dọn | Cho `fugue task prune` (orchestration §9, F11.11); `0` dùng mặc định 24h |
+| `ListTeams` (v0.19) | `workspace_id?`, `session_id?` | `repeated TeamSummary`: `team_id`, `workspace_id`, `session_id`, `state`, `waiting_reason`, `task_count`, `running_count`, `asking_count`, `failed_count`, `last_seq`, `created_at`, `updated_at`, `ended_at` | Chỉ metadata (INV-09), chạy được khi vault khoá để hiện badge trên sidebar và team strip |
+| `GetTeam` (v0.19) | `team_id`, `diff_task_id?` | `TeamView`: `TeamSummary`, `vault_locked`, `title?`, `brief?`, `budget?`, `pending_request_id?`, `repeated TaskNode` (`task_id`, `parent_task_id`, `retry_of`, `attempt`, `hierarchy_role`, `catalog_role`, `vendor`, `model`, `account_id`, `state`, `failure_code`, `session_id`, `goal?`, `write_scope[]`, `depends_on[]`, `last_channel_seq`, `elapsed_ms`), `diff_text?`, `diff_truncated?` | Cho bảng đội (§5.2: tab Cây, Thành viên, chi tiết agent) và tóm tắt `final_review` (`diff_task_id = "@team"`). Khi vault khoá thì vẫn trả cây `TaskNode` chỉ gồm metadata với `vault_locked = true`, ẩn `title`, `brief`, `goal` và `diff_text`. Xem transcript của từng agent dùng `fugue.vendors.v1/PageTranscript(session_id)` |
+| `RecoverTask` (v0.19) | `command_id`, `team_id`, `task_id`, `decision` (`resume`, `keep_diff`, `cancel`), `reason?` | `TaskNode` sau khi cập nhật | Phục hồi task ở trạng thái `unknown` từ UI ([desktop app §6](/dev-kit/core-harness/desktop-app#6-failure-ux), orchestration §12). Chống trùng theo `command_id`; vault khoá thì từ chối |
 
-- Topic `team:<id>` (bền) phát một event cho mỗi tin mới của channel. Snapshot là 100 tin mới nhất. **Khi vault khoá, event chỉ mang metadata** (`#n`, loại, người gửi, người nhận, thread); nội dung không bao giờ đi khi vault khoá, giống transcript.
+- Topic `team:<id>` (bền) phát một event cho mỗi tin mới của channel và khi `last_seq` của đội tăng (state của đội hoặc task đổi). Snapshot là 100 tin mới nhất kèm `last_seq`. **Khi vault khoá, event chỉ mang metadata** (`#n`, loại, người gửi, người nhận, thread, `last_seq`); nội dung không bao giờ đi khi vault khoá, giống transcript.
 - Tin do model viết hiện như dữ liệu, không bao giờ thành chỉ dẫn (OR-13). Yêu cầu duyệt trong channel chỉ là một dòng tham chiếu (`request_id`, tên tool) dẫn tới hộp duyệt; nội dung yêu cầu và câu trả lời chỉ ở hộp duyệt (VR-05).
-- Giới hạn: `text` tối đa 4 KiB.
+- Giới hạn: `text` tối đa 4 KiB; `diff_text` trong `GetTeam` tối đa 256 KiB (vượt thì gắn `diff_truncated = true`).
 
-Mã lỗi công khai mới: `tasks.team_not_found`, `tasks.task_not_found`, `tasks.team_ended`, `tasks.post_too_large`.
+Mã lỗi công khai mới: `tasks.team_not_found`, `tasks.task_not_found`, `tasks.team_ended`, `tasks.post_too_large`, `tasks.task_not_unknown`.
 
-### 5.4 Đọc file trong workspace (v0.18)
+### 5.4 Đọc file và cập nhật cấu hình trong workspace (v0.18, v0.19)
 
-Trình xem file chỉ đọc của app (badge file trong transcript) đọc qua host, không bao giờ tự mở đường dẫn lấy từ transcript: đường dẫn đó là dữ liệu không tin cậy.
+Trình xem file chỉ đọc của app (badge file trong transcript) đọc qua host, không bao giờ tự mở đường dẫn lấy từ transcript: đường dẫn đó là dữ liệu không tin cậy. Các form cài đặt workspace (F10.24, Q-208) cập nhật theo từng trường trên host để giữ nguyên comment và thứ tự key trong `fugue.toml`.
 
 Thêm vào service `fugue.workspace.v1`, chỉ cho principal `local` với client kind `app`:
 
@@ -134,10 +140,12 @@ Thêm vào service `fugue.workspace.v1`, chỉ cho principal `local` với clien
 | --- | --- | --- | --- |
 | `ReadWorkspaceFile` | `workspace_id`, `root_name`, `path` (tương đối với root), `start_line?`, `end_line?` | `content` (UTF-8), `total_lines`, `language` (gợi ý theo đuôi file), `truncated` | Chỉ đọc. Không cache nội dung ở host |
 | `ListWorkspaceDir` | `workspace_id`, `root_name`, `path` | Các mục: tên, loại (file hay thư mục), kích thước | Cho badge thư mục; tối đa 1.000 mục, sắp theo tên |
+| `PatchWorkspaceConfig` (v0.19) | `command_id`, `workspace_id`, `expected_hash`, `repeated ConfigPatch` (`dotted_key`, `op` = `SET` \| `DELETE`, `value`) | `Workspace` (cùng output với `UpdateWorkspaceConfig`: `config_hash` mới, `pending_policy_confirmation`, `policy_diff[]`) | Cập nhật phẫu thuật theo dòng (surgical line patcher) trên host cho các key hợp lệ của schema workspace: giữ nguyên 100% comment `# ...`, dòng trống và thứ tự key hiện có. Kiểm tra CAS theo `expected_hash`, validate schema và định tuyến xác nhận chính sách Q-64 giống `UpdateWorkspaceConfig`. Gỡ `PatchWorkspaceTOML` phía client |
 
 - **Giới hạn đường dẫn**: host chuẩn hoá `path`, giải symlink, rồi kiểm kết quả vẫn nằm trong root đã đăng ký của workspace. Ngoài root, đường dẫn tuyệt đối, `..` thoát ra ngoài, hoặc symlink trỏ ra ngoài đều bị từ chối có kiểu.
 - **Giới hạn nội dung**: tối đa 1 MiB một lần đọc (khoảng dòng giúp đọc phần nhỏ hơn); file nhị phân (có byte NUL trong 8 KiB đầu) bị từ chối.
 - File bị bỏ qua theo `.gitignore` vẫn đọc được: user tự bấm vào nó. Nội dung không vào log, lỗi hay audit metadata.
+- **Cập nhật cấu hình (v0.19)**: nếu file `fugue.toml` đang có lỗi cú pháp không phân tích được cấu trúc section, `PatchWorkspaceConfig` từ chối có kiểu để app dẫn user sang tab Raw TOML (Q-62).
 
 Mã lỗi công khai mới: `workspace.path_outside_root`, `workspace.file_not_found`, `workspace.file_too_large`, `workspace.not_text`.
 
@@ -152,6 +160,24 @@ Thêm vào service `fugue.accounts.v1` (`AccountService`) để chuyển tiếp 
 - **Bảo vệ secret (`code`)**: `code` là secret (`redact.Secret`). Không bao giờ ghi log, lưu trữ, echo lại, đưa vào thông báo lỗi, đưa vào audit metadata hay trả về cho client; buffer chứa `code` phải được **zero** ngay sau khi ghi vào stdin.
 - **Phân quyền và vòng đời**: chỉ principal đã khởi tạo phiên login (`StartLogin`) mới được gọi `SubmitLoginCode`, và chỉ trong lúc phiên `login_id` đó còn đang chạy. Gọi sau khi phiên đã kết thúc (hoặc sai `login_id`) bị từ chối bằng lỗi có kiểu; principal `session` hoặc `guard` bị từ chối.
 - **Kiểm tra và ghi stdin**: mỗi `command_id` mới ghi đúng **một dòng** qua pipe stdin (tuần tự hoá dưới mutex); gọi lại cùng `command_id` trả kết quả lần đầu và **không bao giờ ghi stdin lần thứ hai** (không phát lại tác dụng chưa rõ kết quả). Kiểm tra độ dài tối đa (tối đa 1 KiB) và **chỉ chứa printable ASCII** (từ chối chuỗi rỗng, ký tự điều khiển, `\r`, `\n`, byte NUL và ngoài ASCII bằng `InvalidArgument` trước khi chạm tới stdin).
+
+### 5.6 Kho secret dùng chung (v0.19)
+
+Kho secret (`internal/secretstore`, bảng `secret_records`) lưu các giá trị bí mật có tên của user (API key, token, mật khẩu kết nối, biến môi trường bí mật) để dùng chung cho: (1) màn hình **Kho secret** riêng trên app ([desktop app §5.6](/dev-kit/core-harness/desktop-app#56-kho-secret-v012)), (2) trả lời câu hỏi chuyển tiếp có cờ `secret` trong hộp duyệt (F10.15, [interaction §7–8](/dev-kit/core-harness/interaction#7-bảo-mật)), (3) tham chiếu biến môi trường của các module sau này (như API client kiểu Postman hay Database client), và (4) nguồn `KnownValues` (`kind = "vault"`, độ dài ≥ 8 byte) cho bộ nhận diện Aho–Corasick ([an toàn nội dung §3.2](/dev-kit/core-harness/content-safety#32-nhận-diện), đóng Q-34).
+
+Service `fugue.secrets.v1` (`SecretService`), chỉ cho principal `local` với client kind `app`; `session`, `guard` và các client kind khác bị từ chối.
+
+| RPC | Input | Output | Ghi chú |
+| --- | --- | --- | --- |
+| `ListSecrets` | `scope_kind?` (`global`, `workspace`), `scope_id?` | `repeated SecretMeta`: `secret_id`, `scope_kind`, `scope_id`, `name`, `description`, `created_at`, `updated_at` | Chỉ trả metadata (INV-09), chạy được ngay cả khi vault đang khoá. **Không bao giờ trả giá trị secret** |
+| `PutSecret` | `command_id`, `scope_kind`, `scope_id?`, `name`, `description?`, `secret_value` | `SecretMeta` của bản ghi vừa tạo hoặc cập nhật | Upsert theo `(scope_kind, scope_id, name)`. Đòi vault đang mở khoá (fail closed). Giá trị được niêm phong bằng `vault.SealRecord` với AAD `("secret_record", secret_id, scope_kind, scope_id, name)`. Client và host xoá trắng (`clear`) byte slice `secret_value` ngay sau khi niêm phong; gọi `SecretRedactor.Refresh()` |
+| `DeleteSecret` | `command_id`, `secret_id` | — | Xoá hoàn toàn bản ghi và ciphertext (crypto-shred); gọi `SecretRedactor.Refresh()` |
+
+- **Bất biến Write-Only / Reference-Only**: Service **không có RPC `GetSecretValue`**. Giá trị thật một khi đã lưu chỉ được mở niêm phong bên trong tầng Go của host tại thời điểm sử dụng (khi trả lời câu hỏi `secret` của vendor qua `secret_id`, hoặc khi engine của module API client / Database thực thi request trên host) rồi xoá khỏi bộ nhớ ngay.
+- Topic `secrets` (bền) phát `secret_put` và `secret_deleted` chỉ mang metadata (`secret_id`, `scope_kind`, `scope_id`, `name`, `sequence`), không bao giờ mang `secret_value`.
+- Giới hạn: `name` 1..64 ký tự ASCII (`[A-Za-z0-9_.-]`, bắt đầu bằng chữ hoặc số), `description` tối đa 256 byte, `secret_value` từ 1 byte đến 64 KiB, tối đa 512 secret mỗi scope.
+
+Mã lỗi công khai mới: `secrets.not_found`, `secrets.invalid_name`, `secrets.value_too_large`, `secrets.limit_exceeded`.
 
 ## 6. Event stream
 
@@ -204,4 +230,7 @@ Thêm vào service `fugue.accounts.v1` (`AccountService`) để chuyển tiếp 
 | **HA-E07** | Trạng thái của app (v0.16) | Đóng rồi mở lại app khôi phục đúng mọi cửa sổ khi vault còn khoá; `expected_revision` cũ bị từ chối có kiểu; JSON sai, thiếu `schema_version` hoặc quá lớn bị từ chối; principal `session` bị từ chối; bản lưu có `schema_version` cao hơn không bị ghi đè |
 | **HA-E08** | Channel của đội (v0.17): `PageChannel` phân trang lùi và tiến đúng thứ tự `#n`, theo thread và channel chung; vault khoá thì `PageChannel` bị từ chối và topic `team:<id>` chỉ mang metadata; `PostChannelMessage` gửi đúng người theo `to_task_id` và thread, người giao nhận một dòng, gửi lại cùng `command_id` không tạo tin thứ hai; principal `session` bị từ chối |
 | **HA-E09** | Đọc file (v0.18): `ReadWorkspaceFile` trả đúng khoảng dòng và `total_lines`; `..`, đường dẫn tuyệt đối và symlink trỏ ra ngoài root bị từ chối `workspace.path_outside_root`; file quá 1 MiB và file nhị phân bị từ chối có kiểu; `ListWorkspaceDir` liệt kê có giới hạn; principal `session` bị từ chối |
+| **HA-E10** | Cập nhật cấu hình giữ comment (v0.19, F10.24): `PatchWorkspaceConfig` cập nhật và xoá đúng key theo đường dẫn chấm mà giữ nguyên toàn bộ comment `# ...` và thứ tự các key khác trong `fugue.toml`; `expected_hash` cũ bị từ chối CAS; thay đổi chạm key policy kích hoạt xác nhận Q-64; principal `session` bị từ chối |
+| **HA-E11** | Đọc trạng thái đội và phục hồi task (v0.19, F11.7): `ListTeams` và `GetTeam` trả đúng cây `TaskNode` và số đếm; khi vault khoá vẫn trả cấu trúc cây chỉ gồm metadata với `vault_locked = true` và không lộ `goal`/`brief`/`diff_text`; `RecoverTask` áp đúng quyết định `resume`/`keep_diff`/`cancel` cho task `unknown` với dedup theo `command_id`; principal `session` bị từ chối |
+| **HA-E12** | Kho secret dùng chung (v0.19, F10.15): `PutSecret` niêm phong giá trị bằng `SealRecord` gắn AAD và nạp giá trị ≥ 8 byte vào `SecretRedactor` để tự động che trên transcript; `ListSecrets` hoạt động cả khi vault khoá và chỉ trả metadata; `PutSecret`/`DeleteSecret` bị từ chối khi vault khoá hoặc từ principal `session`; không có RPC nào trả lại plaintext secret qua Host API |
 | **HA-E13** | Gửi code đăng nhập (v0.22, đã duyệt): `SubmitLoginCode` chỉ nhận từ principal đã mở `login_id` và chỉ khi phiên đang chạy (kết thúc rồi trả lỗi có kiểu); từ chối chuỗi rỗng, quá 1 KiB hoặc chứa ký tự điều khiển / ngoài printable ASCII; `command_id` lặp lại trả kết quả lần đầu và không ghi stdin lần thứ hai; ghi đúng một lần vào pipe stdin và zero buffer sau khi ghi; `secretlog` xác nhận `code` không bao giờ có trong log, lỗi, audit metadata hay event |

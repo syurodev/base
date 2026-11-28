@@ -12,6 +12,16 @@ ngay sau traffic lights, xem [Title bar](/dev-kit/title-bar).
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
+<Callout type="info" title="Fugue Desktop (Gio) — Islands Sidebar & 40dp Left Rail (FUG-93 / FUG-94 / FUG-97)">
+Trên ứng dụng desktop Gio (`ui/internal/appwin/slotshell.go`, `sidebar_workspaces.go`):
+- **Left Rail (`40dp`):** chứa nút icon `28dp` (`16dp` icon). Bấm vào icon **đang active**
+  sẽ toggle `SidebarCollapsed` (tự gập/mở Sidebar Island — không có nút chevron gập riêng
+  và không đặt nút toggle trong Top Bar); bấm icon **đang inactive** sẽ chuyển mảng và mở rộng sidebar.
+- **Sidebar Island (`8dp` radius):** render trên `CanvasBg` với header `32dp` (`Workspaces` + `+`,
+  `Teams`, `Modules`) thẳng hàng với header slot, không còn 4 utility row (đã chuyển sang
+  **Right Stripe `40dp`** cho `Approvals`/`Accounts`/`Secrets` và **Top Bar** cho `Settings`).
+</Callout>
+
 <Callout type="warn" title="Design only">
 Chưa có runtime. Grounded trên trang **07 App Shell** trong Figma (4 biến thể
 `Panel=Open/Closed × Sidebar=Open/Closed`, `_Slot / Sidebar Content`).
