@@ -103,7 +103,7 @@ Lý do và ràng buộc:
 
 | Token | dp | Dùng cho | Cơ sở |
 | --- | --- | --- | --- |
-| `size.control.xs` (v0.8) | 24 | Control nằm **bên trong** một hàng hay một control khác: hành động của row, nút của SectionHeader, nút tràn và nút đóng của tab, nút cuối trong ô nhập, nút đóng hay ghim ở đầu lớp nổi, nút trong header 30 dp của slot | Bằng ngưỡng WCAG 2.5.8; nằm gọn trong `size.row` 28 và header 30 mà vẫn chừa mép |
+| `size.control.xs` (v0.8) | 24 | Control nằm **bên trong** một hàng hay một control khác: hành động của row, nút của SectionHeader, nút tràn và nút đóng của tab, nút cuối trong ô nhập, nút đóng hay ghim ở đầu lớp nổi, nút trong header 32 dp của slot | Bằng ngưỡng WCAG 2.5.8; nằm gọn trong `size.row` 28 và header 32 mà vẫn chừa mép |
 | `size.control.sm` | 28 (v0.8, trước là 24) | Control đứng riêng nhưng phụ: toolbar, hành động trong card, banner, toast, thẻ inbox, hàng tool của transcript | Một nấc dưới mặc định; bằng `size.row` nên thẳng hàng với list bên cạnh |
 | `size.control.md` | 32 (v0.8, trước là 28) | Mặc định; mọi control trong form (§4.6), kể cả nút ở chân dialog | Chủ dự án chọn (2026-11-27): control đầy đặn và đồng đều hơn; cỡ giao diện (§3.0) vẫn bù cho người cần to hơn |
 | `size.control.lg` | 36 (v0.8, trước là 32) | Ô của composer, nút kêu gọi chính của màn trống hay màn bắt đầu | Một nấc trên mặc định cho chỗ cần nổi nhất của màn |
@@ -117,7 +117,9 @@ Lý do và ràng buộc:
 | `stroke.focus` | 2, cách mép ngoài 2 | Vòng focus | WCAG 2.4.13: tương đương viền 2 px, tương phản 3:1 giữa có và không focus |
 | `motion.press` | 0,97 | Tỉ lệ co của control khi đang nhấn | Co nhẹ 3%, đủ thấy mà không làm lệch chữ |
 
-Thang control (v0.8): `xs` 24, `sm` 28, `md` 32, `lg` 36. Bản trước (24/28/32, mặc định 28) làm control trông mỏng và không đều nhau: trong form, ô nhập 28 đứng cạnh nút chính 32 và Select co theo chữ. v0.8 nâng mặc định lên 32 để control đầy đặn hơn, còn chữ giữ nguyên ở §3.3. Phần khung giữ nguyên chiều cao: row 28, row dày 24, tab 32, Top Bar 32 và header slot 30 (desktop-app §5.3). Vì vậy control nằm trong các phần đó dùng `xs`, không dùng `sm`: `sm` 28 trong header 30 chỉ chừa 1 dp mỗi mép và cắt vòng focus (dưới).
+Thang control (v0.8): `xs` 24, `sm` 28, `md` 32, `lg` 36. Bản trước (24/28/32, mặc định 28) làm control trông mỏng và không đều nhau: trong form, ô nhập 28 đứng cạnh nút chính 32 và Select co theo chữ. v0.8 nâng mặc định lên 32 để control đầy đặn hơn, còn chữ giữ nguyên ở §3.3. Phần khung giữ nguyên chiều cao: row 28, row dày 24, tab 32 và Top Bar 32; header slot là 32 (desktop-app §5.3; v0.8 addendum dưới nâng nó từ 30). Vì vậy control nằm trong các phần đó dùng `xs`, không dùng `sm`: `sm` 28 trong header 32 chỉ chừa 2 dp mỗi mép, chưa đủ 4 dp của vòng focus (dưới).
+
+**v0.8 addendum** (chủ dự án chốt 2026-11-28, Fugue FUG-108): vòng focus của một control nằm trong bar, trong header hay trong vùng cuộn **không bao giờ bị clip**. Hai bar đã nêu theo luật này: Status Bar là 24 (bằng `size.hit.min`, trước là 22) để nút Lock `xs` không tràn thanh; header slot là 32 (bằng Top Bar và `size.tab`, trước là 30) để control `xs` chừa đủ 4 dp trên và dưới cho vòng focus ngoài. ScrollArea nới clip trục ngang đúng 4 dp đó (`stroke.focus` + khoảng cách mép) nên vòng focus của control tràn cột vẫn còn nguyên mực, trong khi clip theo trục cuộn giữ nguyên.
 
 Chọn cỡ theo chỗ đặt, không theo độ quan trọng của nút: nằm trong hàng hay trong control khác thì `xs`; đứng riêng nhưng phụ thì `sm`; trong form và mặc định thì `md`; chỗ nổi nhất của màn thì `lg`. Mọi cỡ có cùng bo góc `radius.md` (§3.2).
 

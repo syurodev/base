@@ -124,10 +124,12 @@ nắn về bậc gần nhất chứ đừng thêm bậc mới.
 | CSD window controls | `14dp` (`IconSM`) | Icon Lucide bên trong nút cửa sổ Linux CSD `24×24dp` (`ControlSM`) |
 | `IslandGap` | `4dp` (`SpaceXS`) | Khe `AppBg` tách Sidebar Island và các ô slot |
 | `RadiusIsland` | `8dp` | Bo góc từng island |
-| `TopBarHeight` / `StatusBarHeight` | `32dp` / `22dp` | Thanh Top Bar và Status Bar trên nền `AppBg` |
-| `SlotHeaderHeight` | `30dp` | Thanh đầu bên trong Sidebar Island và mỗi slot |
+| `TopBarHeight` / `StatusBarHeight` | `32dp` / `24dp` | Thanh Top Bar và Status Bar trên nền `AppBg` |
+| `SlotHeaderHeight` | `32dp` | Thanh đầu bên trong Sidebar Island và mỗi slot |
 
-**Island không viền (FUG-97):** Sidebar Island, các slot trong lưới, slot đang mờ đóng và drawer khi gập đều **không vẽ nét viền `BorderSubtle` quanh khung**. Lớp nền `CanvasBg` đặt trên `AppBg` với khe `4dp` tự tách các island; đường hairline `BorderSubtle` dưới header `30dp` bên trong island vẫn giữ nguyên. Drag ghost, drop zone, card và dialog vẫn giữ viền riêng.
+**Bar cao đủ cho control `xs` và vòng focus của nó (FUG-108, chủ dự án chốt 2026-11-28):** `StatusBarHeight` 22 → `24dp`, bằng `HitMin`, để nút Lock `xs` 24dp nằm gọn trong Status Bar thay vì tràn 1 dp mỗi mép. `SlotHeaderHeight` 30 → `32dp`, bằng `TopBarHeight` và `Tab`, để control `xs` trong Sidebar Island hay header slot chừa đủ `4dp` trên và dưới cho vòng focus ngoài (§3.4 ui-kit) mà không bị clip.
+
+**Island không viền (FUG-97):** Sidebar Island, các slot trong lưới, slot đang mờ đóng và drawer khi gập đều **không vẽ nét viền `BorderSubtle` quanh khung**. Lớp nền `CanvasBg` đặt trên `AppBg` với khe `4dp` tự tách các island; đường hairline `BorderSubtle` dưới header `32dp` bên trong island vẫn giữ nguyên. Drag ghost, drop zone, card và dialog vẫn giữ viền riêng.
 
 ## Luật bind
 
