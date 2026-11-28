@@ -5,7 +5,7 @@ description: H-51 — bộ component dùng chung của app Gio; token kích thư
 
 # UI kit
 
-Trạng thái: **v0.7 (2026-11-25), chủ dự án duyệt sau khi dùng thử bản build (Fugue FUG-74, PR #255)**: token chuyển động nhanh theo kiểu macOS, hover và nhấn hiện ngay rồi mờ đi theo Exit, nội dung mờ dần hiện ra theo Snappy, nhanh hơn phần di chuyển (§3.7). **v0.6 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt** (bỏ nguồn tham khảo bên ngoài; giữ WCAG và asset đóng gói; token, số đo và luật không đổi). Bản đã duyệt gần nhất là v0.5. **v0.3, ngày 2026-11-15, đã duyệt** (chủ dự án, 2026-11-15, base-doc PR #15). v0.2 đã duyệt (chủ dự án, 2026-11-15, base-doc PR #14). Số đo ở §3 đã đối chiếu với các chuẩn ở §13. v0.2 ghi kết quả spike (§9): giữ mọi token chữ, chốt giá trị màu tương tác, thêm bóng nhẹ cho lớp nổi, chốt Lucide, và thêm các luật Gio mà spike tìm ra ở §6. v0.3 đổi phong cách theo lựa chọn của chủ dự án sau khi xem gallery của F10.9 (§3.8): bo góc lớn hơn, nền tông màu thay cho viền, viền nhạt, nhấn co lại, vòng focus cách mép, control tắt mờ đi, và mọi component có chuyển động phù hợp (§3.7). Mật độ của IDE (chiều cao control, cỡ chữ) giữ nguyên. Cập nhật 2026-11-18 (chủ dự án duyệt): tab `document` ở §6.22 đổi từ gạch chân sang viên bo nền như tab `mode`, nút đóng nhỏ chỉ hiện khi cần, và tab có icon tùy chọn. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8). **v0.4 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #23; Q-173 A ngày 2026-11-21): hàng vạch bo tròn `LineRow` (§3.9) và Progress hai cấp vẽ bằng vạch, tông theo mức (§6.5), theo yêu cầu và mock chủ dự án đã xem cho thanh quota; UK-E12. **v0.5 (2026-11-21), đã duyệt** (chủ dự án): icon file và thư mục lấy từ bộ Symbols (vscode-symbols, MIT), tô một màu theo theme (§6.1); UK-E13.
+Trạng thái: **v0.8 (2026-11-28), chủ dự án duyệt hướng thiết kế (Fugue FUG-104); số đo chi tiết chờ duyệt ở PR này**: control đầy đặn hơn, thang 24/28/32/36 với mặc định 32 dp và thêm cỡ `xs` cho control nằm trong hàng (§3.4); mọi control trong một form cùng chiều cao, bo góc và padding (§4.6); scrim đậm hơn ở chế độ tối (§3.5); chuyển động mở đóng của lớp nổi áp cho cả lớp như một khối (§3.7). Chữ giữ nguyên ở §3.3. **v0.7 (2026-11-25), chủ dự án duyệt sau khi dùng thử bản build (Fugue FUG-74, PR #255)**: token chuyển động nhanh theo kiểu macOS, hover và nhấn hiện ngay rồi mờ đi theo Exit, nội dung mờ dần hiện ra theo Snappy, nhanh hơn phần di chuyển (§3.7). **v0.6 đề xuất, ngày 2026-11-23, chờ chủ dự án duyệt** (bỏ nguồn tham khảo bên ngoài; giữ WCAG và asset đóng gói; token, số đo và luật không đổi). Bản đã duyệt gần nhất là v0.5. **v0.3, ngày 2026-11-15, đã duyệt** (chủ dự án, 2026-11-15, base-doc PR #15). v0.2 đã duyệt (chủ dự án, 2026-11-15, base-doc PR #14). Số đo ở §3 đã đối chiếu với các chuẩn ở §13. v0.2 ghi kết quả spike (§9): giữ mọi token chữ, chốt giá trị màu tương tác, thêm bóng nhẹ cho lớp nổi, chốt Lucide, và thêm các luật Gio mà spike tìm ra ở §6. v0.3 đổi phong cách theo lựa chọn của chủ dự án sau khi xem gallery của F10.9 (§3.8): bo góc lớn hơn, nền tông màu thay cho viền, viền nhạt, nhấn co lại, vòng focus cách mép, control tắt mờ đi, và mọi component có chuyển động phù hợp (§3.7). Mật độ của IDE (chiều cao control, cỡ chữ) giữ nguyên. Cập nhật 2026-11-18 (chủ dự án duyệt): tab `document` ở §6.22 đổi từ gạch chân sang viên bo nền như tab `mode`, nút đóng nhỏ chỉ hiện khi cần, và tab có icon tùy chọn. Trang này là lớp 1 của tài liệu UI: nói **cái gì** mỗi component phải làm, không nói cách viết trên Gio. Cách viết trên Gio (lớp 2) là hướng dẫn trong repo Fugue, viết sau spike (§9) từ code thật. Lớp 3 là gallery, doc comment và test (§8). **v0.4 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #23; Q-173 A ngày 2026-11-21): hàng vạch bo tròn `LineRow` (§3.9) và Progress hai cấp vẽ bằng vạch, tông theo mức (§6.5), theo yêu cầu và mock chủ dự án đã xem cho thanh quota; UK-E12. **v0.5 (2026-11-21), đã duyệt** (chủ dự án): icon file và thư mục lấy từ bộ Symbols (vscode-symbols, MIT), tô một màu theo theme (§6.1); UK-E13.
 
 Bố cục khung app (rail, sidebar nhiều project, khung chia đôi, panel đồng hành) và hợp đồng module (tham chiếu `fugue://`, card view, item `module_action`) thuộc các trang khác, viết sau spike. Trang này chỉ định nghĩa phần nền mà khung và module lắp ráp từ đó.
 
@@ -34,7 +34,7 @@ Chuyển đổi: code hiện có (`appwin`, `transcriptview` dùng `material` v�
 
 ## 3. Token mới
 
-Màu đã có ở `theme` (F10.2c). Các nhóm dưới đây thêm vào `theme` cùng chỗ. Mỗi giá trị có cột "Cơ sở" để review; chuẩn tham chiếu ở §13. Nguyên tắc chọn: Fugue là công cụ cho dev, nên mật độ của IDE (control cao 24 đến 32 dp, chữ UI 13 sp) chứ không phải mật độ của app tiêu dùng; nhưng không thấp hơn ngưỡng tiếp cận WCAG và không thấp hơn chữ UI 13 sp (§3.3).
+Màu đã có ở `theme` (F10.2c). Các nhóm dưới đây thêm vào `theme` cùng chỗ. Mỗi giá trị có cột "Cơ sở" để review; chuẩn tham chiếu ở §13. Nguyên tắc chọn: Fugue là công cụ cho dev, nên mật độ gần IDE (control cao 24 đến 36 dp, mặc định 32; chữ UI 13 sp) chứ không phải mật độ của app tiêu dùng; nhưng không thấp hơn ngưỡng tiếp cận WCAG và không thấp hơn chữ UI 13 sp (§3.3).
 
 ### 3.0 Đơn vị trên Gio
 
@@ -50,10 +50,10 @@ Lưới 4 dp, thêm 2 và 6 cho bên trong control dày.
 | Token | dp | Dùng cho | Cơ sở |
 | --- | --- | --- | --- |
 | `space.xxs` | 2 | Giữa icon và badge số | Nửa bước của lưới 4 |
-| `space.xs` | 4 | Giữa icon và nhãn trong control `sm` | Một bước của lưới 4 |
-| `space.sm` | 6 | Giữa icon và nhãn trong control `md`; padding dọc của row | Một bước rưỡi của lưới 4; khoảng icon và chữ rộng hơn `space.xs` một nấc |
-| `space.md` | 8 | Padding ngang control nhỏ; giữa các control trong một nhóm | Hai bước của lưới 4 |
-| `space.lg` | 12 | Padding ngang control `md`, `lg`; padding card; giữa các nhóm | Ba bước của lưới 4 |
+| `space.xs` | 4 | Giữa icon và nhãn trong control `xs` | Một bước của lưới 4 |
+| `space.sm` | 6 | Giữa icon và nhãn trong control `sm`, `md`, `lg`; padding dọc của row | Một bước rưỡi của lưới 4; khoảng icon và chữ rộng hơn `space.xs` một nấc |
+| `space.md` | 8 | Padding ngang control `xs`; giữa các control trong một nhóm | Hai bước của lưới 4 |
+| `space.lg` | 12 | Padding ngang control `sm`, `md`, `lg`; padding card; giữa các nhóm và giữa hai field của form | Ba bước của lưới 4 |
 | `space.xl` | 16 | Lề khung, padding dialog và panel | Bốn bước của lưới 4 |
 | `space.xxl` | 24 | Giữa các phần lớn | Lưới 4 |
 | `space.xxxl` | 32 | Empty state, khoảng trống trang | Lưới 4 |
@@ -66,7 +66,7 @@ Khoảng trong một nhóm luôn nhỏ hơn khoảng giữa các nhóm (quy tắ
 | --- | --- | --- | --- |
 | `radius.xs` | 4 | Chip code inline, vùng chọn trong chữ | Bám theo dòng chữ, không theo control |
 | `radius.sm` | 6 | Checkbox, ô nhỏ trong control | Ô nhỏ bo gần nửa `radius.md` |
-| `radius.md` | 10 | Button, IconButton, input, list row, tab, menu item, tooltip | Tỉ lệ bo trên chiều cao control, thu theo control `md` 28 dp |
+| `radius.md` | 10 | Button, IconButton, input, list row, tab, menu item, tooltip; một giá trị cho mọi cỡ control từ `xs` tới `lg` | Khoảng 0,3 lần chiều cao control `md` 32 dp; giữ một giá trị cho mọi cỡ để control khác cỡ đặt cạnh nhau vẫn cùng dáng góc |
 | `radius.lg` | 14 | Card, khối code, panel trong nội dung | Lớn hơn `radius.md` một nấc cho khối chứa nhiều control |
 | `radius.xl` | 16 | Menu, popover, toast, dialog, composer | Lớp nổi bo lớn nhất; nới để góc trong của item vẫn là `radius.md` |
 | `radius.full` | một nửa chiều cao | Tag, switch, avatar, chấm trạng thái, thanh progress | Hình viên thuốc cho phần tử nhỏ một dòng |
@@ -103,20 +103,23 @@ Lý do và ràng buộc:
 
 | Token | dp | Dùng cho | Cơ sở |
 | --- | --- | --- | --- |
-| `size.control.sm` | 24 | Button, input trong toolbar dày, trong row | Bằng ngưỡng WCAG 2.5.8 |
-| `size.control.md` | 28 | Mặc định | Mặc định ở mật độ IDE |
-| `size.control.lg` | 32 | Nút chính của dialog, ô của composer | Bước lớn cho nút chính và ô nhập của composer |
-| `size.row` | 28 | List row của sidebar, menu item | Rộng hơn row cây vì đây là điều hướng bằng chuột thường xuyên |
-| `size.row.dense` | 24 | Tree, bảng, data grid, list kỹ thuật | Bằng `size.control.sm`, đủ dày cho dữ liệu kỹ thuật mà vẫn đạt ngưỡng WCAG 2.5.8 |
-| `size.tab` | 32 | Tab document trong khung | Cao hơn `size.control.md` để viên tab và nút đóng đủ chỗ |
-| `size.icon.xs` / `sm` / `md` / `lg` | 12 / 14 / 16 / 20 | Mũi tên trong row / icon trong control `sm` / icon thường / icon của rail và feedback | 16 là cỡ icon thường trong control 28; 20 cho rail và feedback |
+| `size.control.xs` (v0.8) | 24 | Control nằm **bên trong** một hàng hay một control khác: hành động của row, nút của SectionHeader, nút tràn và nút đóng của tab, nút cuối trong ô nhập, nút đóng hay ghim ở đầu lớp nổi, nút trong header 30 dp của slot | Bằng ngưỡng WCAG 2.5.8; nằm gọn trong `size.row` 28 và header 30 mà vẫn chừa mép |
+| `size.control.sm` | 28 (v0.8, trước là 24) | Control đứng riêng nhưng phụ: toolbar, hành động trong card, banner, toast, thẻ inbox, hàng tool của transcript | Một nấc dưới mặc định; bằng `size.row` nên thẳng hàng với list bên cạnh |
+| `size.control.md` | 32 (v0.8, trước là 28) | Mặc định; mọi control trong form (§4.6), kể cả nút ở chân dialog | Chủ dự án chọn (2026-11-27): control đầy đặn và đồng đều hơn; cỡ giao diện (§3.0) vẫn bù cho người cần to hơn |
+| `size.control.lg` | 36 (v0.8, trước là 32) | Ô của composer, nút kêu gọi chính của màn trống hay màn bắt đầu | Một nấc trên mặc định cho chỗ cần nổi nhất của màn |
+| `size.row` | 28 | List row của sidebar, menu item | Rộng hơn row cây vì đây là điều hướng bằng chuột thường xuyên; giữ nguyên ở v0.8 |
+| `size.row.dense` | 24 | Tree, bảng, data grid, list kỹ thuật | Bằng `size.control.xs`, đủ dày cho dữ liệu kỹ thuật mà vẫn đạt ngưỡng WCAG 2.5.8; giữ nguyên ở v0.8 |
+| `size.tab` | 32 | Tab document trong khung | Bằng `size.control.md`; viên tab và nút đóng `xs` đủ chỗ; giữ nguyên ở v0.8 |
+| `size.icon.xs` / `sm` / `md` / `lg` | 12 / 14 / 16 / 20 | Mũi tên trong row / icon trong control `xs` / icon trong control `sm`, `md`, `lg` / icon của rail và feedback | 16 là cỡ icon thường từ control 28 trở lên; 20 cho rail và feedback |
 | `stroke.icon` | 1,5 ở 16 và 20; 1,25 ở 12 và 14 | Độ dày nét icon | Bộ icon nét kẻ ở lưới 24 với nét 2 sẽ quá đậm khi thu về 16 |
 | `size.hit.min` | 24 | Vùng bấm tối thiểu, kể cả icon 12 hoặc 14 | WCAG 2.5.8 (AA): 24 × 24 |
 | `stroke.hairline` | 1 | Viền, divider | Một pixel logic |
 | `stroke.focus` | 2, cách mép ngoài 2 | Vòng focus | WCAG 2.4.13: tương đương viền 2 px, tương phản 3:1 giữa có và không focus |
 | `motion.press` | 0,97 | Tỉ lệ co của control khi đang nhấn | Co nhẹ 3%, đủ thấy mà không làm lệch chữ |
 
-Chiều cao control giữ mật độ IDE (24/28/32). Phong cách của Fugue (bo góc, nền tông màu, chuyển động) không kéo theo kích thước: control vẫn theo mật độ IDE.
+Thang control (v0.8): `xs` 24, `sm` 28, `md` 32, `lg` 36. Bản trước (24/28/32, mặc định 28) làm control trông mỏng và không đều nhau: trong form, ô nhập 28 đứng cạnh nút chính 32 và Select co theo chữ. v0.8 nâng mặc định lên 32 để control đầy đặn hơn, còn chữ giữ nguyên ở §3.3. Phần khung giữ nguyên chiều cao: row 28, row dày 24, tab 32, Top Bar 32 và header slot 30 (desktop-app §5.3). Vì vậy control nằm trong các phần đó dùng `xs`, không dùng `sm`: `sm` 28 trong header 30 chỉ chừa 1 dp mỗi mép và cắt vòng focus (dưới).
+
+Chọn cỡ theo chỗ đặt, không theo độ quan trọng của nút: nằm trong hàng hay trong control khác thì `xs`; đứng riêng nhưng phụ thì `sm`; trong form và mặc định thì `md`; chỗ nổi nhất của màn thì `lg`. Mọi cỡ có cùng bo góc `radius.md` (§3.2).
 
 Vòng focus nằm ngoài khung control 2 dp, nên control đứng riêng phải chừa 4 dp quanh mình mà không bị clip. Mục nằm trong vùng bị clip (row của list, mục menu, ô của bảng) dùng vòng vẽ bên trong khung, cách mép 1.
 
@@ -132,7 +135,7 @@ Thêm vào Chrome, kèm test tương phản như các token hiện có:
 | `PressedWash` | Lớp phủ khi đang nhấn | `Fg` ở 14% |
 | `SelectedWash` | Nền của mục đang chọn; vẫn thấy rõ khi row khác đang hover | `Fg` ở 11% |
 | `FgDisabled` | Chữ và icon bị tắt ngoài control (mục menu tắt, chữ phụ của row tắt) | `Fg` ở 35% |
-| `Scrim` | Nền mờ phía sau dialog | đen ở 40% |
+| `Scrim` | Nền mờ phía sau dialog | Theo chế độ (v0.8): sáng là đen ở 40%; tối là đen ở 60%. Nền tối vốn gần đen nên đen 40% gần như không làm trang tối đi: chữ `Fg` trên `CanvasBg` phía sau vẫn còn khoảng 5,4:1. Đen 60% đưa mức đó xuống khoảng 2,9:1, nên trang lùi hẳn ra sau dialog. Giá trị chốt lại trong kit khi chủ dự án xem shot dialog trên transcript ở cả hai chế độ |
 | `FillSoft` | Nền tông của biến thể `secondary` và của tag `neutral` | `Fg` ở 6% (v0.3, chốt trong kit bằng test tương phản) |
 | `FillSoftHover` | `FillSoft` khi hover | `Fg` ở 10% |
 | `BorderSubtle` | Viền nhạt của control `bordered`, card, ô nhập và lớp nổi | `Fg` ở 9% |
@@ -191,6 +194,7 @@ Luật chung:
 
 - Mọi chuyển động **quay đầu được**: đổi đích giữa chừng thì đi tiếp từ giá trị hiện tại, không nhảy (F10.6).
 - **Không chặn thao tác**: control nhận input ngay khi đang chuyển động; menu đang đóng không nhận cú bấm.
+- **Lớp nổi chuyển động như một khối** (v0.8, Fugue FUG-103): độ mờ và phép phóng khi mở và đóng của dialog, menu, popover, combobox, tooltip, toast và slot áp cho **cả lớp**: bề mặt, tiêu đề, thân, chân và mọi control bên trong. Không phần nào hiện đủ trước khung hay còn đọng lại sau khung. Lớp nổi mở từ bên trong (menu của Select trong dialog) là lớp riêng và không bị lớp chứa nó làm mờ khi lớp chứa đã mở xong.
 - **Chỉ xin frame khi đang chuyển động**; đến đích thì dừng (§9.1 đo bằng hai frame yên liên tiếp).
 - **Giảm chuyển động** (UK-04): đổi tức thì, không ripple, không co khi nhấn, không shimmer; spinner thành chấm đứng yên kèm chữ. Trạng thái cuối giống hệt.
 - Co khi nhấn quay quanh tâm control bằng phép biến đổi affine. Vùng sự kiện không co theo, để con trỏ ở sát mép không làm hover nhấp nháy.
@@ -281,6 +285,16 @@ Mỗi list hoặc view có thiết kế riêng cho: tải lần đầu (khung gi
 
 Ví dụ chữ trên trang này viết bằng tiếng Việt chỉ để minh hoạ; ngôn ngữ của giao diện không quyết định ở đây. Viết hoa đầu câu, nhãn nút là động từ ("Chạy query", "Xoá connection"), không "OK" hay "Xác nhận" chung chung. Thông điệp theo công thức **đối tượng + chuyện đã xảy ra + bước tiếp theo**. Không nói đã huỷ, đã khôi phục, có thể hoàn tác khi backend chưa có ngữ nghĩa đó.
 
+### 4.6 Form (v0.8)
+
+Form là mọi chỗ người dùng điền nhiều giá trị rồi gửi: thân dialog `form`, trang cài đặt, panel tạo đối tượng. Chủ dự án muốn control trong form đồng đều về tỉ lệ (2026-11-27), nên:
+
+- TextField, Select, Combobox, SegmentedControl và Button trong form dùng **cùng một cỡ `md`** (32 dp), cùng bo góc `radius.md` và cùng padding ngang `space.lg`. Nút ở chân dialog cũng là `md`, để ô nhập và nút thẳng hàng về chiều cao.
+- Control dạng field (TextField, Select, Combobox) **rộng hết cột của form**. Select không co theo chữ của giá trị đang chọn; ô rỗng hay chưa chọn vẫn giữ đủ bề rộng và hiện chữ gợi ý (§6.13).
+- Mỗi field gồm nhãn phía trên, control, rồi helper text hoặc lỗi. Nhãn cách control `space.xs`. Hai field cách nhau `space.lg`.
+- Checkbox và Switch giữ cỡ riêng (§6.10, §6.11). Nhãn của chúng thẳng với mép trái của cột.
+- Một hàng có nhiều control (ví dụ hai Select cạnh nhau) chia đều bề rộng cột, cách nhau `space.md`.
+
 ## 5. Danh mục component
 
 | Nhóm | Component | Đợt |
@@ -325,10 +339,10 @@ Chủ dự án chọn bộ **Symbols** (vscode-symbols, license MIT) cho icon lo
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Icon (tùy chọn), nhãn `type.label`; `sm`: padding ngang `space.md`, `space.xs` giữa icon và nhãn; `md` và `lg`: padding ngang `space.lg`, `space.sm` giữa icon và nhãn |
+| Cấu tạo | Icon (tùy chọn), nhãn `type.label`; `xs`: padding ngang `space.md`, `space.xs` giữa icon và nhãn, icon `size.icon.sm`; `sm`, `md` và `lg`: padding ngang `space.lg`, `space.sm` giữa icon và nhãn, icon `size.icon.md` (v0.8) |
 | Biến thể | `primary`: nền đặc `Action`, tối đa một nút trong một khung hoặc dialog. `secondary` (mặc định): nền tông `FillSoft`, không viền. `bordered`: nền trong suốt, viền `BorderSubtle`. `ghost`: trong suốt, chỉ hiện nền khi hover. `danger`: nền tông `DangerSoft`, chữ `DangerFg`, cho thao tác mất dữ liệu; không phải nút nổi nhất của màn làm việc thường xuyên |
 | Bo góc | `radius.md` |
-| Kích cỡ | `sm`, `md` (mặc định), `lg` theo `size.control` |
+| Kích cỡ | `xs`, `sm`, `md` (mặc định), `lg` theo `size.control`; chọn theo chỗ đặt (§3.4); trong form luôn là `md` (§4.6) |
 | Trạng thái | §4.1 đủ; `busy` giữ bề rộng, nhãn không đổi hoặc đổi sang dạng tiếp diễn đúng thao tác ("Đang chạy…") mà không làm toolbar nhảy. Spinner nằm giữa ô icon khi có icon, giữa nút khi không có |
 | Bàn phím | Enter và Space kích hoạt; Space kích hoạt khi nhả phím. `widget.Clickable` đã làm đúng cả hai và nhận focus sẵn |
 | Chuyển động | Màu đổi theo Snappy; nhấn co `motion.press` và có ripple từ điểm nhấn (§3.7); icon và spinner mờ chéo khi vào hay ra `busy`. Spinner chỉ xin frame khi đang được vẽ |
@@ -339,7 +353,7 @@ Chủ dự án chọn bộ **Symbols** (vscode-symbols, license MIT) cho icon lo
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Một icon trong ô vuông `size.control`, bo `radius.md`; vùng bấm ít nhất `size.hit.min` dù icon nhỏ hơn |
+| Cấu tạo | Một icon trong ô vuông `size.control`, bo `radius.md`; vùng bấm ít nhất `size.hit.min` dù icon nhỏ hơn. Nút trong row, tab, SectionHeader, ô nhập và đầu lớp nổi là `xs` (§3.4) |
 | Biến thể | `ghost` (mặc định), `secondary`, `bordered`; trạng thái bật (`toggled`) cho nút như ghim, theo dõi: nền `SelectedWash`, icon `Fg` |
 | Bắt buộc | Tên truy cập; tooltip khi ý nghĩa chưa hiển nhiên, kèm phím tắt nếu có |
 | Bàn phím | Như Button |
@@ -384,7 +398,7 @@ Chủ dự án chọn bộ **Symbols** (vscode-symbols, license MIT) cho icon lo
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Nhãn cố định phía trên (không dùng placeholder làm nhãn), ô nhập `size.control.md` bo `radius.md` nền `FillSoft` không viền, icon đầu hoặc nút cuối tùy chọn (xoá, hiện mật khẩu), helper text hoặc lỗi phía dưới |
+| Cấu tạo | Nhãn cố định phía trên (không dùng placeholder làm nhãn), ô nhập `size.control.md` (32 dp) bo `radius.md` nền `FillSoft` không viền, padding ngang `space.lg`, icon đầu hoặc nút cuối tùy chọn (xoá, hiện mật khẩu; nút cuối là IconButton `xs`), helper text hoặc lỗi phía dưới. Trong form ô rộng hết cột (§4.6) |
 | Chuyển động | Hover đổi nền sang `FillSoftHover` theo Snappy; focus hiện vòng focus và nền sáng lên; lỗi và helper text đổi chỗ bằng mờ chéo, dòng lỗi mới mở chiều cao theo Smooth; nút xoá mờ dần khi có chữ |
 | Biến thể | `text`, `search` (icon kính lúp, nút xoá), `secret` (che mặc định, nút hiện rõ ràng, không bao giờ điền sẵn secret), `number` (đơn vị và khoảng hợp lệ; ô rỗng không tự thành 0) |
 | Trạng thái | §4.1; lỗi chỉ hiện sau khi rời ô hoặc khi gửi, rồi cập nhật khi sửa; không báo lỗi ở ô trống chưa chạm |
@@ -407,21 +421,21 @@ Bật tắt có hiệu lực ngay. Rãnh và núm `radius.full`; rãnh đổi m�
 
 ### 6.12 SegmentedControl
 
-Hai đến bốn lựa chọn loại trừ nhau, cần thấy cùng lúc. Mũi tên trái phải đổi lựa chọn trong nhóm, Tab ra khỏi nhóm. Nền nhóm `FillSoft` bo `radius.md`; mục đang chọn là một viên `SurfaceRaised` trượt sang mục mới bằng Smooth.
+Hai đến bốn lựa chọn loại trừ nhau, cần thấy cùng lúc. Mũi tên trái phải đổi lựa chọn trong nhóm, Tab ra khỏi nhóm. Nền nhóm `FillSoft` bo `radius.md`, cao theo `size.control` (trong form là `md`, §4.6); mục đang chọn là một viên `SurfaceRaised` trượt sang mục mới bằng Smooth. Viên bên trong bo theo luật góc lồng nhau (§3.2).
 
 ### 6.13 Select
 
 | Mục | Nội dung |
 | --- | --- |
-| Cấu tạo | Ô giống TextField chỉ đọc, giá trị hiện tại, mũi tên; mở một Menu (6.15) |
-| Trạng thái | Có trạng thái chưa chọn rõ ràng khi chưa có mặc định |
+| Cấu tạo | Ô giống TextField chỉ đọc: cùng cỡ, bo góc, nền và padding (§6.8); giá trị hiện tại; mũi tên ở mép phải; mở một Menu (6.15). Trong form ô rộng hết cột và không co theo chữ (§4.6); ngoài form (toolbar) ô rộng theo mục dài nhất, không co theo mục đang chọn |
+| Trạng thái | Có trạng thái chưa chọn rõ ràng khi chưa có mặc định: ô giữ đủ bề rộng và hiện chữ gợi ý màu `Placeholder`, không bao giờ là ô trống |
 | Bàn phím | Enter, Space hoặc mũi tên xuống mở; gõ chữ nhảy tới mục; Escape đóng và trả focus |
 | Khi nào | Danh sách ngắn (đến khoảng 10 mục); dài hơn dùng Combobox |
 | Chuyển động | Mũi tên xoay 180° khi mở (Snappy); menu như §6.15 |
 
 ### 6.14 Combobox
 
-TextField `search` cộng danh sách gợi ý trên lớp nổi. Có trạng thái đang tải, rỗng, không có kết quả riêng. Mũi tên lên xuống di chuyển, Enter chọn, Escape đóng danh sách rồi lần hai mới xoá chữ. Dùng cho chọn model, profile, workspace, connection, và làm nền cho menu `@` và `/` của composer.
+TextField `search` cộng danh sách gợi ý trên lớp nổi; cùng cỡ, bo góc và padding với TextField, và rộng hết cột trong form (§4.6). Có trạng thái đang tải, rỗng, không có kết quả riêng. Mũi tên lên xuống di chuyển, Enter chọn, Escape đóng danh sách rồi lần hai mới xoá chữ. Dùng cho chọn model, profile, workspace, connection, và làm nền cho menu `@` và `/` của composer.
 
 ### 6.15 Menu
 
@@ -446,11 +460,11 @@ Lớp nổi có neo, chứa nội dung tương tác nhỏ (bộ lọc, chọn c�
 | Mục | Nội dung |
 | --- | --- |
 | Loại | `form` (tạo hoặc sửa một đối tượng), `confirm` (quyết định trước hành động mất dữ liệu, đóng tài nguyên đang chạy, hay bảo mật) |
-| Cấu tạo | Scrim; khung `radius.xl`, `type.title`, mô tả; thân cuộn được; chân có Huỷ và một nút chính |
+| Cấu tạo | Scrim; khung `radius.xl`, `type.title`, mô tả; thân cuộn được; chân có Huỷ và một nút chính, cả hai cỡ `md` như control trong thân (§4.6) |
 | Confirm | Tiêu đề nêu đối tượng ("Xoá connection dev-pg?"); thân nói tác động và khả năng phục hồi thật; nút chính là động từ cụ thể, `danger` khi mất dữ liệu; focus mặc định ở lựa chọn an toàn |
 | Bàn phím | Bẫy focus trong dialog; Escape đóng khi đóng an toàn; Enter gửi form (không áp cho TextArea, và không tự chấp nhận hành động nguy hiểm); đóng xong trả focus về control đã mở |
 | Đang gửi | Chặn gửi lặp; nếu đóng không huỷ được request thì không giả là đã huỷ |
-| Chuyển động | Scrim mờ dần theo Smooth; khung mờ dần cộng phóng từ 0,95 theo Snappy; đóng bằng Exit. Đổi chiều cao thân (thêm lỗi, đổi bước) theo Smooth |
+| Chuyển động | Scrim mờ dần theo Smooth; cả khung (bề mặt, tiêu đề, mô tả, thân, chân) mờ dần cộng phóng từ 0,95 theo Snappy như một khối (§3.7); đóng bằng Exit. Đổi chiều cao thân (thêm lỗi, đổi bước) theo Smooth |
 | Không được | Dialog chồng dialog; mở dialog cho thành công thông thường |
 
 ### 6.18 Toast
@@ -626,6 +640,7 @@ v0.3 (§3.8) áp vào phần "Button và gallery" trước khi merge: token bo g
 | Icon file và thư mục | Đã chốt (v0.5): **Symbols** (MIT), tô một màu theo `theme`, chỉ để nói loại file (§6.1) |
 | Bộ icon | Đã chốt: **Lucide** (license ISC, nét outline đồng nhất). Chỉ đóng gói các icon dùng tới, mỗi icon một file path data; cung tròn đổi thành đường cong bậc ba lúc build (§6.1). Cần một dòng ở `docs/dependencies.md` |
 | Cỡ chữ UI | 13 cho UI, 14 cho nội dung đọc (§3.3); cài đặt cỡ giao diện và cỡ chữ nội dung bù cho người cần to hơn (§3.0). Spike giữ nguyên các giá trị; còn chờ chủ dự án nhìn trên màn Ubuntu (§9.1) |
+| Cỡ control | Chủ dự án chốt hướng 2026-11-27 (Fugue FUG-104): thang `xs`/`sm`/`md`/`lg` = 24/28/32/36, mặc định 32; row, tab, Top Bar và header slot giữ nguyên; control trong form đồng đều (§3.4, §4.6). Số đo cụ thể (cỡ `xs` mới, padding, một bo góc cho mọi cỡ, scrim 60% ở chế độ tối) chờ duyệt ở PR v0.8 |
 | Bóng của lớp nổi | Đã chốt 2026-11-15: thêm `elevation.float` bằng các lớp trong mờ, không blur (§3.6) |
 | Phong cách | Đã chốt 2026-11-15: nền tông bo lớn, viền nhạt, mọi component có chuyển động phù hợp (§3.7, §3.8) |
 | Hue của accent | Mở. Gallery v0.3 dùng xanh dương cho `primary` và vòng focus. Đề xuất: giữ `Action` trung tính hiện tại (nút chính đen hoặc trắng) và chỉ đổi `FocusBorder` sang một hue accent; chủ dự án chọn hue khi xem gallery v0.3 |
@@ -647,6 +662,8 @@ v0.3 (§3.8) áp vào phần "Button và gallery" trước khi merge: token bo g
 | **UK-E11** | Chuyển động (§3.7): mỗi chuyển động của component đến đích rồi dừng xin frame (hai frame yên liên tiếp); đổi đích giữa chừng thì đi tiếp từ giá trị hiện tại; khi co lúc nhấn, vùng bấm không đổi; ripple và nền nhấn nằm trong khung bo góc của control |
 | **UK-E12** | Hàng vạch và Progress hai cấp (v0.4): shot sáng và tối ở 90%, 100%, 125% cho Progress một cấp, hai cấp và hai cấp đã vượt `Secondary`; số vạch đúng công thức theo chiều rộng; vạch được gán đoạn theo điểm giữa; vạch bám mép trái và không đổi vị trí khi `Value` đổi; mọi vạch đã dùng cùng một màu, đổi đúng ở 70% và 85% và không bị hạ khi nơi gọi nâng mức; tương phản như §6.5; scan UK-E02 không thấy màu hay `dp` viết thẳng trong code vẽ vạch |
 | **UK-E13** | Icon file và thư mục (v0.5): bảng ánh xạ chọn đúng icon cho tên đầy đủ, đuôi file và trường hợp lạ (icon chung); mỗi tên màu đạt 3:1 trên `SurfaceRaised` ở sáng và tối; bộ sinh cho ra cùng path data trên arm64 và amd64; shot badge file với Go, TS, JSON, Markdown, Dockerfile, thư mục và file lạ ở sáng và tối |
+| **UK-E14** | Cỡ control và form (v0.8): token `size.control` đúng 24/28/32/36; Button, IconButton, TextField, Select, Combobox và SegmentedControl đo đúng chiều cao ở mỗi cỡ; trong một dialog `form`, mọi field rộng bằng cột của form, Select chưa chọn không co và hiện chữ gợi ý, nút chân dialog cao bằng ô nhập; control `xs` trong row 28, tab 32 và header 30 không chạm mép và vòng focus không bị cắt; shot gallery và shot dialog New session ở sáng và tối, ở 90%, 100% và 125% |
+| **UK-E15** | Lớp nổi chuyển động như một khối (v0.8): ở độ hiện dở khi mở và khi đóng, thân và chân của dialog mờ và co cùng khung (Fugue `TestDialogBodyAndFooterFadeAndScaleWithChrome`); menu của Select mở trong dialog đã mở xong không bị mờ (`TestDialogSettledSelectMenuNotDimmed`); `Scrim` theo chế độ đúng §3.5 |
 
 ## 12. Phụ thuộc
 
