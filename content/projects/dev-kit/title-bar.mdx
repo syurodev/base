@@ -21,6 +21,19 @@ flowchart LR
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
+<Callout type="info" title="Fugue Desktop (Gio) — Unified 32dp Top Bar (Islands shell, FUG-95 / FUG-96)">
+Trên ứng dụng desktop Gio (`ui/internal/appwin/titlebar.go`), **Top Bar thống nhất cao `32dp`**
+trên nền `AppBg` trên mọi nền tảng:
+- **macOS (`fullSizeContentView`):** opt-in `NSWindowStyleMaskFullSizeContentView` +
+  `titlebarAppearsTransparent = YES` + `titleVisibility = NSWindowTitleHidden`, chừa lề trái
+  `72dp` (`MacTrafficLightInset`, thu về `RailWidth = 40dp` khi fullscreen) cho 3 đèn giao thông native.
+- **Trái:** active context pill (`workspace / session` hoặc mục Rail đang chọn).
+- **Giữa:** vùng kéo cửa sổ và double-click maximize (Linux CSD).
+- **Phải:** nút Quick Theme Toggle (`IconSun`/`IconMoon`, đồng bộ `Ctrl+D`), nút Settings (`⚙`
+  kèm badge dirty) và 3 nút CSD trên Linux khi không có server-side decoration.
+Bottom chrome đi kèm là **Status Bar `24dp`** (trái: breadcrumb, phải: `Lock vault` + trạng thái host).
+</Callout>
+
 <Callout type="warn" title="Design only — sẽ supersede ADR-012 (tab strip trong title bar) khi được chốt">
 Trang này mô tả hướng thiết kế mới cho Phase 5 Workbench UI. Title bar không
 còn tab nào cả — **chỉ 1 module active tại 1 thời điểm**, chuyển module qua

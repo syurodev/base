@@ -14,6 +14,13 @@ state.
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
+<Callout type="info" title="Fugue Desktop (Gio) — Layout & Theme Persistence (fugue.appstate.v1)">
+Trên ứng dụng desktop Gio (`ui/internal/appwin/layoutdoc.go`, `settings_controller.go`), trạng thái shell
+(`SidebarCollapsed`, danh sách cột/slot, tỷ lệ `WidthWeight`/`HeightWeight`, `FilledSlot`,
+`WindowGeometry`) được lưu qua `fugue.appstate.v1`, còn `ThemeMode` / `UIScale` đồng bộ trực tiếp
+với Quick Theme Toggle trong Top Bar `32dp` và `Ctrl+D`.
+</Callout>
+
 <Callout type="warn" title="Design only">
 Chưa có runtime.
 </Callout>

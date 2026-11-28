@@ -9,7 +9,7 @@ Trạng thái: **v0.19 đề xuất, ngày 2026-11-23, chờ chủ dự án duy�
 
 **v0.14 (2026-11-07), phạm vi theo runtime.** Policy của trang này (mode, luật cứng I-03, grant, luật shell, env tag) áp cho **tool của Fugue**: tool native (giai đoạn C), tool MCP mà Fugue phục vụ cho phiên vendor, và lệnh Fugue tự chạy như `checks` của [orchestration](/dev-kit/core-harness/orchestration) ([vendor runtime](/dev-kit/core-harness/vendor-runtime) VR-13). Tool của vendor không đi qua `Decide`: yêu cầu duyệt vendor tự phát được **chuyển tiếp** qua interaction owner (VR-05) với kind `confirm` hoặc `question`; không grant của Fugue, không receipt cho thực thi, câu trả lời được chuyển lại cho vendor. Operation key của owner là chuỗi trung lập: native dùng `(invocationID, attemptID, checkGeneration)`, phiên vendor dùng `(sessionID, turnID, vendorRequestID)`. Mode của phiên vendor lưu ở `vendor_sessions`, không ở `exec_session_policy`. Env tag registry tối thiểu của §3.4 (tag có sẵn, `RequiresConfirmation` fail closed, `PolicyRevision`, ánh xạ tag của workspace) vào giai đoạn A cùng tool hoặc lệnh đầu tiên của Fugue có target.
 
-**v0.15 (2026-11-11), chờ duyệt: xác nhận push.** [Git guard](/dev-kit/core-harness/git-guard) (H-50) tạo yêu cầu kind `confirm` với operation key `(guard, push_id)` khi push có nội dung nghi là secret. Yêu cầu này không đi qua `Decide`, chỉ đề nghị `allowed_once` (vẫn push) và `denied` (huỷ), không có grant hay receipt; câu trả lời được trả về cho hook đang chờ và có thể kèm danh sách fingerprint user chọn bỏ qua trong repo. Chỉ user trả lời được; hook rời đi (hết 10 phút hoặc bị dừng) thì yêu cầu chuyển `cancelled`.
+**v0.15 (2026-11-11), chủ dự án duyệt: xác nhận push.** [Git guard](/dev-kit/core-harness/git-guard) (H-50) tạo yêu cầu kind `confirm` với operation key `(guard, push_id)` khi push có nội dung nghi là secret. Yêu cầu này không đi qua `Decide`, chỉ đề nghị `allowed_once` (vẫn push) và `denied` (huỷ), không có grant hay receipt; câu trả lời được trả về cho hook đang chờ và có thể kèm danh sách fingerprint user chọn bỏ qua trong repo. Chỉ user trả lời được; hook rời đi (hết 10 phút hoặc bị dừng) thì yêu cầu chuyển `cancelled`.
 
 **v0.16 (2026-11-14), Q-87 A: nội dung đầy đủ của yêu cầu chuyển tiếp.** User không bao giờ duyệt thứ mình không xem được. Yêu cầu `confirm` chuyển tiếp từ vendor (VR-05) mang thêm trường **`detail`**: input của tool vendor, nguyên văn ở dạng JSON compact, tối đa 256 KiB. Summary (≤ 2 KiB) chỉ còn là tiêu đề (tên tool và phần đầu input); nếu summary bị cắt, nó ghi rõ là đã cắt, không dùng `...` trơn. Input vượt 256 KiB thì **không tạo request**: vendor nhận tool error chung, không phải allow hay deny do Fugue tự tạo. `detail` là nội dung theo §7. Client MUST cho xem toàn bộ `detail` (cuộn được) trước khi cho chọn allow.
 
@@ -18,6 +18,8 @@ Trạng thái: **v0.19 đề xuất, ngày 2026-11-23, chờ chủ dự án duy�
 **v0.18 (2026-11-23), chờ duyệt, Fugue FUG-37:** bỏ dẫn nguồn ngoài ở dòng Tham khảo, chỉ sửa chữ; yêu cầu không đổi.
 
 **v0.19 (2026-11-23), chờ duyệt, Fugue FUG-47:** yêu cầu xác nhận push của v0.15 (`(guard, push_id)`) thuộc pre-push hook của git guard, hoãn **sau giai đoạn A**; giai đoạn A không tạo yêu cầu này. Nội dung không đổi.
+
+**v0.20 (2026-11-22), chủ dự án duyệt: câu trả lời secret cho câu hỏi chuyển tiếp và kết nối kho secret (F10.15).** Câu hỏi chuyển tiếp từ vendor (như Codex `isSecret`) có thêm cờ **`secret`** trên từng `Question`. Khi trả lời một câu hỏi `secret`: (1) user có thể nhập giá trị một lần bằng ô nhập `secret` của kit (kèm tuỳ chọn lưu luôn vào [kho secret dùng chung](/dev-kit/core-harness/host-api#56-kho-secret-dùng-chung-v019) theo tên và scope), hoặc chọn một `secret_id` đã có trong kho secret; (2) giá trị thật chỉ đi theo một chiều `app → host → vendor` trong bộ nhớ (`redact.Secret`), được xoá trắng (`clear`) ngay khi giao cho phiên vendor, và **không bao giờ** được lưu trong ticket đã đóng, tombstone, transcript, `fugue.db`, audit metadata hay log; (3) transcript chỉ hiển thị câu hỏi đã được trả lời mà không kèm giá trị; (4) nếu vendor gửi lại (retry) một request có câu trả lời `secret`, host trả về lỗi JSON-RPC thay vì replay.
 
 Tham khảo: env tag registry và `ops.Confirm` của DevKit (`internal/environments`, `internal/ops`).
 
@@ -208,6 +210,7 @@ Câu trả lời của `question` và lời nhắn khi `denied` đi vào `ToolRe
 - **Summary do tool dựng** từ canonical args trong `Prepare`, không lấy mô tả do model viết. Riêng `question`, câu hỏi là output của model và MUST được hiển thị có nhãn là câu hỏi của agent.
 - Summary, `detail`, `body`, prompt, câu trả lời và lời nhắn là **nội dung**: chỉ ở memory của owner, chỉ gửi tới principal tin cậy, không vào audit, log, journal metadata hay URL.
 - **Yêu cầu chuyển tiếp không giấu nội dung (v0.16)**: thứ user duyệt là đúng thứ vendor sẽ chạy, và toàn bộ nó nằm trong `detail`. Không cắt input mà vẫn cho allow; quá giới hạn thì vendor nhận tool error.
+- **Câu trả lời `secret` không lưu bền và không replay (v0.20, F10.15)**: câu hỏi có `secret = true` đòi vault đang mở khoá khi trả lời bằng `secret_id` hoặc khi bật tuỳ chọn lưu vào kho secret (`fugue.secrets.v1`). Giá trị trả lời được giao một lần qua `TakeRelayed` trong `redact.Secret` rồi xoá trắng khỏi bộ nhớ; tombstone chỉ giữ dấu hiệu `{answered: true, secret: true}` không kèm nội dung, và mọi lần retry của vendor cho request đó nhận lỗi JSON-RPC (`-32000`).
 - Principal được trả lời là client local cùng UID ([host API §7](/dev-kit/core-harness/host-api#7-principal-và-tin-cậy)); giai đoạn A là app Gio (H-33) qua Host API, CLI/TUI (H-45) sang giai đoạn C. Phiên vendor chỉ gọi tool MCP của Fugue với principal `session`, không bao giờ trả lời interaction.
 - Grant không bao giờ được tạo cho kết luận của bước 1 (§3.2).
 
@@ -218,7 +221,7 @@ Service `fugue.interaction.v1`:
 | RPC | Input | Ghi chú |
 | --- | --- | --- |
 | `ListPending` | — | Snapshot các request đang chờ của incarnation hiện tại, kèm sequence của topic |
-| `Answer` | `command_id`, `incarnation`, `request_id`, `outcome`, `option_id?`, `text?`, `answers[]?` (kind `question`) | Dedup theo `command_id`; từ chối nếu incarnation lệch, request không tồn tại, đã trả lời, outcome hay option không được đề nghị, hoặc `text` vượt giới hạn |
+| `Answer` | `command_id`, `incarnation`, `request_id`, `outcome`, `option_id?`, `text?`, `answers[]?` (kind `question`; câu hỏi `secret` nhận giá trị một lần kèm tuỳ chọn `save_secret` hoặc tham chiếu `secret_id` từ `fugue.secrets.v1`, v0.17) | Dedup theo `command_id`; từ chối nếu incarnation lệch, request không tồn tại, đã trả lời, outcome hay option không được đề nghị, `secret_id` không tồn tại / vault đang khoá, hoặc `text` vượt giới hạn |
 
 Topic `interaction` (host API §6) phát `requested`, `resolved` (kèm outcome, không kèm nội dung) với sequence, snapshot và catch-up.
 
@@ -260,6 +263,7 @@ Từ v0.17: mỗi mục ghi phần chạy ở **giai đoạn A** và phần ch�
 - **I-E08** Audit, log và gate observation không chứa summary, prompt, câu trả lời hay lời nhắn. Giai đoạn A.
 - **I-E09** `SetSessionPolicy` với revision cũ bị từ chối; đổi mode không đánh giá lại tool đã `Ready`. Giai đoạn A: phần revision cũ bị từ chối (mode của phiên vendor lưu ở `vendor_sessions`). Giai đoạn C: phần tool đã `Ready`.
 - **I-E11** (v0.16) Yêu cầu chuyển tiếp có input dài hơn summary: view mang `detail` bằng đúng input mà allow trả lại cho vendor, summary ghi rõ đã cắt; input vượt 256 KiB không tạo request và trả tool error. Giai đoạn A.
+- **I-E12** (v0.20, F10.15) Câu hỏi chuyển tiếp có `secret = true`: trả lời trực tiếp hoặc qua `secret_id` của kho secret giao đúng giá trị cho phiên vendor một lần duy nhất; quét toàn bộ `fugue.db`, trang transcript, ticket, tombstone, audit và log không thấy giá trị secret; tuỳ chọn lưu vào kho secret niêm phong bản ghi và nạp vào `SecretRedactor`; vendor gửi lại cùng request ID nhận lỗi JSON-RPC thay vì replay. Giai đoạn A.
 - **I-E10** Mutation probes làm test fail: bỏ bước 1 của §3.2, bỏ so khớp `grantScopeKey`, coi `Responder = nil` là headless. Giai đoạn A: ba probe trên đường chạy thật của giai đoạn A (`Decide` với tool MCP của Fugue và `checks`, interaction owner với host headless); probe `grantScopeKey` là yêu cầu chưa có probe ([activation A-E03](/dev-kit/core-harness/activation#5-evidence-để-phát-hành-giai-đoạn-a)). Giai đoạn C: bản của ba probe trên gateway của tool native và receipt gắn với attempt của kernel.
 
 ## 12. Phụ thuộc

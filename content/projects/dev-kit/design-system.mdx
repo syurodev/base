@@ -17,10 +17,12 @@ import { Cards, Card } from 'fumadocs-ui/components/card';
 <Callout type="info" title="Design source — đã ánh xạ sang token layer của code">
 Thang dưới đây đã dựng trong Figma (13 text style, 4 collection biến) và đã bind
 trên các page chuẩn. Lớp token thiết kế phía frontend hiện đã được đồng bộ tại
-`dev-kit-app/frontend/src/index.css`: toàn bộ 13 text style đã có utility Tailwind v4
-tương ứng và các biến Scale (control height, icon, stroke, radius) đã được khai báo
-đầy đủ trong `@theme inline`. Việc chuẩn hoá từng component chia sẻ được thực hiện
-theo từng đợt đối chiếu.
+`dev-kit-app/frontend/src/index.css` và ứng dụng desktop Gio (`ui/internal/theme`):
+toàn bộ thang màu, spacing, radius và hình học **JetBrains Islands shell** (`AppBg`
+`#2B2D30` dark / `#E5E7EB` light, `CanvasBg` `#1E1F22` dark / `#FFFFFF` light,
+`RailWidth = 40dp`, `RightStripeWidth = 40dp`, `IslandGap = 4dp`,
+`RadiusIsland = 8dp`, `TopBarHeight = 32dp`, `StatusBarHeight = 24dp`, bề mặt phẳng
+không gradient và Island không viền) đã được định nghĩa đầy đủ.
 </Callout>
 
 ## Typography

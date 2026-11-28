@@ -5,7 +5,7 @@ description: H-33 — client desktop của Fugue viết bằng Gio; binary riên
 
 # Desktop app
 
-Trạng thái: **v0.14 (2026-11-25), chủ dự án duyệt (base-doc PR #45)**: chip việc trên thẻ đề xuất đội (§5.1, [task hub](/dev-kit/core-harness/task-hub) TH-12). **v0.13 (2026-11-24), chủ dự án duyệt (base-doc PR #44), Fugue FUG-66:** cập nhật khối login ở §5.5 với ô nhập secret để dán code từ trang đăng nhập của Claude, nút Submit, nhãn link thay cho URL trần, và evidence `DA-E18`. **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), chờ duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5); từ git guard v0.2 (2026-11-23, Fugue FUG-47) phần diff theo lượt và cảnh báo secret do chủ dự án duyệt cho giai đoạn A, phần bảo vệ push (cài đặt theo repo, thẻ xác nhận) hoãn **sau giai đoạn A**. **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). **v0.6 (2026-11-18), đã duyệt** (chủ dự án, base-doc PR #20): cách vẽ transcript theo phong cách DevKit (DA-11, §5.4, DA-E12). **v0.7 (2026-11-19), chờ duyệt**: bảng đội có tab Channel kiểu Slack, tab Thành viên và tab Cây (§5.2, [orchestration §6.7](/dev-kit/core-harness/orchestration#67-channel-của-đội-v03), DA-E13). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn C. **v0.8 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #23): thẻ account và quota gọn hơn với Progress hai cấp (§5.5); DA-E14. **v0.9 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #25): luật cuộn transcript, thao tác của user thắng việc tự mở/gập, và luật của khối code và diff (§5.4), mượn ý từ shadcn AI Elements; DA-E15. **v0.10 (2026-11-21), đã duyệt** (chủ dự án, sau khi xem bản F10.4c đầu tiên "thô và xấu" và các mock): nhịp, nhóm việc, hàng tool theo loại, badge file, khối code và terminal chung một header, git ref mở rộng được, xem file và diff ở pane phải cho tới F10.20b (§5.4, Q-179 A); DA-E16. **v0.11 (2026-11-21), đã duyệt** (chủ dự án, khi PM tiếp quản F10.4c): khối và badge nền `SurfaceBase` có viền, chỉ gộp chuỗi từ 4 item cùng loại, subagent trong nhóm việc là một hàng tool, diff ba cột số dòng · dấu · code (§5.4).
+Trạng thái: **v0.14 (2026-11-25), chủ dự án duyệt (base-doc PR #45)**: chip việc trên thẻ đề xuất đội (§5.1, [task hub](/dev-kit/core-harness/task-hub) TH-12). **v0.13 (2026-11-24), chủ dự án duyệt (base-doc PR #44), Fugue FUG-66:** cập nhật khối login ở §5.5 với ô nhập secret để dán code từ trang đăng nhập của Claude, nút Submit, nhãn link thay cho URL trần, và evidence `DA-E18`. **v0.3, ngày 2026-11-08**. v0.1 và v0.2 được chủ dự án duyệt (base-doc PR #8, #9). v0.2 thêm thẻ đề xuất đội và bảng đội dạng cây (§5.1, §5.2); v0.3 làm app thành **client duy nhất** của giai đoạn A (DA-07, DA-09). **v0.4 (2026-11-11), đã duyệt**: diff theo lượt, cảnh báo secret và xác nhận push của [git guard](/dev-kit/core-harness/git-guard) (§5); từ git guard v0.2 (2026-11-23, Fugue FUG-47) phần diff theo lượt và cảnh báo secret do chủ dự án duyệt cho giai đoạn A, phần bảo vệ push (cài đặt theo repo, thẻ xác nhận) hoãn **sau giai đoạn A**. **v0.5 (2026-11-16), đã duyệt** (chủ dự án, base-doc PR #17): khung app gồm rail, sidebar và lưới slot tối đa 3 cột × 2 dòng; slot chính luôn nằm cạnh sidebar; kéo thả, popover sắp xếp và mở slot trong cửa sổ mới; bảng đội đổi qua lại với chat ngay trong slot chính (DA-10, §5.3). **v0.6 (2026-11-18), đã duyệt** (chủ dự án, base-doc PR #20): cách vẽ transcript theo phong cách DevKit (DA-11, §5.4, DA-E12). **v0.7 (2026-11-19), đã duyệt (2026-11-22)**: bảng đội có tab Channel kiểu Slack, tab Thành viên và tab Cây (§5.2, [orchestration §6.7](/dev-kit/core-harness/orchestration#67-channel-của-đội-v03), DA-E13). Mảng H-33 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map); thay H-44 (Electron, bỏ). CLI và TUI ([cli](/dev-kit/core-harness/cli), H-45) sang giai đoạn C. **v0.8 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #23): thẻ account và quota gọn hơn với Progress hai cấp (§5.5); DA-E14. **v0.9 (2026-11-21), đã duyệt** (chủ dự án, base-doc PR #25): luật cuộn transcript, thao tác của user thắng việc tự mở/gập, và luật của khối code và diff (§5.4), mượn ý từ shadcn AI Elements; DA-E15. **v0.10 (2026-11-21), đã duyệt** (chủ dự án, sau khi xem bản F10.4c đầu tiên "thô và xấu" và các mock): nhịp, nhóm việc, hàng tool theo loại, badge file, khối code và terminal chung một header, git ref mở rộng được, xem file và diff ở pane phải cho tới F10.20b (§5.4, Q-179 A); DA-E16. **v0.11 (2026-11-21), đã duyệt** (chủ dự án, khi PM tiếp quản F10.4c): khối và badge nền `SurfaceBase` có viền, chỉ gộp chuỗi từ 4 item cùng loại, subagent trong nhóm việc là một hàng tool, diff ba cột số dòng · dấu · code (§5.4). **v0.12 (2026-11-22), đã duyệt** (chủ dự án): màn hình **Kho secret** riêng biệt (không nằm trong Cài đặt) để quản lý danh sách secret dùng chung cho câu hỏi chuyển tiếp `secret` (F10.15) và biến môi trường của các module sau này (API client…), cùng luồng trả lời secret trong Hộp duyệt (§5.6); DA-E17.
 
 ## 1. Phạm vi
 
@@ -51,10 +51,11 @@ Ngoài phạm vi giai đoạn A: Windows, đóng gói có ký, auto-update, nhi�
 | Rail và thanh bên | Rail chọn mảng (chat, đội, các module); thanh bên đổi theo mảng. Ở mảng chat: mọi workspace cùng lúc, phiên nhóm theo đội; mỗi phiên có vendor, account, state, số yêu cầu chờ duyệt (§5.3) |
 | Transcript | Item theo [transcript §3](/dev-kit/core-harness/transcript#3-loại-item); `tool_call` và `reasoning` gập; diff mở tại chỗ. v0.4: cuối mỗi lượt có thẻ `turn_diff` gập (số file, dòng thêm và bớt, cờ `partial` hoặc `overlapped`), mở ra là danh sách file và diff từng file; `notice(possible_secret)` hiện rule, file, dòng và phần che |
 | Composer | Nhập nhiều dòng, IME; menu slash gồm nhóm của vendor và nhóm `fugue:` ([vendor runtime §9](/dev-kit/core-harness/vendor-runtime#9-slash-command)); chọn model và hồ sơ; nút dừng lượt |
-| Hộp duyệt | Mọi yêu cầu duyệt, câu hỏi "cần bạn", đề xuất và bổ sung đội đang chờ của mọi phiên; allow, deny kèm lời nhắn, grant theo phạm vi ([interaction](/dev-kit/core-harness/interaction)) |
+| Hộp duyệt | Mọi yêu cầu duyệt, câu hỏi "cần bạn" (gồm câu hỏi chuyển tiếp có cờ `secret`, §5.6), đề xuất và bổ sung đội đang chờ của mọi phiên; allow, deny kèm lời nhắn, grant theo phạm vi ([interaction](/dev-kit/core-harness/interaction)) |
 | Bảng đội | Cây agent của đội (§5.2); xem ngay trong slot chính bằng nút đổi Chat/Đội, hoặc mở thành slot riêng (§5.3) |
 | Chi tiết agent | Đặc tả task, transcript của agent, diff, kết quả check, review chéo; nhắn trực tiếp, dừng, chạy lại; duyệt tích hợp cuối của đội |
 | Account và quota | Account theo vendor, trạng thái (`ok`, `paused`, `needs_login`), mức dùng từng cửa sổ, thời điểm reset; thêm account bằng luồng login của CLI. Cách vẽ ở §5.5 (v0.8) |
+| Kho secret (v0.12) | Màn hình độc lập (không nằm trong Cài đặt) quản lý danh sách secret theo phạm vi (`Global` và `Workspace`); thêm, thay giá trị (write-only qua `kit` secret `TextField`, không bao giờ hiển thị lại giá trị), xoá; dùng cho câu hỏi `secret` trong Hộp duyệt và biến môi trường của các module (§5.6) |
 | Vault | Mở khoá bằng master password khi host khởi động; khoá thủ công |
 | Cài đặt | Hồ sơ phiên và task, giới hạn scheduler, lệnh terminal ngoài. (Fugue FUG-69) Theme System theo chế độ sáng/tối của OS (macOS; Linux qua XDG portal `color-scheme`, fallback GNOME), đổi ngay khi OS đổi; không đọc được thì dùng Light và Settings báo rõ. v0.4 (sau giai đoạn A): bật và tắt bảo vệ push theo repo, hiện dòng cần thêm khi repo đã có hook riêng, danh sách ngoại lệ theo repo ([git guard §4](/dev-kit/core-harness/git-guard#4-bảo-vệ-push)) |
 
@@ -73,7 +74,7 @@ Composer có nút "Lập đội" gửi `/fugue:team`; khi phiên đã là lead t
 
 ### 5.2 Bảng đội
 
-v0.7 (2026-11-19, chờ duyệt): bảng đội có ba tab: **Channel** (mặc định), **Cây**, **Thành viên**. Tab **Đồ thị** (phụ thuộc giữa task) để sau.
+v0.7 (2026-11-19, chủ dự án duyệt 2026-11-22): bảng đội có ba tab: **Channel** (mặc định), **Cây**, **Thành viên**. Tab **Đồ thị** (phụ thuộc giữa task) để sau.
 
 **Tab Channel**: theo dõi và nhắn với đội như chat trên Slack ([orchestration §6.7](/dev-kit/core-harness/orchestration#67-channel-của-đội-v03)).
 
@@ -99,11 +100,14 @@ v0.7 (2026-11-19, chờ duyệt): bảng đội có ba tab: **Channel** (mặc �
 
 Chủ dự án chốt ngày 2026-11-15 và 2026-11-16. Chat với agent là trung tâm; khi agent làm việc ở module khác, user phải thấy nó làm gì ở đó; khi user tự làm trong module thì có chỗ để tập trung.
 
-**Rail và sidebar**
+**Rail, Right Stripe và Sidebar (JetBrains Islands shell)**
 
-- Rail bên trái kiểu Codex: chat, đội, rồi các module (database, API client, git, terminal… theo thứ tự cài). Sidebar đổi theo mục rail đang chọn.
-- Không có bộ chuyển workspace chung: sidebar của mảng chat liệt kê mọi workspace cùng lúc, vì user làm việc ở nhiều workspace một lúc.
-- Sidebar gập được về chỉ còn rail; rail không gập.
+- Bốn dải chrome ngoài cùng dùng chung nền `AppBg` (`#2B2D30` ở Dark mode, `#E5E7EB` ở Light mode), các vùng nội dung (Sidebar và từng slot) là các **Island** độc lập nền `CanvasBg` (`#1E1F22` Dark, `#FFFFFF` Light), bo góc `8 dp` (`RadiusIsland`), **không viền** (FUG-97), tách nhau bằng khe `4 dp` (`IslandGap`):
+  - **Unified Top Bar (`32 dp`)**: hiển thị đồng nhất trên mọi nền tảng; trên macOS opt-in `NSWindowStyleMaskFullSizeContentView` + titlebar trong suốt với lề trái `72 dp` (`MacTrafficLightInset`, tự thu về `RailWidth` khi fullscreen) cho 3 đèn giao thông; góc trái hiện context pill (`workspace / session`), giữa là vùng kéo cửa sổ (Linux CSD), góc phải có nút đổi Dark/Light và nút Settings (`⚙`).
+  - **Left Rail (`40 dp`, nút `28 dp`, icon `16 dp`)**: chọn mảng (`Chat`, `Đội`, `Modules`); bấm vào icon **đang active** sẽ gập/mở Sidebar (ẩn pill `SelectedWash` khi gập), bấm vào icon **đang inactive** sẽ chuyển mảng và mở Sidebar; không có nút gập sidebar riêng.
+  - **Right Stripe (`40 dp`, nút `28 dp`, icon `16 dp`)**: cố định bên phải cho các tool window đồng hành (`Approvals`, `Accounts`, `Secrets`) kèm chấm cảnh báo và tooltip; khi cửa sổ hẹp, các tab slot bị gập xếp ở đáy Right Stripe.
+  - **Bottom Status Bar (`24 dp`)**: trải hết chiều rộng đáy cửa sổ trên `AppBg`, bên trái là breadcrumb (`workspace > session`), bên phải là nút `Lock vault` và chấm trạng thái kết nối host (`Host connected` / `Reconnecting…`).
+- Không có bộ chuyển workspace chung: sidebar của mảng chat liệt kê mọi workspace cùng lúc, vì user làm việc ở nhiều workspace một lúc; phần đầu Sidebar Island cao `32 dp` (`SlotHeaderHeight`) thẳng hàng với thanh đầu của các slot và không chứa các hàng tiện ích (`Approvals`, `Accounts`, `Settings`, `Secrets`).
 
 **Lưới slot**
 
@@ -121,7 +125,7 @@ Chủ dự án chốt ngày 2026-11-15 và 2026-11-16. Chat với agent là trun
   - một phiên khác (transcript và composer của nó);
   - bảng đội, chi tiết agent;
   - panel và workbench của module;
-  - diff, hộp duyệt, account và quota.
+  - diff, hộp duyệt, account và quota, kho secret.
 
   Terminal là một module. Vì DA-02 không có widget terminal trong giai đoạn A, slot terminal đến cùng module terminal sau giai đoạn A, trừ khi DA-02 được sửa.
 - **Panel đồng hành** (khi agent của phiên đang xem dùng một module) là một slot thường. Khi slot chính đang là workbench của chính module đó thì không mở panel; hoạt động của agent hiện trong làn hoạt động của workbench. Lần đầu module đó được dùng trong một lượt, nó tự mở vào slot trống gần slot chính nhất, theo thứ tự: cột 2 dòng trên, cột 2 dòng dưới, cột 3 dòng trên, cột 3 dòng dưới, dòng dưới của cột 1. Sau đó nó giữ module đó cho tới khi user ghim hoặc đóng. Nếu user đã kéo panel của loại module đó tới chỗ khác thì lần sau nó mở ở chỗ đó.
@@ -350,6 +354,30 @@ codex   [Tạm dừng · 1h35m]                     ⋯
   - Khi vendor khai báo nhận code (`AcceptsCode`), ô nhập secret (ẩn ký tự, không log/echo) và nút **Submit** hiện **ngay từ lúc login bắt đầu chạy**, không chờ dòng nhắc `"Paste code here if prompted > "` (do không có `\n` cuối dòng); sau khi gửi thành công thì đổi trạng thái thành `"Code sent, waiting for Claude"`.
   - Trong lúc process vẫn chạy, ô nhập vẫn mở để user dán lại (ví dụ khi CLI báo thiếu `#` qua `stderr`); process thoát mã khác `0` kết thúc phiên login là thất bại và app hiện `"Sign in again"`. Thành công vẫn chỉ tính khi thoát `0` kèm `claude auth status --json` báo đã đăng nhập.
 
+### 5.6 Kho secret và câu trả lời secret (v0.12)
+
+Chủ dự án chốt ngày 2026-11-22: **Kho secret** là một màn hình quản lý độc lập (ngang hàng với Hộp duyệt và Account & quota, mở được thành slot riêng `secrets` theo §5.3; **không đặt bên trong Cài đặt**), dùng chung cho câu hỏi chuyển tiếp `secret` của phiên vendor (F10.15) và tính năng biến môi trường của các module sau này (như API client kiểu Postman hay Database client).
+
+**Màn hình Kho secret**
+
+- **Danh sách**: phân nhóm hoặc lọc theo phạm vi **Global** và **Workspace hiện tại** (`fugue.secrets.v1/ListSecrets`). Mỗi hàng hiện tên (`name`, font `type.codeSmall`), thẻ phạm vi (Tag), mô tả ngắn (`description`, `FgMuted`) và thời điểm cập nhật (`updated_at`).
+- **Write-Only**: không có nút "Xem giá trị" hay "Copy giá trị" vì host không bao giờ trả lại plaintext ([host API §5.5](/dev-kit/core-harness/host-api#56-kho-secret-dùng-chung-v019)).
+- **Thao tác**:
+  - **Thêm secret**: chọn phạm vi (`Global` hoặc `Workspace`), nhập `name`, `description` tuỳ chọn, và giá trị qua `kit.TextField` ở chế độ `Secret: true` (che ký tự). Worker xoá trắng (`clear`) mảng byte giá trị ngay sau khi gửi `PutSecret`.
+  - **Thay giá trị**: mở ô nhập `Secret: true` cho đúng `name` đó và gọi `PutSecret`.
+  - **Xoá**: hộp thoại xác nhận trước khi gọi `DeleteSecret`.
+- **Khi vault đang khoá**: danh sách metadata vẫn hiển thị (INV-09) kèm thanh nhắc "Vault đang khoá — mở khoá để thêm, thay giá trị hoặc xoá secret".
+- Cập nhật tức thời theo topic `secrets`.
+
+**Thẻ câu hỏi `secret` trong Hộp duyệt (F10.15)**
+
+- Khi một câu hỏi chuyển tiếp trong Hộp duyệt có `secret = true` ([interaction §7–8](/dev-kit/core-harness/interaction#7-bảo-mật)):
+  - User có hai cách trả lời ngay trên thẻ:
+    1. **Nhập giá trị**: dùng ô `kit.TextField` chế độ `Secret: true`, kèm tuỳ chọn **"Lưu vào Kho secret"** (nhập `name` và chọn `Global` / `Workspace`).
+    2. **Chọn từ Kho secret**: chọn một secret đã lưu từ Combobox/Menu của `ListSecrets` (gửi `secret_id`, host tự giải mã trong Go và giao thẳng cho phiên vendor).
+  - Byte slice giá trị nhập tay được xoá trắng trong UI model và worker ngay khi gửi `Answer`.
+  - Trong transcript của phiên, câu hỏi chỉ hiện trạng thái đã trả lời (`Answered (secret)`), không bao giờ hiện giá trị.
+
 
 ## 6. Failure UX
 
@@ -407,6 +435,7 @@ Ngưỡng phát hành trên máy Ubuntu của chủ dự án: **60 fps** khi str
 | **DA-E14** | Thẻ account (v0.8): shot sáng và tối cho `ok`, gần ngưỡng, quá ngưỡng, `rejected`, `paused`, `needs_login` và quota không rõ; chip trạng thái chỉ hiện khi không ổn; đoạn cấp hai kết thúc đúng ở `quota_gate` do host cấp; giờ reset chỉ ở tooltip |
 | **DA-E15** | Cuộn và khối code (v0.9): stream 200 item khi user ở mép thì view bám theo; một lần cuộn bánh xe, bôi chữ hay bấm phím cuộn làm ngừng bám; nút "Mới nhất" hiện, có chấm khi lượt chạy ngoài màn hình, và bấm thì bám lại; gửi tin thì tin đó ở gần đỉnh với 64 dp của item trước; mở thẻ Output, diff hay ảnh tải xong và tải thêm lịch sử không đổi dòng đang nhìn; mở lại phiên thì đặt ở tin user của lượt cuối; nhóm việc user đã gập không tự mở lại; Copy không kèm số dòng hay dấu diff; dòng diff có cột `+`/`−` |
 | **DA-E16** | Bản tinh chỉnh transcript (v0.10): shot sáng và tối ở 90/100/125% cho một lượt có đủ các hàng tool ở bảng v0.10; nhóm việc có đường kẻ dọc và không có Divider ngang; hàng lỗi chỉ tô nền đúng hàng, không lồng thẻ; badge file giống nhau trong chữ, trong hàng tool và trong kết quả tìm; bấm badge mở trình xem ở pane phải đúng dòng, đường dẫn ngoài workspace root bị từ chối; khối code, terminal, Output và diff cùng header ở trên, có tô màu cú pháp; terminal mở rộng hiện lệnh đầy đủ và output; rê chuột git ref hiện thẻ, bấm chạy hành động đã đăng ký |
+| **DA-E17** | Kho secret và câu trả lời secret (v0.12, F10.15): màn hình Kho secret riêng hiển thị danh sách theo phạm vi Global/Workspace (kể cả khi vault khoá, chỉ metadata), thêm/thay giá trị qua ô nhập secret (xoá trắng byte sau khi gửi) và xoá có xác nhận mà không bao giờ lộ plaintext; thẻ câu hỏi `secret` trong Hộp duyệt trả lời được bằng ô nhập che ký tự (kèm tuỳ chọn lưu vào Kho secret) hoặc chọn `secret_id` có sẵn từ Kho secret |
 | **DA-E08** | Vòng đời host theo app: mở app khi chưa có host thì host khởi động và app nối được; đóng cửa sổ cuối khi còn phiên chạy thì app hỏi; bật chạy nền thì host sống sau khi đóng cửa sổ; tắt chạy nền và không còn client thì host tắt sau 10 s |
 | **DA-E18** | Khối login dán code (v0.13, đã duyệt): thẻ account lúc đang login cho vendor `AcceptsCode` hiện hướng dẫn, nhãn link `"Open sign-in page (shows a code to paste here)"` thay cho URL trần, ô nhập secret và nút Submit ngay từ lúc bắt đầu chạy (không chờ `"Paste code here if prompted > "`); sau khi gửi hiện `"Code sent, waiting for Claude"`; ô nhập vẫn mở để dán lại khi process đang chạy; process thoát khác `0` kết thúc thất bại và hiện `"Sign in again"` |
 
