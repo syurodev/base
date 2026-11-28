@@ -135,7 +135,7 @@ Thêm vào Chrome, kèm test tương phản như các token hiện có:
 | `PressedWash` | Lớp phủ khi đang nhấn | `Fg` ở 14% |
 | `SelectedWash` | Nền của mục đang chọn; vẫn thấy rõ khi row khác đang hover | `Fg` ở 11% |
 | `FgDisabled` | Chữ và icon bị tắt ngoài control (mục menu tắt, chữ phụ của row tắt) | `Fg` ở 35% |
-| `Scrim` | Nền mờ phía sau dialog | Theo chế độ (v0.8): sáng là đen ở 40%; tối là đen ở 60%. Nền tối vốn gần đen nên đen 40% gần như không làm trang tối đi: chữ `Fg` trên `CanvasBg` phía sau vẫn còn khoảng 5,4:1. Đen 60% đưa mức đó xuống khoảng 2,9:1, nên trang lùi hẳn ra sau dialog. Giá trị chốt lại trong kit khi chủ dự án xem shot dialog trên transcript ở cả hai chế độ |
+| `Scrim` | Nền mờ phía sau dialog | Theo chế độ (v0.8): sáng là đen ở 40%; tối là đen ở 60%. Nền tối vốn gần đen nên đen 40% làm trang tối đi ít. Gio pha màu trong không gian tuyến tính, nên scrim nhân độ sáng của trang lên `1 − độ phủ`: chữ `Fg` trên `CanvasBg` phía sau đi từ khoảng 12,6:1 khi không có scrim xuống khoảng 8,6:1 với đen 40%, và khoảng 6,3:1 với đen 60%. Ở chế độ sáng, đen 40% đưa mức đó từ khoảng 15,8:1 xuống khoảng 10,9:1. Đen 60% vì vậy là mức tối thiểu để trang tối lùi ra sau dialog rõ như trang sáng. Giá trị chốt lại trong kit khi chủ dự án xem shot dialog trên transcript ở cả hai chế độ |
 | `FillSoft` | Nền tông của biến thể `secondary` và của tag `neutral` | `Fg` ở 6% (v0.3, chốt trong kit bằng test tương phản) |
 | `FillSoftHover` | `FillSoft` khi hover | `Fg` ở 10% |
 | `BorderSubtle` | Viền nhạt của control `bordered`, card, ô nhập và lớp nổi | `Fg` ở 9% |
