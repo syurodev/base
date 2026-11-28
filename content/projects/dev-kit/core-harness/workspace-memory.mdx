@@ -1,0 +1,175 @@
+---
+title: Workspace memory
+description: H-13 — bộ nhớ bền của workspace cho cả phiên vendor CLI lẫn harness native; agent ghi thẳng có cờ verified, tìm theo từ khoá bằng FTS5 và trigram, xuất và nhập file Markdown giữa các máy.
+---
+
+# Workspace memory
+
+Trạng thái: **v0.1 (2026-11-28), chủ dự án duyệt (base-doc PR #58).** Trang này là owner page của `internal/workspacememory` (H-13 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map)). Nó thay [context engine](/dev-kit/core-harness/context-engine) §4 ở mọi chỗ hai trang khác nhau. Context engine vẫn là nơi định nghĩa cách tầng W vào prompt của harness native (L3) ở giai đoạn C.
+
+Lý do (chủ dự án, 2026-11-28): memory phải giúp ngay các phiên vendor CLI (Claude Code, Codex, Antigravity) mà chủ dự án chạy hằng ngày, không chờ harness native. Agent phải tìm nhanh, ghi nhanh, và memory phải mang được sang máy khác bằng một file Markdown.
+
+## 1. Quyết định
+
+| ID | Quyết định |
+| --- | --- |
+| WM-01 | Một owner `workspacememory` dùng chung cho phiên vendor (giai đoạn B) và harness native (giai đoạn C). Không có đường ghi thứ hai |
+| WM-02 | **Agent ghi thẳng** qua tool MCP của Fugue; không có hàng chờ duyệt trước. Thay C-04 của context engine |
+| WM-03 | Mỗi entry có cờ **`verified`**. User tạo, sửa rồi lưu, hoặc bấm xác nhận thì entry là `verified=true`. Agent ghi thì `verified=false`; agent sửa một entry đã verified thì entry quay về `verified=false` cho tới khi user duyệt lại |
+| WM-04 | Mọi kết quả trả cho agent đều kèm `verified`, `author` và độ tươi, và mô tả tool dặn agent rằng entry chưa verified chỉ là ghi chú cần kiểm lại |
+| WM-05 | Tìm theo từ khoá: FTS5 theo từ (bỏ dấu, có tiền tố) cộng FTS5 trigram, gộp và xếp hạng; field `keywords` do người ghi điền. Tìm theo nghĩa (embedding) để sau, không đổi contract của tool |
+| WM-06 | Xuất toàn bộ memory của một workspace ra **một file Markdown**; nhập file đó ở máy khác bằng cách **gộp theo id, user xem diff trước** |
+| WM-07 | Giữ từ context engine: hai dạng pinned block và collection; anchor theo hash nội dung; lịch sử, restore, CAS theo revision; **vô hiệu hoá thay vì xoá**; ưu tiên tiếng Anh (C-08); budget 10 KiB cho phần đưa vào đầu phiên (C-05) |
+| WM-08 | Job gợi ý chạy nền (context engine §4.3) và việc học rule từ những lần user sửa agent **chuyển sang giai đoạn C**, làm trên cùng owner này |
+
+## 2. Entry
+
+Plaintext trong database của host, ngoài vault và ngoài sync, cùng tầng với instruction file của workspace (C-03). Mỗi entry thuộc đúng một workspace.
+
+| Field | Ý nghĩa | Ai đặt |
+| --- | --- | --- |
+| `id` | ULID, duy nhất toàn cục, giữ nguyên khi xuất và nhập | Host |
+| `kind` | `pinned` hoặc một loại collection: `fact`, `decision`, `convention`, `howto`, `note` | Người ghi |
+| `label` | Nhãn ngắn, duy nhất trong workspace trong số entry còn hiệu lực; dùng để `get` thẳng | Người ghi |
+| `summary` | Một dòng, tối đa 200 ký tự; vào chỉ mục | Người ghi |
+| `body` | Markdown, tối đa 8 KiB; pinned block tối đa 2 KiB vì nó vào đầu phiên nguyên văn | Người ghi |
+| `keywords` | Tối đa 20 từ hay cụm từ, mỗi cái tối đa 40 ký tự: từ đồng nghĩa và cách gọi khác để tìm lại | Người ghi |
+| `anchors` | Danh sách (root, đường dẫn tương đối với root, hash nội dung lúc ghi). Người ghi chỉ đưa đường dẫn; **host tự đọc file và tính hash** | Người ghi, host |
+| `author` | `user` hoặc `agent` của lần ghi cuối | Host |
+| `verified` | Theo WM-03 | Host |
+| `validity` | `valid`, `superseded` (trỏ `superseded_by`), `invalid` (kèm lý do) | Người ghi |
+| `provenance` | Lần ghi cuối: principal, phiên, vai trò (lead hay worker), run, hoặc file nhập | Host |
+| `revision`, `updated_at` | Tăng mỗi lần ghi; CAS theo `revision` | Host |
+
+Mỗi lần ghi tạo một bản trong lịch sử; user restore được bản cũ (restore là một lần ghi của user, nên entry thành verified).
+
+Memory là plaintext nên không cần vault để đọc. Dù vậy app chỉ mở slot Memory sau khi vault mở, như mọi slot khác, và tool MCP chỉ có trong phiên đang chạy.
+
+**Độ tươi** tính khi đọc: `fresh` khi mọi anchor khớp hash hiện tại, `stale` khi có anchor không khớp hoặc file không còn, `unknown` khi không có anchor.
+
+## 3. Ghi
+
+- Thao tác: `add`, `update(id, revision)`, `invalidate(id, revision, reason, superseded_by?)`. Không có xoá; entry vô hiệu không vào chỉ mục và kết quả tìm mặc định, nhưng vẫn xem được trong lịch sử và trong app.
+- **CAS**: `update` và `invalidate` với `revision` cũ bị từ chối bằng `memory.revision_conflict`, kèm bản hiện tại để agent đọc rồi ghi lại.
+- **Kiểm tra trước khi ghi**, cùng thứ tự cho agent và user:
+  1. Quét secret bằng bộ quét dùng cho quét cuối lượt (vendor runtime VR-14). Thấy secret thì **từ chối** bằng `memory.contains_secret`, không ghi gì và không lặp lại giá trị trong lỗi. Từ chối thay vì redact để agent viết lại mà không mất nghĩa.
+  2. Giới hạn kích thước (§2) và ngôn ngữ (C-08: từ chối khi từ 60% câu đủ dài trở lên không phải tiếng Anh).
+  3. Nhãn trùng với một entry còn hiệu lực thì từ chối bằng `memory.label_taken`.
+- **Giới hạn tần suất**: mỗi phiên tối đa 60 lần ghi mỗi giờ (cấu hình được), vượt thì `memory.rate_limited`. Một workspace tối đa 2.000 entry còn hiệu lực.
+- Tool ghi của Fugue đi qua `Decide` với approval mode của phiên như mọi tool Fugue khác (VR-13). Ở mode mặc định Auto, ghi memory không hỏi user.
+- Mọi lần ghi phát event `MemoryEntryWritten` (thêm vào [danh mục event](/dev-kit/core-harness/event-catalog)) (id, revision, author, thao tác; **không có nội dung**) để app cập nhật danh sách và đếm số entry chưa verified.
+
+## 4. Tìm và đọc
+
+- **Hai index FTS5** trên `label`, `keywords`, `summary`, `body` của entry còn hiệu lực:
+  - theo từ: tokenizer `unicode61` với `remove_diacritics 2`, có prefix index, để "verif" khớp "verified" và "cau hinh" khớp "cấu hình";
+  - trigram: để tìm chuỗi con trong tên code và đường dẫn ("Weights" khớp `layerWeights`).
+- Truy vấn chạy trên cả hai index rồi gộp. Điểm BM25 có trọng số: `label` và `keywords` nặng nhất, rồi `summary`, rồi `body`. Sau đó đẩy entry verified và fresh lên.
+- Không có kết quả thì trả tối đa 5 entry gần nhất theo trigram, đánh dấu là kết quả gần đúng, kèm gợi ý thử từ khác.
+- Mỗi kết quả: `id`, `label`, `kind`, `summary`, đoạn trích chứa từ khớp, `verified`, `author`, độ tươi, `revision`. `get` trả đủ entry cộng anchor và trạng thái từng anchor.
+
+## 5. Tool MCP cho phiên vendor
+
+Phục vụ qua `fugue mcp-bridge` với token theo phiên (principal `session`, [host API §7](/dev-kit/core-harness/host-api#7-principal-và-tin-cậy)). Token chỉ mở memory của **workspace của phiên đó**; lead và worker đều đọc và ghi được, vai trò ghi vào `provenance`.
+
+| Tool | Input | Output |
+| --- | --- | --- |
+| `memory_overview` | (không có) | Pinned block đầy đủ và chỉ mục của collection, trong budget 10 KiB (C-05): entry verified trước, rồi entry mới cập nhật; phần còn lại báo "còn N entry, dùng `memory_search`" |
+| `memory_search` | `query`, `kind?`, `include_invalid?`, `limit?` (mặc định 10, tối đa 30) | Kết quả theo §4 |
+| `memory_get` | `id` hoặc `label` | Entry đầy đủ theo §4 |
+| `memory_write` | `op` (`add`, `update`, `invalidate`), field của entry, `revision` khi cần | `id`, `revision` mới, `verified` sau khi ghi |
+
+- **Đầu phiên**: phần `instructions` của MCP server chứa nội dung của `memory_overview`, cho vendor nào đưa instructions của server vào context. Mô tả của `memory_search` dặn agent gọi `memory_overview` trước nếu chưa thấy chỉ mục. Mỗi vendor được kiểm bằng spike (§11, câu hỏi Q-1).
+- Nội dung entry trả cho agent nằm trong envelope `source=memory` ([an toàn nội dung §4.4](/dev-kit/core-harness/content-safety#44-compaction-và-memory)) khi entry chưa verified. Entry verified vẫn là ghi chú, không phải authority, và không được dùng để vượt rule hay policy.
+- Mô tả tool nói rõ: entry `verified=false` hay `stale` phải được kiểm lại với code trước khi dựa vào; khi thấy entry sai thì `update` hoặc `invalidate` nó thay vì ghi entry mới mâu thuẫn.
+- Giữ cấu hình của vendor (VR-04): Fugue không ghi file vào repo hay home của user để đưa memory vào phiên.
+
+## 6. An toàn
+
+- **Memory poisoning**: agent đọc nội dung không tin cậy (file, output của tool, web) rồi ghi vào memory, và nội dung đó sống sang các phiên sau. Chặn bằng ba lớp: entry chưa verified luôn nằm trong envelope `source=memory` và được mô tả tool đánh dấu là ghi chú cần kiểm; app hiện rõ số entry chưa verified để user duyệt; memory không bao giờ là authority, không thay rule hay policy và không mở quyền nào.
+- **Lộ dữ liệu**: memory là plaintext, nên secret bị từ chối khi ghi, khi nhập và khi xuất (§3, §8, §9). Nội dung entry không vào log, lỗi, audit metadata hay event.
+- Agent và app đọc, ghi memory chỉ qua owner; không có đường ghi thứ hai (WM-01).
+
+## 7. Host API
+
+Module mới `fugue.memory.v1` (`proto/fugue/memory/v1`), chỉ cho principal `local`:
+
+| RPC | Ghi chú |
+| --- | --- |
+| `ListEntries`, `SearchEntries`, `GetEntry`, `GetEntryHistory` | Như §4, thêm lọc theo `verified`, `author`, `validity` |
+| `WriteEntry` | Như §3 với `author=user`, nên entry thành verified |
+| `VerifyEntry(id, revision)` | Chỉ đặt `verified=true`, có CAS |
+| `RestoreEntry(id, revision_to_restore, current_revision)` | Là một lần ghi của user |
+| `ExportMemory(workspace_id)` | Trả nội dung file Markdown (§8) |
+| `PreviewImport(workspace_id, content)` | Phân tích file, trả danh sách thay đổi (§9); không ghi gì |
+| `ApplyImport(workspace_id, preview_id, choices)` | Áp dụng đúng bản preview đã xem, với lựa chọn của user cho từng entry xung đột |
+
+`PreviewImport` và `ApplyImport` chỉ cho client kind `app`: nhập luôn cần user xem diff. CLI có `fugue memory export <workspace>` ghi file ra đường dẫn user chỉ định.
+
+Mã lỗi công khai mới: `memory.revision_conflict`, `memory.contains_secret`, `memory.label_taken`, `memory.too_large`, `memory.language`, `memory.rate_limited`, `memory.limit_reached`, `memory.import_invalid`, `memory.import_stale`.
+
+## 8. Định dạng file Markdown
+
+Một file UTF-8, đọc được bằng mắt và nhập lại không mất thông tin.
+
+- Đầu file: frontmatter YAML với `format: fugue-memory/1`, `workspace` (tên lúc xuất), `exported_at`.
+- Mỗi entry, kể cả entry đã vô hiệu, là một khối:
+  - dòng mở `<!-- fugue:entry -->` và dòng đóng `<!-- /fugue:entry -->`, để `body` chứa heading hay code block nào cũng không làm vỡ ranh giới;
+  - một heading `## <label>` cho người đọc;
+  - một code block `yaml` chứa `id`, `kind`, `label`, `summary`, `keywords`, `anchors` (root, path, hash), `author`, `verified`, `validity`, `superseded_by`, `updated_at`, `revision`;
+  - phần còn lại là `body` nguyên văn.
+- Lịch sử không được xuất; máy đích giữ lịch sử của riêng nó.
+- File xuất cũng đi qua bộ quét secret; nếu thấy secret thì từ chối xuất và chỉ ra entry nào (đề phòng entry cũ ghi trước khi có kiểm tra).
+
+## 9. Nhập và gộp
+
+`PreviewImport` đọc file, kiểm tra định dạng và từng entry theo §3 (secret, kích thước, ngôn ngữ), rồi so với memory của workspace đích theo `id`:
+
+| Trường hợp | Đề xuất trong diff |
+| --- | --- |
+| `id` chưa có | Thêm |
+| Có, nội dung (mọi field trừ `revision`, `updated_at`, `provenance`) giống hệt | Bỏ qua |
+| Có, khác nhau | **Xung đột**: hiện hai bản cạnh nhau; mặc định chọn bản có `updated_at` mới hơn, user đổi được cho từng entry, hoặc giữ cả hai (bản nhập thành entry mới với `id` mới và nhãn có hậu tố) |
+| Nhãn trùng với một entry còn hiệu lực khác `id` | Xung đột nhãn: user đổi tên một bên hoặc bỏ entry nhập |
+| Entry sai định dạng hay không qua kiểm tra §3 | Liệt kê là bị loại kèm lý do; phần còn lại vẫn nhập được |
+
+- Bản được chọn thành một **revision mới** ở máy đích; bản cũ vẫn trong lịch sử. `author` và `verified` lấy theo file: user xác nhận diff có hiện cờ verified thì coi như đã duyệt (WM-03). `provenance` ghi file nhập và thời điểm.
+- Anchor giữ đường dẫn tương đối; root được ghép theo **tên root** của workspace đích. Root không có ở máy đích thì anchor đó tính là `stale`. Hash không chép lại; độ tươi tính lại ở máy đích.
+- `ApplyImport` chạy trong một transaction. Memory của workspace đổi sau khi preview (có revision khác với lúc preview) thì từ chối bằng `memory.import_stale` để user xem lại.
+
+## 10. Giao diện trong app
+
+- Slot thường **Memory** của một workspace, mở từ menu "…" của workspace ở sidebar và từ command palette.
+- Danh sách có ô tìm (dùng cùng tìm kiếm §4), lọc theo loại, `verified`, `author`, độ tươi, `validity`. Entry chưa verified có tag "chưa xác nhận"; entry stale có tag "có thể đã cũ".
+- Chi tiết entry: xem, sửa, xác nhận, vô hiệu hoá, xem lịch sử và restore, xem anchor và trạng thái từng anchor.
+- Nút **Xuất** (chọn nơi lưu file) và **Nhập** (chọn file, rồi màn diff theo §9 với lựa chọn cho từng xung đột).
+- Mục workspace ở sidebar hiện số entry chưa verified khi lớn hơn 0.
+
+## 11. Câu hỏi mở cho người làm
+
+| ID | Câu hỏi | Cách trả lời |
+| --- | --- | --- |
+| Q-1 | Vendor nào đưa `instructions` của MCP server vào context (Claude Code, Codex, Antigravity)? | Spike với từng CLI ở version đang hỗ trợ. Vendor không đưa vào thì dựa vào mô tả tool dặn gọi `memory_overview`; ghi kết quả vào trang này |
+| Q-2 | Ngưỡng điểm và cách gộp điểm giữa hai index | Chọn trong lúc làm, chứng minh bằng bộ truy vấn mẫu của WM-E03 |
+
+## 12. Evidence
+
+| ID | Nội dung |
+| --- | --- |
+| **WM-E01** | Ghi và CAS: `add`, `update` và `invalidate` tạo lịch sử; revision cũ bị từ chối kèm bản hiện tại; không có đường xoá |
+| **WM-E02** | Cờ verified: user ghi, xác nhận hay restore thì `verified=true`; agent ghi thì `false`; agent sửa entry đã verified thì quay về `false` |
+| **WM-E03** | Tìm kiếm: bộ truy vấn mẫu (tiền tố, chuỗi con trong tên code và đường dẫn, không dấu, đồng nghĩa nhờ `keywords`) trả đúng entry trong top 3; không có kết quả thì trả kết quả gần đúng có đánh dấu |
+| **WM-E04** | Tool MCP: token của phiên chỉ thấy memory của workspace của phiên; mọi kết quả kèm `verified`, `author` và độ tươi; entry chưa verified nằm trong envelope `source=memory` |
+| **WM-E05** | An toàn khi ghi: secret bị từ chối và không xuất hiện trong lỗi, log hay event; giới hạn kích thước, ngôn ngữ, tần suất và số entry hoạt động đúng |
+| **WM-E06** | Xuất rồi nhập vào một workspace trống cho ra cùng tập entry (trừ lịch sử và `provenance`); gộp đúng bảng §9; `ApplyImport` từ chối khi memory đã đổi sau preview |
+| **WM-E07** | Độ tươi: sửa file có anchor thì entry thành `stale`; nhập sang máy có root khác tên thì anchor là `stale` |
+| **WM-E08** | Shot của slot Memory (danh sách, chi tiết, màn diff nhập) ở sáng và tối |
+
+## 13. Lộ trình
+
+Milestone "Workspace memory for vendor sessions" trong Stage B, sau UI polish và trước Workbench Modules. Chia issue:
+
+1. Owner `workspacememory`: schema, lịch sử, CAS, kiểm tra khi ghi, hai index FTS5 và tìm kiếm (WM-E01, WM-E02, WM-E03, WM-E05, WM-E07).
+2. Host API `fugue.memory.v1` và tool MCP trên `mcp-bridge`, gồm spike Q-1 (WM-E04).
+3. Xuất và nhập Markdown: định dạng, preview, gộp, apply (WM-E06).
+4. Slot Memory trong app, gồm màn diff nhập (WM-E08).
