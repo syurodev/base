@@ -5,7 +5,7 @@ description: H-13 — bộ nhớ bền của workspace cho cả phiên vendor CL
 
 # Workspace memory
 
-Trạng thái: **v0.1 (2026-11-28), đề xuất, chờ chủ dự án duyệt.** Trang này là owner page của `internal/workspacememory` (H-13 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map)). Nó thay [context engine](/dev-kit/core-harness/context-engine) §4 ở mọi chỗ hai trang khác nhau. Context engine vẫn là nơi định nghĩa cách tầng W vào prompt của harness native (L3) ở giai đoạn C.
+Trạng thái: **v0.1 (2026-11-28), chủ dự án duyệt (base-doc PR #58).** Trang này là owner page của `internal/workspacememory` (H-13 trong [bản đồ thiết kế](/dev-kit/core-harness/design-map)). Nó thay [context engine](/dev-kit/core-harness/context-engine) §4 ở mọi chỗ hai trang khác nhau. Context engine vẫn là nơi định nghĩa cách tầng W vào prompt của harness native (L3) ở giai đoạn C.
 
 Lý do (chủ dự án, 2026-11-28): memory phải giúp ngay các phiên vendor CLI (Claude Code, Codex, Antigravity) mà chủ dự án chạy hằng ngày, không chờ harness native. Agent phải tìm nhanh, ghi nhanh, và memory phải mang được sang máy khác bằng một file Markdown.
 

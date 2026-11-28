@@ -14,7 +14,7 @@ Trạng thái: foundation decision v0.12. **Thiết kế đã chốt** cho H-10,
 | C-01 | Context engine chỉ **lắp** context; rule là tầng chỉ dẫn có owner riêng |
 | C-02 | Hai tầng context: **context của session** và **context bền của workspace (W)**; compaction trích dẫn W bằng nhãn để agent không phải dựng lại hiểu biết |
 | C-03 | W giữ **plaintext** trong `workspacememory`, redact bắt buộc |
-| C-04 | ~~Agent chỉ **gợi ý** cho W; user duyệt mới ghi~~ Đề xuất thay bằng [workspace memory](/dev-kit/core-harness/workspace-memory) WM-02, WM-03 (2026-11-28): agent ghi thẳng, có cờ `verified` |
+| C-04 | ~~Agent chỉ **gợi ý** cho W; user duyệt mới ghi~~ Thay bằng [workspace memory](/dev-kit/core-harness/workspace-memory) WM-02, WM-03 (2026-11-28): agent ghi thẳng, có cờ `verified` |
 | C-05 | Budget W **10 KiB**, chia **50/50 không cứng** giữa pinned block và chỉ mục; con số sẽ tinh chỉnh |
 | C-06 | Anchor độ tươi dùng **hash nội dung file** |
 | C-07 | (Job nền và học rule chuyển sang giai đoạn C, [workspace memory](/dev-kit/core-harness/workspace-memory) WM-08) Gợi ý sinh **ở nền**; dạng thao tác **ADD / UPDATE / INVALIDATE / NOOP**; **vô hiệu hóa thay vì xóa**; rule học từ những lần user sửa agent |
@@ -93,7 +93,7 @@ Kiểu "agent tự quyết dựa trên description" để giai đoạn C.
 
 ## 4. Context bền của workspace (W)
 
-> **2026-11-28, đề xuất:** owner, cách ghi, tìm kiếm, tool MCP cho phiên vendor, xuất và nhập Markdown nay định nghĩa ở [workspace memory](/dev-kit/core-harness/workspace-memory) và đưa lên giai đoạn B. Chỗ nào trang đó khác mục này thì trang đó thắng. Mục này còn định nghĩa cách W vào L3 của harness native.
+> **2026-11-28, chủ dự án duyệt:** owner, cách ghi, tìm kiếm, tool MCP cho phiên vendor, xuất và nhập Markdown nay định nghĩa ở [workspace memory](/dev-kit/core-harness/workspace-memory) và đưa lên giai đoạn B. Chỗ nào trang đó khác mục này thì trang đó thắng. Mục này còn định nghĩa cách W vào L3 của harness native.
 
 Owner là `workspacememory` (đã có: `kind`, `title`, `summary`, `body`, `revision`, lịch sử và restore, CAS theo revision). Plaintext, ngoài vault và ngoài sync, cùng tầng với instruction file của workspace.
 
